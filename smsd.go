@@ -7,6 +7,7 @@ import (
     "os"
     "os/exec"
     "io/ioutil"
+    "time"
 )
 
 const listenAddr        = "localhost:4000"
@@ -14,19 +15,66 @@ const checksDirectory   = "/home/mbodjiki/checks"
 
 
 func main() {
-    l, err := net.Listen("tcp", listenAddr)
+
+    // Channels
+    chanChecks := make(chan string)
+    chanSocket := make(chan string)
+
+    // Launch goroutines
+    go threadChecks(chanChecks)
+    go threadSocket(chanSocket)
+
+    // Selection
+    for{
+        select {
+            case msg := <-chanChecks :
+                fmt.Printf("[MAIN  ] Received something from cheks channel : %s\n" , msg)
+
+            case msg := <-chanSocket :
+                fmt.Printf("[MAIN  ] Received something from socket channel : %s\n" , msg)
+                fmt.Printf("[MAIN  ] -> Sending json\n")
+                chanSocket <- "lol"
+        }
+    }
+}
+
+
+//
+//// Threads
+//
+
+func threadChecks( ci chan string ) {
+    for {
+        ci <- "thread-checks-keepalive"
+        time.Sleep( time.Minute )
+    }
+}
+func threadSocket( ci chan string ) {
+
+    // Listen
+    listener, err := net.Listen("tcp", listenAddr)
     if err != nil {
         log.Fatal(err)
+        os.Exit(1)
     }
+
+    // Serve
     for {
-        c, err := l.Accept()
+        c, err := listener.Accept()
         if err != nil {
             log.Fatal(err)
         }
 
+        ci <- "thread-socket-newConnection"
+        msg := <-ci
+
+        fmt.Printf("[SOCKET] Received msg from main thread : %s \n",msg)
+
         go handleRequest(c)
     }
 }
+
+
 
 
 func handleRequest( c net.Conn ) error {
