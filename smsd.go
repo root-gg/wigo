@@ -11,22 +11,27 @@ import (
 )
 
 const listenAddr        = "localhost:4000"
-const checksDirectory   = "/home/mbodjiki/checks"
+const checksDirectory   = "checks"
 
 
 func main() {
 
     // Channels
+    chanWatch := make(chan []string)
     chanChecks := make(chan string)
     chanSocket := make(chan string)
 
     // Launch goroutines
+    go threadWatch(chanWatch)
     go threadChecks(chanChecks)
     go threadSocket(chanSocket)
 
     // Selection
     for{
         select {
+            case msg := <-chanWatch :
+                fmt.Printf("[MAIN  ] Changes detected on checks directory %s\n", msg )
+
             case msg := <-chanChecks :
                 fmt.Printf("[MAIN  ] Received something from cheks channel : %s\n" , msg)
 
@@ -43,6 +48,54 @@ func main() {
 //// Threads
 //
 
+func threadWatch( ci chan []string ) {
+
+    // Vars
+    checkDirectories := make( []string, 0 )
+
+    for {
+
+        isChanged := false
+
+        // Update directories
+        checkDirectoriesReloaded, err := listChecksDirectories()
+        if err != nil {
+            log.Fatal(err)
+            os.Exit(1)
+        }
+
+        // Delete old ones
+        deletedDirectories := make( []string, 0 )
+        for _,dir := range checkDirectories {
+            if( ! stringInSlice(dir,checkDirectoriesReloaded) ){
+                isChanged = true
+                fmt.Printf("[WATCH ] Deleting directory %s\n" , dir )
+                deletedDirectories = append(deletedDirectories, dir)
+            }
+        }
+
+        // Check for new ones
+        newCheckDirectories := make( []string, 0 )
+        for _,dir := range checkDirectoriesReloaded {
+            newCheckDirectories = append(newCheckDirectories, dir)
+
+            if( ! stringInSlice(dir,checkDirectories) ){
+                isChanged = true
+                fmt.Printf("[WATCH ] Adding directory %s\n" , dir )
+            }
+        }
+
+        // Set new list
+        checkDirectories = newCheckDirectories
+
+        // If changed, tell main
+        if(isChanged){
+            ci <- checkDirectories
+        }
+
+        time.Sleep( time.Second )
+    }
+}
 func threadChecks( ci chan string ) {
     for {
         ci <- "thread-checks-keepalive"
@@ -126,4 +179,16 @@ func listChecksDirectories() ([]string,error) {
     }
 
     return subdirectories, nil
+}
+
+
+
+// Misc
+func stringInSlice(a string, list []string) bool {
+    for _, b := range list {
+        if b == a {
+            return true
+        }
+    }
+    return false
 }
