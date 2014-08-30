@@ -8,8 +8,14 @@ import (
     "os/exec"
     "io/ioutil"
     "time"
+    "syscall"
+    "container/list"
+    "encoding/json"
+
+    "code.google.com/p/go.exp/inotify"
 )
 
+const dateLayout        = "Jan 2, 2006 at 3:04pm (MST)"
 const listenAddr        = "localhost:4000"
 const checksDirectory   = "checks"
 
@@ -17,28 +23,66 @@ const checksDirectory   = "checks"
 func main() {
 
     // Channels
-    chanWatch := make(chan []string)
-    chanChecks := make(chan string)
-    chanSocket := make(chan string)
+    chanWatch := make(chan Event)
+    chanChecks := make(chan Event)
+    chanSocket := make(chan Event)
+    chanResults := make(chan Event)
 
     // Launch goroutines
     go threadWatch(chanWatch)
-    go threadChecks(chanChecks)
+    go threadLocalChecks(chanChecks,chanResults)
     go threadSocket(chanSocket)
+
+
+    // Get hostname
+    localHostname, err := os.Hostname()
+    if( err != nil ){
+        log.Fatal("Can't get hostname from local machine : " , err )
+        os.Exit(1)
+    }
+
+
+    // Log
+    log.SetPrefix(localHostname + " ")
+
+
+    // Result object
+    globalResultsObject := make( map[string] *Host )
+    globalResultsObject[ localHostname ] = NewHost( localHostname )
+
 
     // Selection
     for{
         select {
-            case msg := <-chanWatch :
-                fmt.Printf("[MAIN  ] Changes detected on checks directory %s\n", msg )
+            case e := <-chanWatch :
+                chanChecks <- e
 
-            case msg := <-chanChecks :
-                fmt.Printf("[MAIN  ] Received something from cheks channel : %s\n" , msg)
+            case e := <-chanResults :
+                if _, ok := e.Value.(*ProbeResult); ok {
 
-            case msg := <-chanSocket :
-                fmt.Printf("[MAIN  ] Received something from socket channel : %s\n" , msg)
-                fmt.Printf("[MAIN  ] -> Sending json\n")
-                chanSocket <- "lol"
+                    probeResult := e.Value.(*ProbeResult)
+                    globalResultsObject[ localHostname ].Probes[ probeResult.Name ] = probeResult
+                    globalResultsObject[ localHostname ].GlobalStatus               = getGlobalStatus( globalResultsObject )
+                }
+
+            case e := <-chanSocket :
+                switch e.Type {
+                    case NEWCONNECTION :
+                        log.Printf("Got a new connection : %s\n" , e.Value)
+
+                        // Send json to socket channel
+                        j, err := json.MarshalIndent(globalResultsObject,"","    ")
+                        if( err != nil ){
+                            log.Println("Fail to encode to json : " , err )
+                            break
+                        }
+
+                        chanSocket <- Event{ SENDRESULTS , j }
+                }
+
+            case <-time.After( time.Second * 10 ) :
+                log.Println("I'm main thread, and I'm still alive")
+                Dump(globalResultsObject)
         }
     }
 }
@@ -48,61 +92,121 @@ func main() {
 //// Threads
 //
 
-func threadWatch( ci chan []string ) {
-
+func threadWatch( ci chan Event ) {
     // Vars
     checkDirectories := make( []string, 0 )
 
+    // First list
+    checkDirectories, err := listChecksDirectories()
+
+    // Send
+    for _, dir := range checkDirectories {
+        ci <- Event{ ADDDIRECTORY, checksDirectory + "/" + dir }
+    }
+
+    // Init inotify
+    watcher, err := inotify.NewWatcher()
+    if err != nil {
+        log.Fatal(err)
+        os.Exit(1)
+    }
+
+    // Create a watcher on checks directory
+    err = watcher.Watch(checksDirectory)
+    if err != nil {
+        log.Fatal(err)
+        os.Exit(1)
+    }
+
+    // Watch for changes forever
+    for {
+        select {
+            case ev := <-watcher.Event:
+                switch ev.Mask {
+                    case syscall.IN_CREATE|syscall.IN_ISDIR :
+                        ci <- Event{ADDDIRECTORY, ev.Name}
+                    case syscall.IN_DELETE|syscall.IN_ISDIR :
+                        ci <- Event{REMOVEDIRECTORY, ev.Name}
+                }
+            case err := <-watcher.Error:
+                log.Println("error:", err)
+        }
+    }
+}
+
+func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
+
+    // Directory list
+    var checksDirectories list.List
+
+
+    // Listen events
+    go func(){
+        for {
+            ev := <-ci
+
+            switch ev.Type {
+                case ADDDIRECTORY :
+                    log.Println("Adding " , ev.Value)
+                    checksDirectories.PushBack(ev.Value)
+
+                case REMOVEDIRECTORY :
+                    for el := checksDirectories.Front(); el != nil ; el = el.Next(){
+                        if(el.Value == ev.Value){
+                            log.Println("Removing " , ev.Value)
+                            checksDirectories.Remove(el)
+                            break
+                        }
+                    }
+            }
+        }
+    }()
+
+    // Launch tests
     for {
 
-        isChanged := false
+        for el := checksDirectories.Front(); el != nil ; el = el.Next(){
+            currentDirectory := el.Value.(string)
 
-        // Update directories
-        checkDirectoriesReloaded, err := listChecksDirectories()
-        if err != nil {
-            log.Fatal(err)
-            os.Exit(1)
-        }
+            log.Println("Launching go routine check directory " , currentDirectory )
 
-        // Delete old ones
-        deletedDirectories := make( []string, 0 )
-        for _,dir := range checkDirectories {
-            if( ! stringInSlice(dir,checkDirectoriesReloaded) ){
-                isChanged = true
-                fmt.Printf("[WATCH ] Deleting directory %s\n" , dir )
-                deletedDirectories = append(deletedDirectories, dir)
+            // List probes in directory
+            probesList,err := listProbesInDirectory( currentDirectory )
+            if err != nil {
+                break
+            }
+
+            // Iterate over directory
+            for _,probe := range probesList {
+                currentProbe := currentDirectory + "/" + probe
+                log.Println(" - Executing probe " , currentProbe )
+
+                // Exec probe
+                out,err := exec.Command( currentProbe ).Output()
+                if err != nil {
+                    log.Println(" --> Error executing probe " + currentProbe + " : " , err )
+                }
+
+                probeResult := NewProbeResultFromJson( out )
+
+                // Tests
+                if(probeResult.Name == ""){
+                    log.Println("   - Probe has no name, doing nothing")
+                    continue
+                }
+
+                // Send result back to main thread
+                log.Println("   - Got status " , probeResult.Status , ":" , probeResult.Value )
+                probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+
             }
         }
 
-        // Check for new ones
-        newCheckDirectories := make( []string, 0 )
-        for _,dir := range checkDirectoriesReloaded {
-            newCheckDirectories = append(newCheckDirectories, dir)
-
-            if( ! stringInSlice(dir,checkDirectories) ){
-                isChanged = true
-                fmt.Printf("[WATCH ] Adding directory %s\n" , dir )
-            }
-        }
-
-        // Set new list
-        checkDirectories = newCheckDirectories
-
-        // If changed, tell main
-        if(isChanged){
-            ci <- checkDirectories
-        }
-
-        time.Sleep( time.Second )
+        time.Sleep( time.Second * 5 )
     }
 }
-func threadChecks( ci chan string ) {
-    for {
-        ci <- "thread-checks-keepalive"
-        time.Sleep( time.Minute )
-    }
-}
-func threadSocket( ci chan string ) {
+
+func threadSocket( ci chan Event ) {
 
     // Listen
     listener, err := net.Listen("tcp", listenAddr)
@@ -118,46 +222,27 @@ func threadSocket( ci chan string ) {
             log.Fatal(err)
         }
 
-        ci <- "thread-socket-newConnection"
-        msg := <-ci
-
-        fmt.Printf("[SOCKET] Received msg from main thread : %s \n",msg)
-
-        go handleRequest(c)
+        go handleRequest(c,ci)
     }
 }
 
 
 
 
-func handleRequest( c net.Conn ) error {
-    checkOutput, err := runCheck("/home/mbodjiki/hardware_load_avg")
+func handleRequest( c net.Conn, ci chan Event ) error {
 
-    myHostname, err := os.Hostname()
+    // Request json
+    ci <- Event{ NEWCONNECTION , "thread-socket-newConnection" }
 
-    if err != nil {
-        fmt.Fprintf(c,"Error : %s",err  )
-    } else {
-        fmt.Fprintln(c,myHostname)
-        fmt.Fprintln(c,checkOutput)
-
-        checkDirectories, err := listChecksDirectories()
-        if err != nil {
-        }
-
-        for _ , directory := range checkDirectories {
-            fmt.Fprintln(c, "Got a directory " + directory )
-        }
-
+    // Wait
+    ev := <-ci
+    if(ev.Type == SENDRESULTS){
+    fmt.Fprintln(c , string(ev.Value.([]byte)))
     }
+
     return c.Close()
 }
 
-
-func runCheck( path string ) (string,error) {
-    out, err := exec.Command( path ).Output()
-    return string(out),err
-}
 
 func listChecksDirectories() ([]string,error) {
 
@@ -181,6 +266,45 @@ func listChecksDirectories() ([]string,error) {
     return subdirectories, nil
 }
 
+func listProbesInDirectory( directory string) ([]string,error) {
+
+    // List checks directory
+    files, err := ioutil.ReadDir( directory )
+    if err != nil {
+        return nil, err
+    }
+
+    // Init array
+    probesList := make([]string, 0)
+
+
+    // Return only executables files
+    for _, f := range files {
+        if( ! f.IsDir() ){
+            probesList = append( probesList, f.Name())
+        }
+    }
+
+    return probesList, nil
+}
+
+
+func getGlobalStatus( globalResultsObject map[string] *Host ) int {
+
+    globalStatus := 100
+
+    for hostname := range globalResultsObject {
+        host    := globalResultsObject[ hostname ]
+
+        for _, probe := range host.Probes {
+            if(probe.Status > globalStatus){
+                globalStatus = probe.Status
+            }
+        }
+    }
+
+    return globalStatus
+}
 
 
 // Misc
@@ -191,4 +315,79 @@ func stringInSlice(a string, list []string) bool {
         }
     }
     return false
+}
+func Dump( data interface{}){
+    json,_ := json.MarshalIndent(data,"","")
+    fmt.Printf("%s\n",string(json))
+}
+
+
+//
+//// STRUCTURES
+//
+
+// Events
+
+const (
+    ADDDIRECTORY    = 1
+    REMOVEDIRECTORY = 2
+
+    NEWCONNECTION   = 5
+    NEWPROBERESULT  = 6
+
+    SENDRESULTS     = 10
+)
+
+type Event struct {
+    Type int
+    Value interface{}
+}
+
+
+// Probe  Results
+
+type ProbeResult struct {
+
+    Name        string
+    Version     string
+    Value       interface{}
+    Message     string
+    Detail      string
+
+    ProbeDate   string
+    Status      int
+}
+
+func NewProbeResultFromJson( ba []byte ) ( this *ProbeResult ){
+    this = new( ProbeResult )
+
+    // Fill from json
+    json.Unmarshal( ba, this )
+
+    // Add date
+    this.ProbeDate = time.Now().Format(dateLayout)
+
+
+    return
+}
+
+
+// Host
+
+type Host struct {
+    Name                string
+
+    GlobalStatus        int
+    Probes              map[string] *ProbeResult
+}
+
+func NewHost( hostname string ) ( this *Host ){
+
+    this                = new( Host )
+
+    this.GlobalStatus   = 0
+    this.Name           = hostname
+    this.Probes         = make(map[string] *ProbeResult)
+
+    return
 }
