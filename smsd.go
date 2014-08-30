@@ -175,7 +175,7 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
 
             // Iterate over directory
             for _,probe := range probesList {
-                execProbe( currentDirectory + "/" + probe , probeResultsChannel, 5)
+                go execProbe( currentDirectory + "/" + probe , probeResultsChannel, 5)
             }
         }
 
@@ -340,7 +340,10 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
             }
 
         case <-time.After( time.Second * time.Duration(timeOut) ) :
-            log.Println("Timeout")
+            probeResult = NewProbeResult( probeName, 500, -1, "Probe timeout", "")
+            probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+            log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory, probeResult.Status)
+            return
     }
 
 }
