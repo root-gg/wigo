@@ -203,7 +203,7 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
                             }
 
                             // Sleep right amount of time
-                            log.Printf(" - Launched checks from directory %s. Sleeping %d seconds...\n", directory, sleepTImeInt)
+                            log.Printf("Launched checks from directory %s. Sleeping %d seconds...\n", directory, sleepTImeInt)
                             time.Sleep( time.Second * time.Duration(sleepTImeInt) )
 
                         }
