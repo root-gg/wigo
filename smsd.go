@@ -6,6 +6,7 @@ import (
     "net"
     "os"
     "os/exec"
+    "io"
     "io/ioutil"
     "time"
     "path"
@@ -286,15 +287,25 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
 
     outputPipe, err := cmd.StdoutPipe()
     if err != nil {
-        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s",err))
+        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s",err), "")
         probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
         return
     }
 
+    errPipe, err := cmd.StderrPipe()
+    if err != nil {
+        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stderr pipe: %s",err), "")
+        probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+        return
+    }
+
+    combinedOutput := io.MultiReader( outputPipe, errPipe )
+
+
     // Start
     err = cmd.Start()
     if err != nil {
-        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error starting command: %s",err))
+        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error starting command: %s",err), "")
         probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
         return
     }
@@ -302,9 +313,9 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
     // Wait channel
     done := make(chan error)
     go func(){
-        commandOutput,err = ioutil.ReadAll(outputPipe)
+        commandOutput,err = ioutil.ReadAll(combinedOutput)
         if(err != nil){
-            probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error reading pipe: %s",err))
+            probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error reading pipe: %s",err), "")
             probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
             return
         }
@@ -317,6 +328,9 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
     select {
         case err := <-done :
             if(err != nil){
+                probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error: %s",err), string(commandOutput) )
+                probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+                return
 
             } else {
                 probeResult = NewProbeResultFromJson( probeName, commandOutput )
@@ -404,13 +418,14 @@ func NewProbeResultFromJson( name string, ba []byte ) ( this *ProbeResult ){
 
     return
 }
-func NewProbeResult( name string, status int, exitCode int, message string ) ( this *ProbeResult ){
+func NewProbeResult( name string, status int, exitCode int, message string, detail string ) ( this *ProbeResult ){
     this = new( ProbeResult )
 
     this.Name       = name
     this.Status     = status
     this.ExitCode   = exitCode
     this.Message    = message
+    this.Detail     = detail
     this.ProbeDate  = time.Now().Format(dateLayout)
 
     return
