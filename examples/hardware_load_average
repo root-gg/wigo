@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+
+# Init Json
+use JSON::XS;
+my $coder = JSON::XS->new->pretty;
+
+
+# Warn levels
+my $warnLevel   = 0.10;
+my $critLevel   = 0.50;
+
+my $return = {
+    Name       => "hardwareLoadAverage",
+    Version    => "0.10",
+    
+    Status     => 398,
+    Message    => "No results",
+
+    Value      => "",
+    Detail     => "",
+};
+
+
+# Exec
+my $fnret = `cat /proc/loadavg`;
+chomp($fnret);
+
+if($? != 0)
+{
+    $return->{'Status'}     = 500;
+    $return->{'Message'}    = $fnret . " - " . $!;
+}
+else
+{
+    $return->{'Detail'}     = $fnret;
+
+    if($fnret =~ /^([\d\.]+)\s([\d\.]+)\s([\d\.]+)/)
+    {
+        my $rawValue5 = $1;
+        my $rawValue10 = $2;
+        my $rawValue15 = $3;
+
+        $return->{'Status'}     = 100;
+        $return->{'Message'}    = "";
+        $return->{'Value'}      = $rawValue5;
+
+        $return->{'Metrics'}->{'load5'}     = $rawValue5        + 0;
+        $return->{'Metrics'}->{'load10'}    = $rawValue10       + 0;
+        $return->{'Metrics'}->{'load15'}    = $rawValue15       + 0;
+
+        if($rawValue5 > $warnLevel)
+        {
+            $return->{'Status'} = 250;
+        }
+        if($rawValue5 > $critLevel)
+        {
+            $return->{'Status'} = 350;
+        }
+    }
+}
+
+print $coder->encode( $return );
+
