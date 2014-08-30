@@ -11,6 +11,7 @@ import (
     "time"
     "path"
     "syscall"
+    "strconv"
     "container/list"
     "encoding/json"
 
@@ -144,8 +145,51 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
 
             switch ev.Type {
                 case ADDDIRECTORY :
-                    log.Println("Adding " , ev.Value)
-                    checksDirectories.PushBack(ev.Value)
+
+                    var directory string = ev.Value.(string)
+
+                    log.Println("Adding directory" , directory)
+                    checksDirectories.PushBack(directory)
+
+                    go func(){
+                        for{
+                            // Am I still a valid directory ?
+                            stillValid := false
+                            for e := checksDirectories.Front(); e != nil; e = e.Next() {
+                                if(e.Value == directory){
+                                    stillValid = true
+                                }
+                            }
+                            if(!stillValid){
+                                return
+                            }
+
+
+                            // Guess sleep time from dir
+                            sleepTime           := path.Base( directory )
+                            sleepTImeInt, err   := strconv.Atoi( sleepTime )
+                            if(err != nil){
+                                log.Printf(" - Weird folder name %s. Doing nothing...\n", directory)
+                                return
+                            }
+
+                            // List probes in directory
+                            probesList,err := listProbesInDirectory( directory )
+                            if err != nil {
+                                break
+                            }
+
+                            // Iterate over directory
+                            for _,probe := range probesList {
+                                go execProbe( directory + "/" + probe , probeResultsChannel, 5)
+                            }
+
+                            // Sleep right amount of time
+                            log.Printf(" - Launched checks from directory %s. Sleeping %d seconds...\n", directory, sleepTImeInt)
+                            time.Sleep( time.Second * time.Duration(sleepTImeInt) )
+
+                        }
+                    }()
 
                 case REMOVEDIRECTORY :
                     for el := checksDirectories.Front(); el != nil ; el = el.Next(){
@@ -158,33 +202,6 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
             }
         }
     }()
-
-    // Launch tests
-    for {
-
-        for el := checksDirectories.Front(); el != nil ; el = el.Next(){
-            currentDirectory := el.Value.(string)
-
-            log.Println("Launching go routine check directory " , currentDirectory )
-
-            // List probes in directory
-            probesList,err := listProbesInDirectory( currentDirectory )
-            if err != nil {
-                break
-            }
-
-            // Iterate over directory
-            for _,probe := range probesList {
-                go execProbe( currentDirectory + "/" + probe , probeResultsChannel, 5)
-            }
-        }
-
-        if(checksDirectories.Len() > 0){
-            time.Sleep( time.Second * 10 )
-        } else {
-            time.Sleep( time.Second )
-        }
-    }
 }
 
 func threadSocket( ci chan Event ) {
@@ -342,7 +359,18 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
         case <-time.After( time.Second * time.Duration(timeOut) ) :
             probeResult = NewProbeResult( probeName, 500, -1, "Probe timeout", "")
             probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
-            log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory, probeResult.Status)
+            log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory )
+
+            // Killing it..
+            log.Printf(" - Killing it...")
+            err := cmd.Process.Kill()
+            if(err != nil){
+                log.Printf(" - Failed to kill probe %s : %s\n", probeName, err)
+                // TODO handle error
+            } else {
+                log.Printf(" - Probe %s successfully killed\n", probeName)
+            }
+
             return
     }
 
