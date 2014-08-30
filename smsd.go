@@ -79,10 +79,6 @@ func main() {
 
                         chanSocket <- Event{ SENDRESULTS , j }
                 }
-
-            case <-time.After( time.Second * 10 ) :
-                log.Println("I'm main thread, and I'm still alive")
-                Dump(globalResultsObject)
         }
     }
 }
@@ -200,7 +196,11 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
             }
         }
 
-        time.Sleep( time.Second * 60 )
+        if(checksDirectories.Len() > 0){
+            time.Sleep( time.Second * 60 )
+        } else {
+            time.Sleep( time.Second )
+        }
     }
 }
 
@@ -230,12 +230,14 @@ func threadSocket( ci chan Event ) {
 func handleRequest( c net.Conn, ci chan Event ) error {
 
     // Request json
-    ci <- Event{ NEWCONNECTION , "thread-socket-newConnection" }
+    ci <- Event{ NEWCONNECTION , c.RemoteAddr() }
 
     // Wait
     ev := <-ci
     if(ev.Type == SENDRESULTS){
-    fmt.Fprintln(c , string(ev.Value.([]byte)))
+
+        // Send results
+        fmt.Fprintln(c , string(ev.Value.([]byte)))
     }
 
     return c.Close()
