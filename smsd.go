@@ -433,6 +433,7 @@ type ProbeResult struct {
     Message     string
     Detail      string
     ProbeDate   string
+    Metrics     map[string]float64
 
     Status      int
     ExitCode    int
