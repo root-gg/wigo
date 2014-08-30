@@ -19,8 +19,9 @@ import (
 )
 
 const dateLayout        = "Jan 2, 2006 at 3:04pm (MST)"
-const listenAddr        = "localhost:4000"
-const checksDirectory   = "checks"
+const listenProto       = "tcp4"
+const listenAddr        = ":4000"
+const checksDirectory   = "/usr/local/wigo/probes"
 
 
 func main() {
@@ -207,7 +208,7 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
 func threadSocket( ci chan Event ) {
 
     // Listen
-    listener, err := net.Listen("tcp", listenAddr)
+    listener, err := net.Listen(listenProto, listenAddr)
     if err != nil {
         log.Fatal(err)
         os.Exit(1)
