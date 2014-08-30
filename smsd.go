@@ -8,6 +8,7 @@ import (
     "os/exec"
     "io/ioutil"
     "time"
+    "path"
     "syscall"
     "container/list"
     "encoding/json"
@@ -59,7 +60,6 @@ func main() {
 
             case e := <-chanResults :
                 if _, ok := e.Value.(*ProbeResult); ok {
-
                     probeResult := e.Value.(*ProbeResult)
                     globalResultsObject[ localHostname ].Probes[ probeResult.Name ] = probeResult
                     globalResultsObject[ localHostname ].GlobalStatus               = getGlobalStatus( globalResultsObject )
@@ -125,7 +125,7 @@ func threadWatch( ci chan Event ) {
                         ci <- Event{REMOVEDIRECTORY, ev.Name}
                 }
             case err := <-watcher.Error:
-                log.Println("error:", err)
+                log.Println("directoryWatcher:", err)
         }
     }
 }
@@ -174,30 +174,12 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
 
             // Iterate over directory
             for _,probe := range probesList {
-                currentProbe := currentDirectory + "/" + probe
-
-                // Exec probe
-                out,err := exec.Command( currentProbe ).Output()
-                if err != nil {
-                    log.Println("   - Error executing probe " + currentProbe + " : " , err )
-                }
-
-                probeResult := NewProbeResultFromJson( out )
-
-                // Tests
-                if(probeResult.Name == ""){
-                    continue
-                }
-
-                // Send result back to main thread
-                log.Printf("   - Executed %s (%d : %s)\n", probeResult.Name, probeResult.Status, probeResult.Value )
-                probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
-
+                execProbe( currentDirectory + "/" + probe , probeResultsChannel, 5)
             }
         }
 
         if(checksDirectories.Len() > 0){
-            time.Sleep( time.Second * 60 )
+            time.Sleep( time.Second * 10 )
         } else {
             time.Sleep( time.Second )
         }
@@ -288,6 +270,66 @@ func listProbesInDirectory( directory string) ([]string,error) {
     return probesList, nil
 }
 
+func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
+
+    // Get probe name
+    probeDirectory , probeName := path.Split( probePath )
+
+    // Create ProbeResult
+    var probeResult *ProbeResult
+
+    // Create Command
+    cmd := exec.Command( probePath )
+
+    // Capture stdOut
+    commandOutput := make([]byte,0)
+
+    outputPipe, err := cmd.StdoutPipe()
+    if err != nil {
+        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s",err))
+        probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+        return
+    }
+
+    // Start
+    err = cmd.Start()
+    if err != nil {
+        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error starting command: %s",err))
+        probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+        return
+    }
+
+    // Wait channel
+    done := make(chan error)
+    go func(){
+        commandOutput,err = ioutil.ReadAll(outputPipe)
+        if(err != nil){
+            probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error reading pipe: %s",err))
+            probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+            return
+        }
+
+        done <-cmd.Wait()
+    }()
+
+
+    // Timeout or result ?
+    select {
+        case err := <-done :
+            if(err != nil){
+
+            } else {
+                probeResult = NewProbeResultFromJson( probeName, commandOutput )
+                probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
+                log.Printf(" - Probe %s in directory %s responded with status : %d\n", probeResult.Name, probeDirectory, probeResult.Status)
+                return
+            }
+
+        case <-time.After( time.Second * time.Duration(timeOut) ) :
+            log.Println("Timeout")
+    }
+
+}
 
 func getGlobalStatus( globalResultsObject map[string] *Host ) int {
 
@@ -308,16 +350,8 @@ func getGlobalStatus( globalResultsObject map[string] *Host ) int {
 
 
 // Misc
-func stringInSlice(a string, list []string) bool {
-    for _, b := range list {
-        if b == a {
-            return true
-        }
-    }
-    return false
-}
 func Dump( data interface{}){
-    json,_ := json.MarshalIndent(data,"","")
+    json,_ := json.MarshalIndent(data,"","   ")
     fmt.Printf("%s\n",string(json))
 }
 
@@ -353,20 +387,31 @@ type ProbeResult struct {
     Value       interface{}
     Message     string
     Detail      string
-
     ProbeDate   string
+
     Status      int
+    ExitCode    int
 }
 
-func NewProbeResultFromJson( ba []byte ) ( this *ProbeResult ){
+func NewProbeResultFromJson( name string, ba []byte ) ( this *ProbeResult ){
     this = new( ProbeResult )
 
-    // Fill from json
     json.Unmarshal( ba, this )
 
-    // Add date
+    this.Name      = name
     this.ProbeDate = time.Now().Format(dateLayout)
+    this.ExitCode  = 0
 
+    return
+}
+func NewProbeResult( name string, status int, exitCode int, message string ) ( this *ProbeResult ){
+    this = new( ProbeResult )
+
+    this.Name       = name
+    this.Status     = status
+    this.ExitCode   = exitCode
+    this.Message    = message
+    this.ProbeDate  = time.Now().Format(dateLayout)
 
     return
 }
