@@ -179,30 +179,28 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
             // Iterate over directory
             for _,probe := range probesList {
                 currentProbe := currentDirectory + "/" + probe
-                log.Println(" - Executing probe " , currentProbe )
 
                 // Exec probe
                 out,err := exec.Command( currentProbe ).Output()
                 if err != nil {
-                    log.Println(" --> Error executing probe " + currentProbe + " : " , err )
+                    log.Println("   - Error executing probe " + currentProbe + " : " , err )
                 }
 
                 probeResult := NewProbeResultFromJson( out )
 
                 // Tests
                 if(probeResult.Name == ""){
-                    log.Println("   - Probe has no name, doing nothing")
                     continue
                 }
 
                 // Send result back to main thread
-                log.Println("   - Got status " , probeResult.Status , ":" , probeResult.Value )
+                log.Printf("   - Executed %s (%d : %s)\n", probeResult.Name, probeResult.Status, probeResult.Value )
                 probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
 
             }
         }
 
-        time.Sleep( time.Second * 5 )
+        time.Sleep( time.Second * 60 )
     }
 }
 
