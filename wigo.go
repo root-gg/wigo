@@ -6,6 +6,7 @@ import (
     "net"
     "os"
     "os/exec"
+    "os/signal"
     "io"
     "io/ioutil"
     "time"
@@ -31,6 +32,7 @@ func main() {
     chanChecks := make(chan Event)
     chanSocket := make(chan Event)
     chanResults := make(chan Event)
+    chanSignals := make(chan os.Signal)
 
     // Launch goroutines
     go threadWatch(chanWatch)
@@ -48,6 +50,10 @@ func main() {
 
     // Log
     log.SetPrefix(localHostname + " ")
+
+
+    // Signals
+    signal.Notify( chanSignals, syscall.SIGINT, syscall.SIGTERM )
 
 
     // Result object
@@ -82,6 +88,9 @@ func main() {
 
                         chanSocket <- Event{ SENDRESULTS , j }
                 }
+
+            case <-chanSignals :
+                os.Exit(0)
         }
     }
 }
