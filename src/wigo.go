@@ -16,14 +16,17 @@ import (
 	"container/list"
 	"encoding/json"
 
+	// Custom libs
 	"code.google.com/p/go.exp/inotify"
 	"wigo"
 )
 
-const listenProto = "tcp4"
-const listenAddr = ":4000"
-const checksDirectory = "/usr/local/wigo/probes"
-const logFile = "/var/log/wigo.log"
+const listenProto 		= "tcp4"
+const listenPort		= 4000
+const listenAddr 		= ":"
+const checksDirectory 	= "/usr/local/wigo/probes"
+const logFile 			= "/var/log/wigo.log"
+const configFile 		= "/etc/wigo.conf"
 
 func main() {
 
@@ -34,10 +37,14 @@ func main() {
 	chanResults := make(chan Event)
 	chanSignals := make(chan os.Signal)
 
+	// Config
+	config := wigo.NewConfig(configFile)
+
 	// Launch goroutines
 	go threadWatch(chanWatch)
 	go threadLocalChecks(chanChecks, chanResults)
-	go threadSocket(chanSocket)
+	go threadRemoteChecks(config.HostsToCheck, chanResults)
+	go threadSocket(config.ListenAddress,config.ListenPort,chanSocket)
 
 	// Create LocalHost
 	localHost := wigo.NewLocalHost()
@@ -281,10 +288,22 @@ func threadLocalChecks(ci chan Event , probeResultsChannel chan Event) {
 	}()
 }
 
-func threadSocket(ci chan Event) {
+func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan Event){
+	log.Println("Listing hostsToCheck : ")
+
+	for {
+		for _, host := range hostsToCheck {
+			log.Printf(" -> Adding %s to the remote check list\n", host)
+		}
+
+		return
+	}
+}
+
+func threadSocket(listenAddress string, listenPort int, ci chan Event) {
 
 	// Listen
-	listener, err := net.Listen(listenProto, listenAddr)
+	listener, err := net.Listen(listenProto, listenAddress + ":" + strconv.Itoa(listenPort))
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
