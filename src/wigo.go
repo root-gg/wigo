@@ -492,22 +492,18 @@ func launchRemoteHostCheckRoutine( host string, probeResultsChannel chan Event )
 	for {
 		connectionOk := false
 
-		// Connect to host
-		log.Printf("Connecting to %s : \n", host)
-
 		conn, err := net.Dial("tcp", host )
 		if err != nil {
 			log.Printf("Error connecting to host %s : %s", host, err)
 			connectionOk = false
 		} else {
+			log.Printf("Fetching remote wigo from %s\n",host)
 			connectionOk = true
 		}
 
 		if(connectionOk) {
-			log.Printf("Connected to %s\n",host)
 
 			completeOutput := new(bytes.Buffer)
-
 
 			for {
 				reply := make([]byte, 512)
