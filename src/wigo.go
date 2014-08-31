@@ -519,11 +519,15 @@ func launchRemoteHostCheckRoutine( host string, probeResultsChannel chan Event )
 				completeOutput.Write(reply[:read_len])
 			}
 
+			// Instanciate object from remote return
 			wikoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
 			if(err != nil){
 				log.Printf("Failed to parse return from host %s : %s", host, err)
+				continue
 			}
 
+
+			// Send it to main
 			probeResultsChannel <- Event{ NEWREMOTERESULT, wikoObj }
 		}
 
