@@ -114,8 +114,8 @@ func threadWatch( ci chan Event ) {
 
     // Init inotify
     watcher, err := inotify.NewWatcher()
-    if err != nil {
-        log.Fatal(err)
+	if err != nil {
+		log.Fatal(err)
 		return
     }
 
