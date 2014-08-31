@@ -1,0 +1,98 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Data::Dumper;
+
+# Init Json
+use JSON::XS;
+my $coder = JSON::XS->new->pretty;
+
+
+# Excludes
+my $excludedPartitions = ['rootfs','tmpfs','udev'];
+
+
+# Warn levels
+my $warnLevel   = 80;
+my $critLevel   = 95;
+
+my $return = {
+    Version     => "0.10",
+    
+    Status      => 100,
+    Message     => "",
+
+    Value       => 0,
+    Detail      => {},
+
+    Metrics     => {},
+};
+
+
+my $partitionFound = 0;
+
+my @df = `df -hlP`;
+if($? != 0)
+{
+    $return->{'Status'}     = 500;
+    $return->{'Message'}    = "Error when executing df command: ".$!;
+
+    print $coder->encode($return);
+    exit 0;
+}
+
+shift @df;
+foreach my $line ( @df )
+{
+    my @splits = split( /\s+/, $line );
+ 
+    my $partition   = $splits[0];
+    my $size        = $splits[1];
+    my $occupation  = $splits[2];
+    my $free        = $splits[3];
+    my $usage       = $splits[4];
+    my $usageRaw    = $1 if ( $usage =~ /(\d+)/ ); 
+
+    # Exlude ? 
+    if( grep { $_ eq $partition } @{ $excludedPartitions} )
+    {
+        next;
+    }
+
+    $partitionFound++;
+
+    $return->{'Detail'}->{$partition} = {
+        Size        => $size,
+        Used        => $occupation,
+        Free        => $free,
+        Percentage  => $usage,
+    };
+    $return->{'Metrics'}->{$partition} = $usageRaw;
+
+    if ($usageRaw > $critLevel)
+    {
+        $return->{'Status'} = 300;
+    }
+    elsif ($usageRaw > $warnLevel)
+    {
+        $return->{'Status'} = 250;
+    }
+
+    if ($return->{'Value'} < $usageRaw)
+    {
+        $return->{'Value'}   = $usage;
+        $return->{'Message'} = "Highest occupation percentage is $usage in partition $partition";
+    }
+}
+
+if (!$partitionFound)
+{
+    $return->{'Status'}  = 398;
+    $return->{'Value'}   = 0;
+    $return->{'Message'} = 'No partition have been found.';
+}
+
+print $coder->encode( $return );
+
