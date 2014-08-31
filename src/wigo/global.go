@@ -12,7 +12,7 @@ func InitWigo() ( this *Wigo ){
 
 	this 				= new(Wigo)
 
-	this.Version 		= "Wigo v0.1"
+	this.Version 		= "Wigo v0.2"
 	this.GlobalStatus	= 0
 	this.Hosts			= make(map[string] *Host)
 
