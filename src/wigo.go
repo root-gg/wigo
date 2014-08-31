@@ -15,11 +15,12 @@ import (
     "strconv"
     "container/list"
     "encoding/json"
+	"path/filepath"
 
     "code.google.com/p/go.exp/inotify"
+	"wigo"
 )
 
-const dateLayout        = "Jan 2, 2006 at 3:04pm (MST)"
 const listenProto       = "tcp4"
 const listenAddr        = ":4000"
 const checksDirectory   = "/usr/local/wigo/probes"
@@ -65,8 +66,8 @@ func main() {
 
 
     // Result object
-    globalResultsObject := make( map[string] *Host )
-    globalResultsObject[ localHostname ] = NewHost( localHostname )
+    globalResultsObject := make( map[string] *wigo.Host )
+    globalResultsObject[ localHostname ] = wigo.NewHost( localHostname )
 
 
     // Selection
@@ -76,8 +77,8 @@ func main() {
                 chanChecks <- e
 
             case e := <-chanResults :
-                if _, ok := e.Value.(*ProbeResult); ok {
-                    probeResult := e.Value.(*ProbeResult)
+                if _, ok := e.Value.(*wigo.ProbeResult); ok {
+                    probeResult := e.Value.(*wigo.ProbeResult)
                     globalResultsObject[ localHostname ].Probes[ probeResult.Name ] = probeResult
                     globalResultsObject[ localHostname ].GlobalStatus               = getGlobalStatus( globalResultsObject )
                 }
@@ -312,7 +313,7 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
     probeDirectory , probeName := path.Split( probePath )
 
     // Create ProbeResult
-    var probeResult *ProbeResult
+    var probeResult *wigo.ProbeResult
 
     // Create Command
     cmd := exec.Command( probePath )
@@ -320,16 +321,17 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
     // Capture stdOut
     commandOutput := make([]byte,0)
 
+
     outputPipe, err := cmd.StdoutPipe()
     if err != nil {
-        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s",err), "")
+        probeResult = wigo.NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s",err), "")
         probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
         return
     }
 
     errPipe, err := cmd.StderrPipe()
     if err != nil {
-        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stderr pipe: %s",err), "")
+        probeResult = wigo.NewProbeResult( probeName, 500, -1, fmt.Sprintf("error getting stderr pipe: %s",err), "")
         probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
         return
     }
@@ -340,7 +342,7 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
     // Start
     err = cmd.Start()
     if err != nil {
-        probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error starting command: %s",err), "")
+        probeResult = wigo.NewProbeResult( probeName, 500, -1, fmt.Sprintf("error starting command: %s",err), "")
         probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
         return
     }
@@ -350,7 +352,7 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
     go func(){
         commandOutput,err = ioutil.ReadAll(combinedOutput)
         if(err != nil){
-            probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error reading pipe: %s",err), "")
+            probeResult = wigo.NewProbeResult( probeName, 500, -1, fmt.Sprintf("error reading pipe: %s",err), "")
             probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
             return
         }
@@ -363,19 +365,19 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
     select {
         case err := <-done :
             if(err != nil){
-                probeResult = NewProbeResult( probeName, 500, -1, fmt.Sprintf("error: %s",err), string(commandOutput) )
+                probeResult = wigo.NewProbeResult( probeName, 500, -1, fmt.Sprintf("error: %s",err), string(commandOutput) )
                 probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
                 return
 
             } else {
-                probeResult = NewProbeResultFromJson( probeName, commandOutput )
+                probeResult = wigo.NewProbeResultFromJson( probeName, commandOutput )
                 probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
                 log.Printf(" - Probe %s in directory %s responded with status : %d\n", probeResult.Name, probeDirectory, probeResult.Status)
                 return
             }
 
         case <-time.After( time.Second * time.Duration(timeOut) ) :
-            probeResult = NewProbeResult( probeName, 500, -1, "Probe timeout", "")
+            probeResult = wigo.NewProbeResult( probeName, 500, -1, "Probe timeout", "")
             probeResultsChannel <- Event{ NEWPROBERESULT , probeResult }
             log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory )
 
@@ -394,7 +396,7 @@ func execProbe( probePath string, probeResultsChannel chan Event, timeOut int ){
 
 }
 
-func getGlobalStatus( globalResultsObject map[string] *Host ) int {
+func getGlobalStatus( globalResultsObject map[string] *wigo.Host ) int {
 
     globalStatus := 100
 
@@ -441,64 +443,3 @@ type Event struct {
 }
 
 
-// Probe  Results
-
-type ProbeResult struct {
-
-    Name        string
-    Version     string
-    Value       interface{}
-    Message     string
-    ProbeDate   string
-
-    Metrics     map[string]float64
-    Detail      interface{}
-
-    Status      int
-    ExitCode    int
-}
-
-func NewProbeResultFromJson( name string, ba []byte ) ( this *ProbeResult ){
-    this = new( ProbeResult )
-
-    json.Unmarshal( ba, this )
-
-    this.Name      = name
-    this.ProbeDate = time.Now().Format(dateLayout)
-    this.ExitCode  = 0
-
-    return
-}
-func NewProbeResult( name string, status int, exitCode int, message string, detail string ) ( this *ProbeResult ){
-    this = new( ProbeResult )
-
-    this.Name       = name
-    this.Status     = status
-    this.ExitCode   = exitCode
-    this.Message    = message
-    this.Detail     = detail
-    this.ProbeDate  = time.Now().Format(dateLayout)
-
-    return
-}
-
-
-// Host
-
-type Host struct {
-    Name                string
-
-    GlobalStatus        int
-    Probes              map[string] *ProbeResult
-}
-
-func NewHost( hostname string ) ( this *Host ){
-
-    this                = new( Host )
-
-    this.GlobalStatus   = 0
-    this.Name           = hostname
-    this.Probes         = make(map[string] *ProbeResult)
-
-    return
-}
