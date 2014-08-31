@@ -23,12 +23,12 @@ import (
 	"net/http"
 )
 
-const listenProto 		= "tcp4"
-const listenPort		= 4000
-const listenAddr 		= ":"
-const checksDirectory 	= "/usr/local/wigo/probes"
-const logFile 			= "/var/log/wigo.log"
-const configFile 		= "/etc/wigo.conf"
+const listenProto = "tcp4"
+const listenPort = 4000
+const listenAddr = ":"
+const checksDirectory = "/usr/local/wigo/probes"
+const logFile = "/var/log/wigo.log"
+const configFile = "/etc/wigo.conf"
 
 func main() {
 
@@ -41,7 +41,7 @@ func main() {
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks(wigo.Channels.ChanChecks, wigo.Channels.ChanResults)
 	go threadRemoteChecks(Wigo.GetConfig().HostsToCheck, wigo.Channels.ChanResults)
-	go threadSocket(Wigo.GetConfig().ListenAddress,Wigo.GetConfig().ListenPort,wigo.Channels.ChanSocket)
+	go threadSocket(Wigo.GetConfig().ListenAddress, Wigo.GetConfig().ListenPort, wigo.Channels.ChanSocket)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 
 	// Log
@@ -87,7 +87,7 @@ func main() {
 			default:
 				if _, ok := e.Value.(*wigo.ProbeResult); ok {
 					probeResult := e.Value.(*wigo.ProbeResult)
-					Wigo.AddOrUpdateProbe(localHost,probeResult)
+					Wigo.AddOrUpdateProbe(localHost, probeResult)
 				}
 			}
 
@@ -103,7 +103,7 @@ func main() {
 					break
 				}
 
-				wigo.Channels.ChanSocket <- wigo.Event{ wigo.SENDRESULTS , j }
+			wigo.Channels.ChanSocket <- wigo.Event{ wigo.SENDRESULTS , j }
 			}
 
 		case <-wigo.Channels.ChanSignals :
@@ -291,7 +291,7 @@ func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event)
 	}()
 }
 
-func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan wigo.Event){
+func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan wigo.Event) {
 	log.Println("Listing hostsToCheck : ")
 
 	for _, host := range hostsToCheck {
@@ -303,7 +303,7 @@ func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan wigo.Eve
 func threadSocket(listenAddress string, listenPort int, ci chan wigo.Event) {
 
 	// Listen
-	listener, err := net.Listen(listenProto, listenAddress + ":" + strconv.Itoa(listenPort))
+	listener, err := net.Listen(listenProto, listenAddress+":"+strconv.Itoa(listenPort))
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
@@ -320,15 +320,15 @@ func threadSocket(listenAddress string, listenPort int, ci chan wigo.Event) {
 	}
 }
 
-func threadCallbacks(chanCallbacks chan wigo.Event){
-	for{
+func threadCallbacks(chanCallbacks chan wigo.Event) {
+	for {
 		e := <-chanCallbacks
 
 		switch e.Type {
 		case wigo.SENDNOTIFICATION :
 			notification := e.Value.(*wigo.Notification)
 
-			if(notification.Type == "url") {
+			if (notification.Type == "url") {
 				_, err := http.Get(notification.Receiver + "?message=" + notification.Message)
 				if (err != nil) {
 					log.Printf("Error sending callback to url %s : %s", notification.Receiver, err)
@@ -489,20 +489,20 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 
 }
 
-func launchRemoteHostCheckRoutine( host string, probeResultsChannel chan wigo.Event ){
+func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Event) {
 	for {
 		connectionOk := false
 
-		conn, err := net.Dial("tcp", host )
+		conn, err := net.Dial("tcp", host)
 		if err != nil {
 			log.Printf("Error connecting to host %s : %s", host, err)
 			connectionOk = false
 		} else {
-			log.Printf("Fetching remote wigo from %s\n",host)
+			log.Printf("Fetching remote wigo from %s\n", host)
 			connectionOk = true
 		}
 
-		if(connectionOk) {
+		if (connectionOk) {
 
 			completeOutput := new(bytes.Buffer)
 
@@ -518,7 +518,7 @@ func launchRemoteHostCheckRoutine( host string, probeResultsChannel chan wigo.Ev
 
 			// Instanciate object from remote return
 			wikoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
-			if(err != nil){
+			if (err != nil) {
 				log.Printf("Failed to parse return from host %s : %s", host, err)
 				continue
 			}
@@ -528,7 +528,7 @@ func launchRemoteHostCheckRoutine( host string, probeResultsChannel chan wigo.Ev
 			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, wikoObj }
 		}
 
-		time.Sleep( time.Minute )
+		time.Sleep(time.Minute)
 	}
 }
 
