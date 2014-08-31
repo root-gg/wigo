@@ -82,7 +82,7 @@ foreach my $line ( @df )
 
     if ($return->{'Value'} < $usageRaw)
     {
-        $return->{'Value'}   = $usage;
+        $return->{'Value'}   = $usageRaw;
         $return->{'Message'} = "Highest occupation percentage is $usage in partition $partition";
     }
 }
