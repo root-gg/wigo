@@ -3,6 +3,8 @@ package wigo
 import (
 	"os"
 	"log"
+	"encoding/json"
+	"fmt"
 )
 
 
@@ -11,7 +13,7 @@ import (
 type Host struct {
 	Name                string
 
-	GlobalStatus        int
+	Status        		int
 	Probes              map[string] *ProbeResult
 }
 
@@ -19,7 +21,7 @@ func NewHost( hostname string ) ( this *Host ){
 
 	this                = new( Host )
 
-	this.GlobalStatus   = 0
+	this.Status   		= 0
 	this.Name           = hostname
 	this.Probes         = make(map[string] *ProbeResult)
 
@@ -29,7 +31,7 @@ func NewHost( hostname string ) ( this *Host ){
 func NewLocalHost() ( this *Host ){
 
 	this                = new( Host )
-	this.GlobalStatus	= 0
+	this.Status			= 0
 	this.Probes         = make(map[string] *ProbeResult)
 
 	// Get hostname
@@ -44,3 +46,33 @@ func NewLocalHost() ( this *Host ){
 
 	return
 }
+
+func NewWigoFromJson( ba []byte ) ( this *Wigo ){
+
+	this = new(Wigo)
+
+	fmt.Println(string(ba))
+	err := json.Unmarshal( ba, this )
+	if( err != nil ){
+		fmt.Printf("Error decoding json : %s --\n",err)
+	}
+
+	return
+}
+
+
+// Methods
+
+func (this *Host) RecomputeStatus(){
+
+	this.Status = 0
+
+	for probeName := range this.Probes {
+		if(this.Probes[probeName].Status > this.Status){
+			this.Status = this.Probes[probeName].Status
+		}
+	}
+
+	return
+}
+

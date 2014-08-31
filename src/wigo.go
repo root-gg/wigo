@@ -19,6 +19,7 @@ import (
 	// Custom libs
 	"code.google.com/p/go.exp/inotify"
 	"wigo"
+	"bytes"
 )
 
 const listenProto 		= "tcp4"
@@ -30,6 +31,14 @@ const configFile 		= "/etc/wigo.conf"
 
 func main() {
 
+	// Init Wigo
+	Wigo := wigo.InitWigo()
+
+	// Create LocalHost
+	localHost := wigo.NewLocalHost()
+	Wigo.Hosts[localHost.Name] = localHost
+
+
 	// Channels
 	chanWatch := make(chan Event)
 	chanChecks := make(chan Event)
@@ -37,8 +46,10 @@ func main() {
 	chanResults := make(chan Event)
 	chanSignals := make(chan os.Signal)
 
+
 	// Config
 	config := wigo.NewConfig(configFile)
+
 
 	// Launch goroutines
 	go threadWatch(chanWatch)
@@ -46,8 +57,6 @@ func main() {
 	go threadRemoteChecks(config.HostsToCheck, chanResults)
 	go threadSocket(config.ListenAddress,config.ListenPort,chanSocket)
 
-	// Create LocalHost
-	localHost := wigo.NewLocalHost()
 
 	// Log
 	f, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
@@ -83,8 +92,10 @@ func main() {
 			default:
 				if _, ok := e.Value.(*wigo.ProbeResult); ok {
 					probeResult := e.Value.(*wigo.ProbeResult)
-					globalResultsObject[ localHost.Name ].Probes[ probeResult.Name ] = probeResult
-					globalResultsObject[ localHost.Name ].GlobalStatus = getGlobalStatus(globalResultsObject)
+
+					Wigo.Hosts[ localHost.Name ].Probes[ probeResult.Name ] = probeResult
+					Wigo.Hosts[localHost.Name].RecomputeStatus()
+					Wigo.RecomputeGlobalStatus()
 				}
 			}
 
@@ -94,7 +105,7 @@ func main() {
 				log.Printf("Got a new connection : %s\n", e.Value)
 
 				// Send json to socket channel
-				j, err := json.MarshalIndent(globalResultsObject, "", "    ")
+				j, err := json.MarshalIndent(Wigo, "", "    ")
 				if ( err != nil ) {
 					log.Println("Fail to encode to json : ", err)
 					break
@@ -291,12 +302,9 @@ func threadLocalChecks(ci chan Event , probeResultsChannel chan Event) {
 func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan Event){
 	log.Println("Listing hostsToCheck : ")
 
-	for {
-		for _, host := range hostsToCheck {
-			log.Printf(" -> Adding %s to the remote check list\n", host)
-		}
-
-		return
+	for _, host := range hostsToCheck {
+		log.Printf(" -> Adding %s to the remote check list\n", host)
+		go launchRemoteHostCheckRoutine(host)
 	}
 }
 
@@ -471,22 +479,45 @@ func execProbe(probePath string, probeResultsChannel chan Event, timeOut int) {
 
 }
 
-func getGlobalStatus(globalResultsObject map[string] *wigo.Host) int {
+func launchRemoteHostCheckRoutine( host string ){
+	for {
+		connectionOk := false
 
-	globalStatus := 100
+		// Connect to host
+		log.Printf("Connecting to %s : \n", host)
 
-	for hostname := range globalResultsObject {
-		host := globalResultsObject[ hostname ]
-
-		for _, probe := range host.Probes {
-			if (probe.Status > globalStatus) {
-				globalStatus = probe.Status
-			}
+		conn, err := net.Dial("tcp", host )
+		if err != nil {
+			log.Printf("Error connecting to host %s : %s", host, err)
+			connectionOk = false
+		} else {
+			connectionOk = true
 		}
-	}
 
-	return globalStatus
+		if(connectionOk) {
+			log.Printf("Connected to %s\n",host)
+
+			completeOutput := new(bytes.Buffer)
+
+
+			for {
+				reply := make([]byte, 512)
+				read_len, err := conn.Read(reply)
+				if ( err != nil ) {
+					break
+				}
+
+				completeOutput.Write(reply[:read_len])
+			}
+
+			wikoObj := wigo.NewWigoFromJson(completeOutput.Bytes())
+			Dump(wikoObj)
+		}
+
+		time.Sleep( time.Minute )
+	}
 }
+
 
 // Misc
 func Dump(data interface{}) {
@@ -507,8 +538,10 @@ const (
 	NEWPROBERESULT    	= 3
 	DELETEPROBERESULT 	= 4
 
-	NEWCONNECTION     	= 5
-	SENDRESULTS 		= 6
+	NEWREMOTERESULT		= 5
+
+	NEWCONNECTION     	= 6
+	SENDRESULTS 		= 7
 )
 
 type Event struct {
