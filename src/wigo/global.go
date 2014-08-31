@@ -102,6 +102,7 @@ func (this *Wigo) AddOrUpdateProbe( host *Host, probe *ProbeResult ){
 	this.Hosts[ host.Name ].Probes[ probe.Name ] = probe
 
 	// Recompute status
+	host.RecomputeStatus()
 	this.RecomputeGlobalStatus()
 
 	return
