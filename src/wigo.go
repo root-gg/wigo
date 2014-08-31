@@ -15,7 +15,6 @@ import (
     "strconv"
     "container/list"
     "encoding/json"
-	"path/filepath"
 
     "code.google.com/p/go.exp/inotify"
 	"wigo"
