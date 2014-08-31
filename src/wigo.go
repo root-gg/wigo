@@ -68,10 +68,17 @@ func main() {
 		chanChecks <- e
 
 		case e := <-chanResults :
-			if _, ok := e.Value.(*wigo.ProbeResult); ok {
-				probeResult := e.Value.(*wigo.ProbeResult)
-				globalResultsObject[ localHost.Name ].Probes[ probeResult.Name ] = probeResult
-				globalResultsObject[ localHost.Name ].GlobalStatus = getGlobalStatus(globalResultsObject)
+			switch e.Type {
+
+			case DELETEPROBERESULT :
+				delete(globalResultsObject[ localHost.Name ].Probes, e.Value.(string))
+
+			default:
+				if _, ok := e.Value.(*wigo.ProbeResult); ok {
+					probeResult := e.Value.(*wigo.ProbeResult)
+					globalResultsObject[ localHost.Name ].Probes[ probeResult.Name ] = probeResult
+					globalResultsObject[ localHost.Name ].GlobalStatus = getGlobalStatus(globalResultsObject)
+				}
 			}
 
 		case e := <-chanSocket :
@@ -229,6 +236,7 @@ func threadLocalChecks(ci chan Event , probeResultsChannel chan Event) {
 
 							if (probeIsDeleted) {
 								log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName)
+								probeResultsChannel <- Event{ DELETEPROBERESULT, probeName }
 								currentProbesList.Remove(c)
 								continue
 							}
@@ -462,14 +470,14 @@ func Dump(data interface{}) {
 // Events
 
 const (
-	ADDDIRECTORY    = 1
-	REMOVEDIRECTORY = 2
+	ADDDIRECTORY    	= 1
+	REMOVEDIRECTORY 	= 2
 
-	NEWCONNECTION     = 5
-	NEWPROBERESULT    = 6
-	DELETEPROBERESULT = 7
+	NEWPROBERESULT    	= 3
+	DELETEPROBERESULT 	= 4
 
-	SENDRESULTS = 10
+	NEWCONNECTION     	= 5
+	SENDRESULTS 		= 6
 )
 
 type Event struct {
