@@ -88,7 +88,7 @@ func (this *Wigo) AddOrUpdateProbe( host *Host, probe *ProbeResult ){
 
 		// Notification
 		if oldProbe.Status != probe.Status {
-			message := fmt.Sprintf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, probe.Name, oldProbe.Status, probe.Status)
+			message := fmt.Sprintf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, host.Name, oldProbe.Status, probe.Status)
 			log.Println(message)
 
 			if(this.config.CallbackUrl != ""){
