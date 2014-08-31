@@ -64,9 +64,15 @@ func (this *Wigo) GetConfig() (*Config){
 }
 
 func (this *Wigo) AddHost( host *Host ){
-	
+
+	// Create host if not exist
 	if _, ok := this.Hosts[ host.Name ] ; !ok {
 		this.Hosts[ host.Name ] = host
+	}
+
+	// Update probes
+	for probeName := range host.Probes{
+		this.AddOrUpdateProbe(host, host.Probes[probeName])
 	}
 }
 
@@ -99,4 +105,10 @@ func (this *Wigo) AddOrUpdateProbe( host *Host, probe *ProbeResult ){
 	this.RecomputeGlobalStatus()
 
 	return
+}
+
+func (this *Wigo) MergeRemoteWigoWithLocal( remoteWigo *Wigo ) {
+	for remoteHostname := range remoteWigo.Hosts{
+		this.AddHost(remoteWigo.Hosts[remoteHostname])
+	}
 }

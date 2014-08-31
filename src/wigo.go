@@ -78,10 +78,7 @@ func main() {
 			case wigo.NEWREMOTERESULT :
 				if _, ok := e.Value.(*wigo.Wigo); ok {
 					remoteWigo := e.Value.(*wigo.Wigo)
-
-					for hostname := range remoteWigo.Hosts {
-						Wigo.AddHost(remoteWigo.Hosts[hostname])
-					}
+					Wigo.MergeRemoteWigoWithLocal(remoteWigo)
 				}
 
 			default:
