@@ -17,7 +17,7 @@ import (
     "encoding/json"
 
     "code.google.com/p/go.exp/inotify"
-	"wigo"
+    "wigo"
 )
 
 const listenProto       = "tcp4"
