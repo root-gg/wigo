@@ -39,14 +39,8 @@ func main() {
     go threadLocalChecks(chanChecks,chanResults)
     go threadSocket(chanSocket)
 
-
-    // Get hostname
-    localHostname, err := os.Hostname()
-    if( err != nil ){
-        log.Fatal("Can't get hostname from local machine : " , err )
-        os.Exit(1)
-    }
-
+	// Create LocalHost
+	localHost := wigo.NewLocalHost()
 
     // Log
     f, err := os.OpenFile( logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666 )
@@ -56,17 +50,15 @@ func main() {
         defer f.Close()
 
         log.SetOutput(f)
-        log.SetPrefix(localHostname + " ")
+        log.SetPrefix(localHost.Name + " ")
     }
-
 
     // Signals
     signal.Notify( chanSignals, syscall.SIGINT, syscall.SIGTERM )
 
-
     // Result object
     globalResultsObject := make( map[string] *wigo.Host )
-    globalResultsObject[ localHostname ] = wigo.NewHost( localHostname )
+    globalResultsObject[ localHost.Name ] = localHost
 
 
     // Selection
@@ -78,8 +70,8 @@ func main() {
             case e := <-chanResults :
                 if _, ok := e.Value.(*wigo.ProbeResult); ok {
                     probeResult := e.Value.(*wigo.ProbeResult)
-                    globalResultsObject[ localHostname ].Probes[ probeResult.Name ] = probeResult
-                    globalResultsObject[ localHostname ].GlobalStatus               = getGlobalStatus( globalResultsObject )
+                    globalResultsObject[ localHost.Name ].Probes[ probeResult.Name ] = probeResult
+                    globalResultsObject[ localHost.Name ].GlobalStatus               = getGlobalStatus( globalResultsObject )
                 }
 
             case e := <-chanSocket :
