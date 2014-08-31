@@ -4,7 +4,6 @@ import (
 	"os"
 	"log"
 	"encoding/json"
-	"fmt"
 )
 
 
@@ -47,14 +46,13 @@ func NewLocalHost() ( this *Host ){
 	return
 }
 
-func NewWigoFromJson( ba []byte ) ( this *Wigo ){
+func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 
 	this = new(Wigo)
 
-	fmt.Println(string(ba))
 	err := json.Unmarshal( ba, this )
 	if( err != nil ){
-		fmt.Printf("Error decoding json : %s --\n",err)
+		return nil, err
 	}
 
 	return

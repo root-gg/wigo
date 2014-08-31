@@ -89,6 +89,15 @@ func main() {
 			case DELETEPROBERESULT :
 				delete(globalResultsObject[ localHost.Name ].Probes, e.Value.(string))
 
+			case NEWREMOTERESULT :
+				if _, ok := e.Value.(*wigo.Wigo); ok {
+					remoteWigo := e.Value.(*wigo.Wigo)
+
+					for hostname := range remoteWigo.Hosts {
+						Wigo.Hosts[ hostname ] = remoteWigo.Hosts[ hostname ]
+					}
+				}
+
 			default:
 				if _, ok := e.Value.(*wigo.ProbeResult); ok {
 					probeResult := e.Value.(*wigo.ProbeResult)
@@ -304,7 +313,7 @@ func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan Event){
 
 	for _, host := range hostsToCheck {
 		log.Printf(" -> Adding %s to the remote check list\n", host)
-		go launchRemoteHostCheckRoutine(host)
+		go launchRemoteHostCheckRoutine(host, probeResultsChannel)
 	}
 }
 
@@ -479,7 +488,7 @@ func execProbe(probePath string, probeResultsChannel chan Event, timeOut int) {
 
 }
 
-func launchRemoteHostCheckRoutine( host string ){
+func launchRemoteHostCheckRoutine( host string, probeResultsChannel chan Event ){
 	for {
 		connectionOk := false
 
@@ -510,8 +519,12 @@ func launchRemoteHostCheckRoutine( host string ){
 				completeOutput.Write(reply[:read_len])
 			}
 
-			wikoObj := wigo.NewWigoFromJson(completeOutput.Bytes())
-			Dump(wikoObj)
+			wikoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
+			if(err != nil){
+				log.Printf("Failed to parse return from host %s : %s", host, err)
+			}
+
+			probeResultsChannel <- Event{ NEWREMOTERESULT, wikoObj }
 		}
 
 		time.Sleep( time.Minute )
