@@ -23,7 +23,7 @@ const dateLayout        = "Jan 2, 2006 at 3:04pm (MST)"
 const listenProto       = "tcp4"
 const listenAddr        = ":4000"
 const checksDirectory   = "/usr/local/wigo/probes"
-
+const logFile           = "/var/log/wigo.log"
 
 func main() {
 
@@ -49,7 +49,15 @@ func main() {
 
 
     // Log
-    log.SetPrefix(localHostname + " ")
+    f, err := os.OpenFile( logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666 )
+    if err != nil {
+        fmt.Printf("Fail to open logfile %s : %s", logFile, err )
+    } else {
+        defer f.Close()
+
+        log.SetOutput(f)
+        log.SetPrefix(localHostname + " ")
+    }
 
 
     // Signals
@@ -195,7 +203,7 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
                             }
 
                             // Sleep right amount of time
-                            log.Printf(" - Launched checks from directory %s. Sleeping %d seconds...\n", directory, sleepTImeInt)
+                            log.Printf("Launched checks from directory %s. Sleeping %d seconds...\n", directory, sleepTImeInt)
                             time.Sleep( time.Second * time.Duration(sleepTImeInt) )
 
                         }
