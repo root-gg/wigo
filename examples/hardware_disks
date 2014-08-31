@@ -69,7 +69,7 @@ foreach my $line ( @df )
         Free        => $free,
         Percentage  => $usage,
     };
-    $return->{'Metrics'}->{$partition} = $usageRaw;
+    $return->{'Metrics'}->{$partition} = $usageRaw + 0;
 
     if ($usageRaw > $critLevel)
     {
