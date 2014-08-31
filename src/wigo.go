@@ -141,7 +141,12 @@ func threadWatch(ci chan Event) {
 			ci <- Event{ADDDIRECTORY, ev.Name}
 			case syscall.IN_DELETE | syscall.IN_ISDIR :
 			ci <- Event{REMOVEDIRECTORY, ev.Name}
+			case syscall.IN_MOVED_TO | syscall.IN_ISDIR :
+			ci <- Event{ADDDIRECTORY, ev.Name}
+			case syscall.IN_MOVED_FROM | syscall.IN_ISDIR :
+			ci <- Event{REMOVEDIRECTORY, ev.Name}
 			}
+
 		case err := <-watcher.Error:
 			log.Println("directoryWatcher:", err)
 		}
@@ -184,6 +189,13 @@ func threadLocalChecks(ci chan Event , probeResultsChannel chan Event) {
 							}
 						}
 						if (!stillValid) {
+
+							// Delete probes results of this directory
+							for c := currentProbesList.Front(); c != nil; c = c.Next() {
+								probeName := c.Value.(string)
+								probeResultsChannel <-Event{ DELETEPROBERESULT, probeName }
+							}
+
 							return
 						}
 
