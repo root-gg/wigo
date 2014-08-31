@@ -449,9 +449,10 @@ type ProbeResult struct {
     Version     string
     Value       interface{}
     Message     string
-    Detail      string
     ProbeDate   string
+
     Metrics     map[string]float64
+    Detail      interface{}
 
     Status      int
     ExitCode    int
