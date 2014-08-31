@@ -45,7 +45,7 @@ func main() {
     // Log
     f, err := os.OpenFile( logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666 )
     if err != nil {
-        fmt.Printf("Fail to open logfile %s : %s", logFile, err )
+        fmt.Printf("Fail to open logfile %s : %s\n", logFile, err )
     } else {
         defer f.Close()
 
@@ -116,14 +116,14 @@ func threadWatch( ci chan Event ) {
     watcher, err := inotify.NewWatcher()
     if err != nil {
         log.Fatal(err)
-        os.Exit(1)
+		return
     }
 
     // Create a watcher on checks directory
     err = watcher.Watch(checksDirectory)
     if err != nil {
         log.Fatal(err)
-        os.Exit(1)
+        return
     }
 
     // Watch for changes forever
