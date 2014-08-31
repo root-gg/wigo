@@ -13,6 +13,7 @@ type Config struct {
 
 	HostsToCheck 	[]string
 
+	CallbackUrl		string
 }
 
 func NewConfig( path string ) ( this *Config){
@@ -20,8 +21,9 @@ func NewConfig( path string ) ( this *Config){
 	// Default conf
 	this = new(Config)
 	this.ListenPort 		= 4000
-	this.ListenAddress	= "0.0.0.0"
+	this.ListenAddress		= "0.0.0.0"
 	this.HostsToCheck		= nil
+	this.CallbackUrl		= ""
 
 	// Override with config file
 	if _, err := toml.DecodeFile(path, &this); err != nil {

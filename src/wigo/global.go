@@ -1,20 +1,37 @@
 package wigo
 
-type Wigo struct {
+import (
+	"log"
+	"os"
+	"fmt"
+)
 
+
+type Wigo struct {
 	Version			string
 	GlobalStatus	int
 	Hosts			map[string] *Host
 
+	config			*Config
 }
 
-func InitWigo() ( this *Wigo ){
+func InitWigo( configFile string ) ( this *Wigo ){
 
 	this 				= new(Wigo)
-
 	this.Version 		= "Wigo v0.2"
 	this.GlobalStatus	= 0
 	this.Hosts			= make(map[string] *Host)
+
+	// Private vars
+	this.config			= NewConfig(configFile)
+
+
+	// Create LocalHost
+	localHost := NewLocalHost()
+	this.Hosts[localHost.Name] = localHost
+
+	// Init channels
+	InitChannels()
 
 	return
 }
@@ -28,6 +45,58 @@ func (this *Wigo) RecomputeGlobalStatus() {
 			this.GlobalStatus = this.Hosts[hostname].Status
 		}
 	}
+
+	return
+}
+
+func (this *Wigo) GetLocalHost() ( *Host ){
+
+	localHostname, err := os.Hostname()
+	if err != nil {
+		// TODO
+	}
+
+	return this.Hosts[ localHostname ]
+}
+
+func (this *Wigo) GetConfig() (*Config){
+	return this.config
+}
+
+func (this *Wigo) AddHost( host *Host ){
+	
+	if _, ok := this.Hosts[ host.Name ] ; !ok {
+		this.Hosts[ host.Name ] = host
+	}
+}
+
+func (this *Wigo) AddOrUpdateProbe( host *Host, probe *ProbeResult ){
+	
+	// Add host it not exist
+	if _, ok := this.Hosts[ host.Name ] ; !ok {
+		this.Hosts[ host.Name ] = host
+	}
+	
+	// If old prove, test if status is different
+	if oldProbe, ok := this.Hosts[ host.Name ].Probes[ probe.Name ] ; ok {
+
+		// Notification
+		if oldProbe.Status != probe.Status {
+			message := fmt.Sprintf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, probe.Name, oldProbe.Status, probe.Status)
+			log.Println(message)
+
+			if(this.config.CallbackUrl != ""){
+				notification := NewNotification("url", this.config.CallbackUrl, host, oldProbe, probe )
+				notification.SendNotification( Channels.ChanCallbacks )
+			}
+		}
+	}
+
+	// Update
+	this.Hosts[ host.Name ].Probes[ probe.Name ] = probe
+
+	// Recompute status
+	this.RecomputeGlobalStatus()
 
 	return
 }
