@@ -161,8 +161,15 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
                     log.Println("Adding directory" , directory)
                     checksDirectories.PushBack(directory)
 
+					// Create local list of probes to detect removes
+					currentProbesList,err := listProbesInDirectory(directory)
+					if(err != nil){
+						log.Printf("Fail to read directory %s : %s", directory, err )
+					}
+
                     go func(){
                         for{
+
                             // Am I still a valid directory ?
                             stillValid := false
                             for e := checksDirectories.Front(); e != nil; e = e.Next() {
@@ -174,7 +181,6 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
                                 return
                             }
 
-
                             // Guess sleep time from dir
                             sleepTime           := path.Base( directory )
                             sleepTImeInt, err   := strconv.Atoi( sleepTime )
@@ -183,21 +189,63 @@ func threadLocalChecks( ci chan Event , probeResultsChannel chan Event ) {
                                 return
                             }
 
-                            // List probes in directory
-                            probesList,err := listProbesInDirectory( directory )
+                            // Update probes list
+                            newProbesList,err := listProbesInDirectory( directory )
                             if err != nil {
                                 break
                             }
 
-                            // Iterate over directory
-                            for _,probe := range probesList {
-                                go execProbe( directory + "/" + probe , probeResultsChannel, 5)
-                            }
+							// Check new probes
+							for n := newProbesList.Front(); n != nil; n = n.Next() {
+								newProbeName := n.Value.(string)
+								probeIsNew := true
+
+								// Add probe if new
+								for j := currentProbesList.Front(); j != nil; j = j.Next() {
+									probeName := j.Value.(string)
+
+									if (probeName == newProbeName) {
+										probeIsNew = false
+									}
+								}
+
+								if(probeIsNew){
+									currentProbesList.PushBack(newProbeName)
+									log.Printf("Probe %s has been added in directory %s\n",newProbeName,directory)
+								}
+							}
+
+							// Check deleted probes
+							for c := currentProbesList.Front(); c != nil; c = c.Next() {
+								probeName 			:= c.Value.(string)
+								probeIsDeleted		:= true
+
+								for n := newProbesList.Front(); n != nil; n = n.Next() {
+									newProbeName 	:= n.Value.(string)
+
+									if(probeName == newProbeName){
+										probeIsDeleted = false
+									}
+								}
+
+								if(probeIsDeleted){
+									log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName )
+									currentProbesList.Remove(c)
+									continue
+								}
+							}
+
+							// Launching probes
+							log.Printf("Launching probes of directory %s",directory)
+
+							for c := currentProbesList.Front(); c != nil; c = c.Next() {
+								probeName := c.Value.(string)
+
+								go execProbe( directory + "/" + probeName , probeResultsChannel, 5)
+							}
 
                             // Sleep right amount of time
-                            log.Printf("Launched checks from directory %s. Sleeping %d seconds...\n", directory, sleepTImeInt)
                             time.Sleep( time.Second * time.Duration(sleepTImeInt) )
-
                         }
                     }()
 
@@ -276,7 +324,9 @@ func listChecksDirectories() ([]string,error) {
     return subdirectories, nil
 }
 
-func listProbesInDirectory( directory string) ([]string,error) {
+func listProbesInDirectory( directory string ) ( probesList *list.List, error error) {
+
+	probesList = new(list.List)
 
     // List checks directory
     files, err := ioutil.ReadDir( directory )
@@ -284,14 +334,10 @@ func listProbesInDirectory( directory string) ([]string,error) {
         return nil, err
     }
 
-    // Init array
-    probesList := make([]string, 0)
-
-
     // Return only executables files
     for _, f := range files {
         if( ! f.IsDir() ){
-            probesList = append( probesList, f.Name())
+            probesList.PushBack( f.Name() )
         }
     }
 
@@ -419,13 +465,14 @@ func Dump( data interface{}){
 // Events
 
 const (
-    ADDDIRECTORY    = 1
-    REMOVEDIRECTORY = 2
+    ADDDIRECTORY    	= 1
+    REMOVEDIRECTORY 	= 2
 
-    NEWCONNECTION   = 5
-    NEWPROBERESULT  = 6
+    NEWCONNECTION   	= 5
+    NEWPROBERESULT  	= 6
+	DELETEPROBERESULT 	= 7
 
-    SENDRESULTS     = 10
+    SENDRESULTS     	= 10
 )
 
 type Event struct {
