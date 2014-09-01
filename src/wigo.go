@@ -326,12 +326,30 @@ func threadCallbacks(chanCallbacks chan wigo.Event) {
 			notification := e.Value.(*wigo.Notification)
 
 			if (notification.Type == "url") {
-				_, err := http.Get(notification.Receiver + "?message=" + notification.Message)
-				if (err != nil) {
-					log.Printf("Error sending callback to url %s : %s", notification.Receiver, err)
-				} else {
-					log.Printf("Successfully called callback url %s", notification.Receiver)
-				}
+				go func() {
+					// Create http client with timeout
+					c := http.Client{
+						Transport: &http.Transport{
+							Dial: func(netw, addr string) (net.Conn, error) {
+								deadline := time.Now().Add(2 * time.Second)
+								c, err := net.DialTimeout(netw, addr, time.Second*5)
+								if err != nil {
+									return nil, err
+								}
+								c.SetDeadline(deadline)
+								return c, nil
+							},
+						},
+					}
+
+					// Make request
+					_, err := c.Get(notification.Receiver + "?message=" + notification.Message)
+					if (err != nil) {
+						log.Printf("Error sending callback to url %s : %s", notification.Receiver, err)
+					} else {
+						log.Printf("Successfully called callback url %s", notification.Receiver)
+					}
+				}()
 			}
 		}
 	}
