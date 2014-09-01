@@ -74,5 +74,17 @@ func (this *Host) RecomputeStatus(){
 	return
 }
 
+func (this *Host) GetErrorsProbesList() ( list []string ){
+
+	list = make([]string,0)
+
+	for probeName := range this.Probes {
+		if this.Probes[probeName].Status > 100 {
+			list = append(list, probeName)
+		}
+	}
+
+	return
+}
 
 

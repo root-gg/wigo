@@ -14,7 +14,9 @@ type Notification struct {
 	Message		string
 	Date		string
 
-	Hostname	string
+	Hostname			string
+	HostProbesInError	[]string
+
 	OldProbe	*ProbeResult
 	NewProbe	*ProbeResult
 
@@ -33,6 +35,8 @@ func NewNotification( t string, receiver string, host *Host, oldProbe *ProbeResu
 	this.Message 	= fmt.Sprintf("Probe %s switched from %d to %d on host %s", oldProbe.Name, oldProbe.Status, newProbe.Status, host.Name)
 	this.Receiver	= receiver
 	this.Hostname	= host.Name
+
+	this.HostProbesInError = host.GetErrorsProbesList()
 
 	return
 }
