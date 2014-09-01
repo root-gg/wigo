@@ -2,6 +2,8 @@ package wigo
 
 import (
 	"fmt"
+	"encoding/json"
+	"time"
 )
 
 type Notification struct {
@@ -10,6 +12,7 @@ type Notification struct {
 
 	Receiver	string
 	Message		string
+	Date		string
 
 	Hostname	string
 	OldProbe	*ProbeResult
@@ -29,10 +32,16 @@ func NewNotification( t string, receiver string, host *Host, oldProbe *ProbeResu
 	this.NewProbe	= newProbe
 	this.Message 	= fmt.Sprintf("Probe %s switched from %d to %d on host %s", oldProbe.Name, oldProbe.Status, newProbe.Status, host.Name)
 	this.Receiver	= receiver
+	this.Hostname	= host.Name
 
 	return
 }
 
 func (this *Notification) SendNotification( ci chan Event ){
+	this.Date = time.Now().Format(dateLayout)
 	ci <- Event{ SENDNOTIFICATION, this }
+}
+
+func (this *Notification) ToJson() ( ba []byte, e error ) {
+	return json.Marshal(this)
 }

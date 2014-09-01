@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const dateLayout  = "Jan 2, 2006 at 3:04pm (MST)"
+const dateLayout  = "2006-01-02T15:04:05.999999 (MST)"
 
 
 
@@ -48,3 +48,4 @@ func NewProbeResult( name string, status int, exitCode int, message string, deta
 
 	return
 }
+

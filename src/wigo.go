@@ -21,6 +21,8 @@ import (
 	"wigo"
 	"bytes"
 	"net/http"
+	"crypto/tls"
+	"net/url"
 )
 
 const listenProto = "tcp4"
@@ -330,9 +332,11 @@ func threadCallbacks(chanCallbacks chan wigo.Event) {
 					// Create http client with timeout
 					c := http.Client{
 						Transport: &http.Transport{
+							TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+
 							Dial: func(netw, addr string) (net.Conn, error) {
 								deadline := time.Now().Add(2 * time.Second)
-								c, err := net.DialTimeout(netw, addr, time.Second*5)
+								c, err := net.DialTimeout(netw, addr, time.Second*2)
 								if err != nil {
 									return nil, err
 								}
@@ -342,13 +346,26 @@ func threadCallbacks(chanCallbacks chan wigo.Event) {
 						},
 					}
 
+					// Jsonize notification
+					json, err := notification.ToJson()
+					if err != nil{
+						log.Printf("Fail to encode json to send callback for %s : %s", notification.Hostname, err)
+						return
+					}
+
+					// Make post values
+					postValues := url.Values{}
+					postValues.Add("Notification", string(json))
+
+
 					// Make request
-					_, err := c.Get(notification.Receiver + "?message=" + notification.Message)
-					if (err != nil) {
-						log.Printf("Error sending callback to url %s : %s", notification.Receiver, err)
+					_, reqErr := c.PostForm( notification.Receiver, postValues )
+					if (reqErr != nil) {
+						log.Printf("Error sending callback to url %s : %s", notification.Receiver, reqErr)
 					} else {
 						log.Printf("Successfully called callback url %s", notification.Receiver)
 					}
+
 				}()
 			}
 		}
