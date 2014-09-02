@@ -1,79 +1,65 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 
 use strict;
 use warnings;
-use Data::Dumper;
+
+
+# Init Json
 use JSON::XS;
+my $coder = JSON::XS->new->pretty;
 
-# Vars
-my $memTypes    = [qw{ MemTotal MemFree Buffers Cached SwapTotal SwapFree }];
-my $return      = { Status  => 100, Message => "Ok", Metrics => {} };
-my $coder       = JSON::XS->new->ascii->pretty->allow_nonref;
 
+# Warn levels
 my $warnLevel   = 75;
 my $critLevel   = 90;
 
+my $return = {
+    Name       => "hardwareLoadAverage",
+    Version    => "0.10",
+    
+    Status     => 398,
+    Message    => "No results",
 
-# Open proc/meminfo
-if( ! open FILE, "<", "/proc/meminfo" )
+    Value      => "",
+    Detail     => "",
+};
+
+
+# Exec
+my @meminfo = `cat /proc/meminfo`;
+if($? != 0)
 {
     $return->{'Status'}     = 500;
-    $return->{'Message'}    = $!;
-    print $coder->encode($return);
-    exit 1;
+    $return->{'Message'}    = "Error while cating /proc/meminfo: ". $!;
 }
-
-# Read
-my $ret;
-while(<FILE>)
+else
 {
-    $ret .= $_;
-}
+    my %values = map { chomp; $_ =~ /(.*):\s+(.*) [\w]+/ } @meminfo;
 
-# Parse
-my @lines = split("\n",$ret);
+    my $realFree         = $values{'MemFree'} + $values{'Cached'} + $values{'Buffers'};
+    my $realUsed         = $values{'MemTotal'} - $realFree;
+    my $usePercentage    = sprintf( "%.2f", $realUsed * 100 / $values{'MemTotal'});
 
-foreach my $line (@lines)
-{
-    if( $line =~ /(\w+):\s+(\d+)\s+(\w+)/ )
+    $return->{'Detail'}  = \%values;
+
+    $return->{'Status'}  = 100;
+    $return->{'Message'} = "Current memory usage is $usePercentage%";
+    $return->{'Value'}   = $usePercentage;
+
+    $return->{'Metrics'}->{'Total'} = $values{'MemTotal'} + 0;
+    $return->{'Metrics'}->{'Used'}  = $realUsed + 0;
+    $return->{'Metrics'}->{'Free'}  = $realFree + 0;
+
+    if($usePercentage > $critLevel)
     {
-        if( grep { $_ eq $1 } @{ $memTypes } )
-        {
-            $return->{'Metrics'}->{ $1 } = $2 + 0;
-        }
+        $return->{'Status'} = 300;
+    }
+    elsif($usePercentage > $warnLevel)
+    {
+        $return->{'Status'} = 250;
     }
 }
 
-# Ram
-my $ramFreeWithoutCache = $return->{'Metrics'}->{'MemFree'} + $return->{'Metrics'}->{'Cached'};
-my $ramUsedWithoutCache = $return->{'Metrics'}->{'MemTotal'} - $ramFreeWithoutCache;
-my $usage               = (100 * $ramUsedWithoutCache) / $return->{'Metrics'}->{'MemTotal'};
 
-$return->{'Message'} = "Memory used : " . int($usage) . "%";
-$return->{'Value'}   = $usage;
+print $coder->encode( $return );
 
-
-# Swap
-if( $return->{'Metrics'}->{'SwapTotal'} && $return->{'Metrics'}->{'SwapFree'})
-{
-    my $swapUsedPercentage = 100 * ($return->{'Metrics'}->{'SwapTotal'} - $return->{'Metrics'}->{'SwapFree'}) / $return->{'Metrics'}->{'SwapTotal'};
-
-    $return->{'Metrics'}->{'SwapUsed'} = $return->{'Metrics'}->{'SwapTotal'} - $return->{'Metrics'}->{'SwapFree'};
-    $return->{'Message'} .= " - Swap Used : " . int($swapUsedPercentage) . "%";
-}
-
-
-
-
-# Status
-if($usage >= $warnLevel)
-{
-    $return->{'Status'} = 250;
-}
-elsif($usage >= $critLevel)
-{
-    $return->{'Status'} = 350;
-}
-
-
-print $coder->encode($return);
