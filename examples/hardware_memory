@@ -1,0 +1,79 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Data::Dumper;
+use JSON::XS;
+
+# Vars
+my $memTypes    = [qw{ MemTotal MemFree Buffers Cached SwapTotal SwapFree }];
+my $return      = { Status  => 100, Message => "Ok", Metrics => {} };
+my $coder       = JSON::XS->new->ascii->pretty->allow_nonref;
+
+my $warnLevel   = 75;
+my $critLevel   = 90;
+
+
+# Open proc/meminfo
+if( ! open FILE, "<", "/proc/meminfo" )
+{
+    $return->{'Status'}     = 500;
+    $return->{'Message'}    = $!;
+    print $coder->encode($return);
+    exit 1;
+}
+
+# Read
+my $ret;
+while(<FILE>)
+{
+    $ret .= $_;
+}
+
+# Parse
+my @lines = split("\n",$ret);
+
+foreach my $line (@lines)
+{
+    if( $line =~ /(\w+):\s+(\d+)\s+(\w+)/ )
+    {
+        if( grep { $_ eq $1 } @{ $memTypes } )
+        {
+            $return->{'Metrics'}->{ $1 } = $2 + 0;
+        }
+    }
+}
+
+# Ram
+my $ramFreeWithoutCache = $return->{'Metrics'}->{'MemFree'} + $return->{'Metrics'}->{'Cached'};
+my $ramUsedWithoutCache = $return->{'Metrics'}->{'MemTotal'} - $ramFreeWithoutCache;
+my $usage               = (100 * $ramUsedWithoutCache) / $return->{'Metrics'}->{'MemTotal'};
+
+$return->{'Message'} = "Memory used : " . int($usage) . "%";
+$return->{'Value'}   = $usage;
+
+
+# Swap
+if( $return->{'Metrics'}->{'SwapTotal'} && $return->{'Metrics'}->{'SwapFree'})
+{
+    my $swapUsedPercentage = 100 * ($return->{'Metrics'}->{'SwapTotal'} - $return->{'Metrics'}->{'SwapFree'}) / $return->{'Metrics'}->{'SwapTotal'};
+
+    $return->{'Metrics'}->{'SwapUsed'} = $return->{'Metrics'}->{'SwapTotal'} - $return->{'Metrics'}->{'SwapFree'};
+    $return->{'Message'} .= " - Swap Used : " . int($swapUsedPercentage) . "%";
+}
+
+
+
+
+# Status
+if($usage >= $warnLevel)
+{
+    $return->{'Status'} = 250;
+}
+elsif($usage >= $critLevel)
+{
+    $return->{'Status'} = 350;
+}
+
+
+print $coder->encode($return);
