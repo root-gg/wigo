@@ -2,16 +2,18 @@ package wigo
 
 import (
 	"log"
-	"os"
 )
 
 
 type Wigo struct {
 	Version			string
 	GlobalStatus	int
-	Hosts			map[string] *Host
+
+	LocalHost		*Host
+	RemoteWigos		map[string] *Wigo
 
 	config			*Config
+	hostname		string
 }
 
 func InitWigo( configFile string ) ( this *Wigo ){
@@ -19,15 +21,13 @@ func InitWigo( configFile string ) ( this *Wigo ){
 	this 				= new(Wigo)
 	this.Version 		= "Wigo v0.2"
 	this.GlobalStatus	= 0
-	this.Hosts			= make(map[string] *Host)
+
+	this.LocalHost		= NewLocalHost()
+	this.RemoteWigos	= make(map[string] *Wigo)
 
 	// Private vars
 	this.config			= NewConfig(configFile)
-
-
-	// Create LocalHost
-	localHost := NewLocalHost()
-	this.Hosts[localHost.Name] = localHost
+	this.hostname		= "localhost"
 
 	// Init channels
 	InitChannels()
@@ -35,79 +35,87 @@ func InitWigo( configFile string ) ( this *Wigo ){
 	return
 }
 
+
+// Recompute statuses
 func (this *Wigo) RecomputeGlobalStatus() {
 
 	this.GlobalStatus = 0
 
-	for hostname := range this.Hosts {
-		if (this.Hosts[hostname].Status > this.GlobalStatus) {
-			this.GlobalStatus = this.Hosts[hostname].Status
+	// Local probes
+	for probeName := range this.LocalHost.Probes {
+		if this.LocalHost.Probes[probeName].Status > this.GlobalStatus {
+			this.GlobalStatus = this.LocalHost.Probes[probeName].Status
+		}
+	}
+
+	// Remote wigos statuses
+	for wigoName := range this.RemoteWigos {
+		if this.RemoteWigos[wigoName].GlobalStatus > this.GlobalStatus {
+			this.GlobalStatus = this.RemoteWigos[wigoName].GlobalStatus
 		}
 	}
 
 	return
 }
 
+
+
+// Getters
 func (this *Wigo) GetLocalHost() ( *Host ){
-
-	localHostname, err := os.Hostname()
-	if err != nil {
-		// TODO
-	}
-
-	return this.Hosts[ localHostname ]
+	return this.LocalHost
 }
 
 func (this *Wigo) GetConfig() (*Config){
 	return this.config
 }
 
-func (this *Wigo) AddHost( host *Host ){
-
-	// Create host if not exist
-	if _, ok := this.Hosts[ host.Name ] ; !ok {
-		this.Hosts[ host.Name ] = host
-	}
-
-	// Update probes
-	for probeName := range host.Probes{
-		this.AddOrUpdateProbe(host, host.Probes[probeName])
-	}
+func (this *Wigo) GetHostname() ( string ){
+	return this.hostname
 }
 
-func (this *Wigo) AddOrUpdateProbe( host *Host, probe *ProbeResult ){
-	
-	// Add host it not exist
-	if _, ok := this.Hosts[ host.Name ] ; !ok {
-		this.Hosts[ host.Name ] = host
+
+// Setters
+
+func (this *Wigo) SetHostname( hostname string ){
+	this.hostname = hostname
+}
+
+func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
+
+	if _, ok := this.RemoteWigos[ wigoName ] ; ok {
+		// It already exists
+		// TEST changes
+
+
 	}
+
+	this.RemoteWigos[ wigoName ] = remoteWigo
+	this.RecomputeGlobalStatus()
+}
+
+
+func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 	
 	// If old prove, test if status is different
-	if oldProbe, ok := this.Hosts[ host.Name ].Probes[ probe.Name ] ; ok {
+	if oldProbe, ok := this.LocalHost.Probes[ probe.Name ] ; ok {
 
 		// Notification
 		if oldProbe.Status != probe.Status {
-			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, host.Name, oldProbe.Status, probe.Status)
+			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, this.LocalHost.Name, oldProbe.Status, probe.Status)
 
 			if(this.config.CallbackUrl != ""){
-				notification := NewNotification("url", this.config.CallbackUrl, host, oldProbe, probe )
+				notification := NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probe )
 				notification.SendNotification( Channels.ChanCallbacks )
 			}
 		}
 	}
 
 	// Update
-	this.Hosts[ host.Name ].Probes[ probe.Name ] = probe
+	this.LocalHost.Probes[ probe.Name ] = probe
 
 	// Recompute status
-	host.RecomputeStatus()
 	this.RecomputeGlobalStatus()
 
 	return
 }
 
-func (this *Wigo) MergeRemoteWigoWithLocal( remoteWigo *Wigo ) {
-	for remoteHostname := range remoteWigo.Hosts{
-		this.AddHost(remoteWigo.Hosts[remoteHostname])
-	}
-}

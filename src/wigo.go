@@ -80,13 +80,13 @@ func main() {
 			case wigo.NEWREMOTERESULT :
 				if _, ok := e.Value.(*wigo.Wigo); ok {
 					remoteWigo := e.Value.(*wigo.Wigo)
-					Wigo.MergeRemoteWigoWithLocal(remoteWigo)
+					Wigo.AddOrUpdateRemoteWigo(remoteWigo.GetHostname(), remoteWigo)
 				}
 
 			default:
 				if _, ok := e.Value.(*wigo.ProbeResult); ok {
 					probeResult := e.Value.(*wigo.ProbeResult)
-					Wigo.AddOrUpdateProbe(localHost, probeResult)
+					Wigo.AddOrUpdateLocalProbe(probeResult)
 				}
 			}
 
@@ -555,6 +555,8 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 				continue
 			}
 
+			// Set hostname with config file name
+			wikoObj.SetHostname(host)
 
 			// Send it to main
 			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, wikoObj }
