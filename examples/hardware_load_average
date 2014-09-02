@@ -10,8 +10,8 @@ my $coder = JSON::XS->new->pretty;
 
 
 # Warn levels
-my $warnLevel   = 0.10;
-my $critLevel   = 0.50;
+my $warnLevel   = 1;
+my $critLevel   = 2;
 
 my $return = {
     Name       => "hardwareLoadAverage",
