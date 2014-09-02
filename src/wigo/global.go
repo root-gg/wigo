@@ -87,10 +87,10 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 		notifications := this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
 
 		if notifications.Len() > 0 {
-			log.Printf("There is some notifications from remote wigo merging : \n")
+			log.Printf("There is some notifications from remote wigo %s : \n", wigoName)
 
 			for e := notifications.Front(); e != nil; e = e.Next() {
-				log.Printf("New notif : %s\n", e.Value.(*Notification).Message)
+				log.Printf(" - %s\n", e.Value.(*Notification).Message)
 			}
 		}
 	}
