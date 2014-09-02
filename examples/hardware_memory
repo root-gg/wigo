@@ -34,6 +34,7 @@ if($? != 0)
 else
 {
     my %values = map { chomp; $_ =~ /(.*):\s+(.*) [\w]+/ } @meminfo;
+    foreach my $key ( keys %values ){ $values{ $key }+=0 }
 
     my $realFree         = $values{'MemFree'} + $values{'Cached'} + $values{'Buffers'};
     my $realUsed         = $values{'MemTotal'} - $realFree;
