@@ -530,7 +530,6 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 			log.Printf("Error connecting to host %s : %s", host, err)
 			connectionOk = false
 		} else {
-			log.Printf("Fetching remote wigo from %s\n", host)
 			connectionOk = true
 		}
 
@@ -562,7 +561,7 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, wikoObj }
 		}
 
-		time.Sleep(time.Minute)
+		time.Sleep(time.Second * 10)
 	}
 }
 

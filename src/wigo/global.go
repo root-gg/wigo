@@ -96,7 +96,10 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 		}
 	}
 
-	this.RemoteWigos[ wigoName ] = remoteWigo
+	if remoteWigo.LocalHost != nil {
+		this.RemoteWigos[ wigoName ] = remoteWigo
+	}
+
 	this.RecomputeGlobalStatus()
 }
 
