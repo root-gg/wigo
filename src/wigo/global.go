@@ -20,7 +20,7 @@ type Wigo struct {
 func InitWigo( configFile string ) ( this *Wigo ){
 
 	this 				= new(Wigo)
-	this.Version 		= "Wigo v0.31"
+	this.Version 		= "Wigo v0.32"
 	this.GlobalStatus	= 0
 
 	this.LocalHost		= NewLocalHost()
