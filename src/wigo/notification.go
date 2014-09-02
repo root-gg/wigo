@@ -41,7 +41,7 @@ func NewNotification( t string, receiver string, host *Host, oldProbe *ProbeResu
 	return
 }
 
-func (this *Notification) SendNotification( ci chan Event ){
+func (this *Notification) Send( ci chan Event ){
 	this.Date = time.Now().Format(dateLayout)
 	ci <- Event{ SENDNOTIFICATION, this }
 }

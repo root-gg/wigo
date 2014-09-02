@@ -91,6 +91,7 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 			for e := notifications.Front(); e != nil; e = e.Next() {
 				log.Printf(" - %s\n", e.Value.(*Notification).Message)
+				e.Value.(*Notification).Send( Channels.ChanCallbacks )
 			}
 		}
 	}
@@ -111,7 +112,7 @@ func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 
 			if(this.config.CallbackUrl != ""){
 				notification := NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probe )
-				notification.SendNotification( Channels.ChanCallbacks )
+				notification.Send( Channels.ChanCallbacks )
 			}
 		}
 	}
