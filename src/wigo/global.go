@@ -139,7 +139,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 			// Probe still exist in new
 			// Status has changed ? -> Notification
 			if( oldProbe.Status != probeWhichStillExistInNew.Status ){
-				notification := NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probeWhichStillExistInNew )
+				notification := NewNotification("url", this.config.CallbackUrl, oldWigo.LocalHost, oldProbe, probeWhichStillExistInNew )
 				allNotifications.PushBack(notification)
 			}
 
@@ -155,8 +155,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 		oldWigo := oldWigo.RemoteWigos[ wigoName ]
 
 		if wigoStillExistInNew, ok := newWigo.RemoteWigos[ wigoName ]; ok {
-			remoteNotifications := oldWigo.CompareTwoWigosAndRaiseNotifications( oldWigo, wigoStillExistInNew )
-
+			remoteNotifications := this.CompareTwoWigosAndRaiseNotifications( oldWigo, wigoStillExistInNew )
 			allNotifications.PushBackList(remoteNotifications)
 		}
 	}
