@@ -102,7 +102,9 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 
 func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
-	
+
+	var notification *Notification
+
 	// If old prove, test if status is different
 	if oldProbe, ok := this.LocalHost.Probes[ probe.Name ] ; ok {
 
@@ -111,8 +113,7 @@ func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, this.LocalHost.Name, oldProbe.Status, probe.Status)
 
 			if(this.config.CallbackUrl != ""){
-				notification := NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probe )
-				notification.Send( Channels.ChanCallbacks )
+				notification = NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probe )
 			}
 		}
 	}
@@ -121,8 +122,14 @@ func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 	this.LocalHost.Probes[ probe.Name ] = probe
 	this.LocalHost.RecomputeStatus()
 
+
 	// Recompute status
 	this.RecomputeGlobalStatus()
+
+	// Notify
+	if(notification != nil){
+		notification.Send( Channels.ChanCallbacks )
+	}
 
 	return
 }

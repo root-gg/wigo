@@ -14,6 +14,7 @@ type Notification struct {
 	Message		string
 	Date		string
 
+	Host				*Host
 	Hostname			string
 	HostProbesInError	[]string
 
@@ -30,6 +31,7 @@ func NewNotification( t string, receiver string, host *Host, oldProbe *ProbeResu
 
 	this = new(Notification)
 	this.Type		= t
+	this.Host		= host
 	this.OldProbe	= oldProbe
 	this.NewProbe	= newProbe
 	this.Message 	= fmt.Sprintf("Probe %s switched from %d to %d on host %s", oldProbe.Name, oldProbe.Status, newProbe.Status, host.Name)
@@ -42,6 +44,7 @@ func NewNotification( t string, receiver string, host *Host, oldProbe *ProbeResu
 }
 
 func (this *Notification) Send( ci chan Event ){
+	this.HostProbesInError = this.Host.GetErrorsProbesList()
 	this.Date = time.Now().Format(dateLayout)
 	ci <- Event{ SENDNOTIFICATION, this }
 }
