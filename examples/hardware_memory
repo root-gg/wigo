@@ -14,7 +14,6 @@ my $warnLevel   = 75;
 my $critLevel   = 90;
 
 my $return = {
-    Name       => "hardwareLoadAverage",
     Version    => "0.10",
     
     Status     => 398,
@@ -44,7 +43,7 @@ else
 
     $return->{'Status'}  = 100;
     $return->{'Message'} = "Current memory usage is $usePercentage%";
-    $return->{'Value'}   = $usePercentage;
+    $return->{'Value'}   = $usePercentage + 0;
 
     $return->{'Metrics'}->{'Total'} = $values{'MemTotal'} + 0;
     $return->{'Metrics'}->{'Used'}  = $realUsed + 0;
