@@ -2,6 +2,7 @@ package wigo
 
 import (
 	"log"
+	"container/list"
 )
 
 
@@ -82,11 +83,16 @@ func (this *Wigo) SetHostname( hostname string ){
 
 func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
-	if _, ok := this.RemoteWigos[ wigoName ] ; ok {
-		// It already exists
-		// TEST changes
+	if oldWigo, ok := this.RemoteWigos[ wigoName ] ; ok {
+		notifications := this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
 
+		if notifications.Len() > 0 {
+			log.Printf("There is some notifications from remote wigo merging : \n")
 
+			for e := notifications.Front(); e != nil; e = e.Next() {
+				log.Printf("New notif : %s\n", e.Value.(*Notification).Message)
+			}
+		}
 	}
 
 	this.RemoteWigos[ wigoName ] = remoteWigo
@@ -119,3 +125,41 @@ func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 	return
 }
 
+
+func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *Wigo ) ( allNotifications *list.List ){
+
+	allNotifications = list.New()
+
+	// LocalProbes
+	for probeName := range oldWigo.LocalHost.Probes{
+		oldProbe := oldWigo.LocalHost.Probes[ probeName ]
+
+		if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[ probeName ] ; ok {
+
+			// Probe still exist in new
+			// Status has changed ? -> Notification
+			if( oldProbe.Status != probeWhichStillExistInNew.Status ){
+				notification := NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probeWhichStillExistInNew )
+				allNotifications.PushBack(notification)
+			}
+
+		} else {
+			// New Probe
+		}
+	}
+
+
+	// Remote Wigos
+	for wigoName := range oldWigo.RemoteWigos {
+
+		oldWigo := oldWigo.RemoteWigos[ wigoName ]
+
+		if wigoStillExistInNew, ok := newWigo.RemoteWigos[ wigoName ]; ok {
+			remoteNotifications := oldWigo.CompareTwoWigosAndRaiseNotifications( oldWigo, wigoStillExistInNew )
+
+			allNotifications.PushBackList(remoteNotifications)
+		}
+	}
+
+	return allNotifications
+}
