@@ -313,56 +313,47 @@ func threadSocket(listenAddress string, listenPort int, ci chan wigo.Event) {
 	}
 }
 
-func threadCallbacks(chanCallbacks chan wigo.Event) {
+func threadCallbacks(chanCallbacks chan wigo.INotification) {
 	for {
-		e := <-chanCallbacks
+		notification := <-chanCallbacks
 
-		switch e.Type {
-		case wigo.SENDNOTIFICATION :
-			notification := e.Value.(*wigo.Notification)
+		go func() {
+			// Create http client with timeout
+			c := http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 
-			if (notification.Type == "url") {
-				go func() {
-					// Create http client with timeout
-					c := http.Client{
-						Transport: &http.Transport{
-							TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-
-							Dial: func(netw, addr string) (net.Conn, error) {
-								deadline := time.Now().Add(2 * time.Second)
-								c, err := net.DialTimeout(netw, addr, time.Second*2)
-								if err != nil {
-									return nil, err
-								}
-								c.SetDeadline(deadline)
-								return c, nil
-							},
-						},
-					}
-
-					// Jsonize notification
-					json, err := notification.ToJson()
-					if err != nil{
-						log.Printf("Fail to encode json to send callback for %s : %s", notification.Hostname, err)
-						return
-					}
-
-					// Make post values
-					postValues := url.Values{}
-					postValues.Add("Notification", string(json))
-
-
-					// Make request
-					_, reqErr := c.PostForm( notification.Receiver, postValues )
-					if (reqErr != nil) {
-						log.Printf("Error sending callback to url %s : %s", notification.Receiver, reqErr)
-					} else {
-						log.Printf("Successfully called callback url %s", notification.Receiver)
-					}
-
-				}()
+					Dial: func(netw, addr string) (net.Conn, error) {
+						deadline := time.Now().Add(2 * time.Second)
+						c, err := net.DialTimeout(netw, addr, time.Second*2)
+						if err != nil {
+							return nil, err
+						}
+						c.SetDeadline(deadline)
+						return c, nil
+					},
+				},
 			}
-		}
+
+			// Jsonize notification
+			json, err := notification.ToJson()
+			if err != nil{
+				return
+			}
+
+			// Make post values
+			postValues := url.Values{}
+			postValues.Add("Notification", string(json))
+
+
+			// Make request
+			_, reqErr := c.PostForm( notification.GetReceiver(), postValues )
+			if (reqErr != nil) {
+				log.Printf("Error sending callback to url %s : %s", notification.GetReceiver(), reqErr)
+			} else {
+				log.Printf("Successfully called callback url %s", notification.GetReceiver())
+			}
+		}()
 	}
 }
 
@@ -524,7 +515,7 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 			log.Printf("Error connecting to host %s : %s", host, err)
 
 			// Create wigo in error
-			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err))
+			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
 			errorWigo.SetHostname(host)
 
 			// Send it to main
@@ -538,13 +529,6 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 				reply := make([]byte, 512)
 				read_len, err := conn.Read(reply)
 				if ( err != nil ) {
-					// Create wigo in error
-					errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err))
-					errorWigo.SetHostname(host)
-
-					// Send it to main
-					probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, errorWigo }
-
 					break
 				}
 

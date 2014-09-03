@@ -2,13 +2,14 @@ package wigo
 
 import (
 	"log"
-	"container/list"
 	"encoding/json"
 )
 
 
 type Wigo struct {
 	Version			string
+	IsAlive			bool
+
 	GlobalStatus	int
 	GlobalMessage	string
 
@@ -22,6 +23,8 @@ type Wigo struct {
 func InitWigo( configFile string ) ( this *Wigo ){
 
 	this 				= new(Wigo)
+
+	this.IsAlive		= true
 	this.Version 		= "Wigo v0.32"
 	this.GlobalStatus	= 0
 	this.GlobalMessage	= "OK"
@@ -43,7 +46,8 @@ func InitWigo( configFile string ) ( this *Wigo ){
 
 func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 
-	this = new(Wigo)
+	this 			= new(Wigo)
+	this.IsAlive 	= true
 
 	err := json.Unmarshal( ba, this )
 	if( err != nil ){
@@ -53,11 +57,12 @@ func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 	return
 }
 
-func NewWigoFromErrorMessage( message string ) ( this *Wigo ){
+func NewWigoFromErrorMessage( message string, isAlive bool ) ( this *Wigo ){
 
 	this = new(Wigo)
 	this.GlobalStatus 	= 500
 	this.GlobalMessage	= message
+	this.IsAlive		= isAlive
 	this.RemoteWigos	= make(map[string] *Wigo)
 	this.LocalHost		= new(Host)
 
@@ -112,16 +117,7 @@ func (this *Wigo) SetHostname( hostname string ){
 func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 	if oldWigo, ok := this.RemoteWigos[ wigoName ] ; ok {
-		notifications := this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
-
-		if notifications.Len() > 0 {
-			log.Printf("There is some notifications from remote wigo %s : \n", wigoName)
-
-			for e := notifications.Front(); e != nil; e = e.Next() {
-				log.Printf(" - %s\n", e.Value.(*Notification).Message)
-				e.Value.(*Notification).Send( Channels.ChanCallbacks )
-			}
-		}
+		this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
 	}
 
 	this.RemoteWigos[ wigoName ] = remoteWigo
@@ -131,8 +127,6 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 
-	var notification *Notification
-
 	// If old prove, test if status is different
 	if oldProbe, ok := this.LocalHost.Probes[ probe.Name ] ; ok {
 
@@ -141,32 +135,29 @@ func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, this.LocalHost.Name, oldProbe.Status, probe.Status)
 
 			if (this.config.CallbackUrl != "") {
-				notification = NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probe )
+				Channels.ChanCallbacks <- NewNotificationProbe( this.config.CallbackUrl, oldProbe, probe )
 			}
 		}
 	}
-
 
 	// Update
 	this.LocalHost.Probes[ probe.Name ] = probe
 	this.LocalHost.RecomputeStatus()
 
-
 	// Recompute status
 	this.RecomputeGlobalStatus()
-
-	// Notify
-	if(notification != nil){
-		notification.Send( Channels.ChanCallbacks )
-	}
 
 	return
 }
 
 
-func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *Wigo ) ( allNotifications *list.List ){
+func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *Wigo ) (){
 
-	allNotifications = list.New()
+
+	// Send wigo notif if status is not the same
+	if(newWigo.GlobalStatus != oldWigo.GlobalStatus){
+		Channels.ChanCallbacks <- NewNotificationWigo( this.config.CallbackUrl, oldWigo, newWigo)
+	}
 
 	// LocalProbes
 	for probeName := range oldWigo.LocalHost.Probes {
@@ -177,8 +168,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 			// Probe still exist in new
 			// Status has changed ? -> Notification
 			if ( oldProbe.Status != probeWhichStillExistInNew.Status ) {
-				notification := NewNotification("url", this.config.CallbackUrl, oldWigo.LocalHost, oldProbe, probeWhichStillExistInNew)
-				allNotifications.PushBack(notification)
+				Channels.ChanCallbacks <- NewNotificationProbe( this.config.CallbackUrl, oldProbe, probeWhichStillExistInNew)
 			}
 
 		} else {
@@ -193,11 +183,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 		oldWigo := oldWigo.RemoteWigos[ wigoName ]
 
 		if wigoStillExistInNew, ok := newWigo.RemoteWigos[ wigoName ]; ok {
-			remoteNotifications := this.CompareTwoWigosAndRaiseNotifications(oldWigo, wigoStillExistInNew)
-			allNotifications.PushBackList(remoteNotifications)
+			this.CompareTwoWigosAndRaiseNotifications(oldWigo, wigoStillExistInNew)
 		}
 	}
-
-
-	return allNotifications
 }

@@ -11,7 +11,7 @@ type Chans struct {
 	ChanChecks		chan Event
 	ChanSocket		chan Event
 	ChanResults		chan Event
-	ChanCallbacks	chan Event
+	ChanCallbacks	chan INotification
 	ChanSignals		chan os .Signal
 }
 
@@ -21,6 +21,6 @@ func InitChannels(){
 	Channels.ChanChecks 	= make(chan Event)
 	Channels.ChanSocket 	= make(chan Event)
 	Channels.ChanResults 	= make(chan Event)
-	Channels.ChanCallbacks 	= make(chan Event)
+	Channels.ChanCallbacks 	= make(chan INotification)
 	Channels.ChanSignals 	= make(chan os.Signal)
 }

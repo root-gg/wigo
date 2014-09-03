@@ -7,51 +7,104 @@ import (
 )
 
 type Notification struct {
-
 	Type		string
-
 	Receiver	string
 	Message		string
 	Date		string
-
-	Hostname			string
-	HostProbesInError	[]string
-
-	OldProbe	*ProbeResult
-	NewProbe	*ProbeResult
-
-    // Private
-    host        *Host
 }
 
-func NewNotification( t string, receiver string, host *Host, oldProbe *ProbeResult, newProbe *ProbeResult) ( this *Notification ){
+type INotification interface {
+	ToJson() 		([]byte, error)
+	GetMessage()	string
+	GetReceiver()	string
+}
 
-	if( t != "url" ){
-		return nil
+type NotificationWigo struct {
+	*Notification
+	OldWigo		*Wigo
+	NewWigo		*Wigo
+}
+type NotificationHost struct {
+	*Notification
+	OldHost		*Host
+	NewHost		*Host
+}
+type NotificationProbe struct {
+	*Notification
+	OldProbe	*ProbeResult
+	NewProbe	*ProbeResult
+}
+
+
+// Constructors
+func NewNotification( receiver string ) ( this *Notification ){
+	this				= new(Notification)
+	this.Date			= time.Now().Format(dateLayout)
+	this.Receiver		= receiver
+	return
+}
+
+func NewNotificationWigo( receiver string, oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWigo ){
+	this 				= new(NotificationWigo)
+	this.Notification	= NewNotification(receiver)
+	this.OldWigo 		= oldWigo
+	this.NewWigo		= newWigo
+
+
+	if oldWigo.IsAlive && !newWigo.IsAlive {
+		// UP -> DOWN
+		this.Message = fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage )
+
+	} else if !oldWigo.IsAlive && newWigo.IsAlive {
+		// DOWN -> UP
+		this.Message = fmt.Sprintf("Wigo %s UP", newWigo.GetHostname())
+
+	} else if newWigo.GlobalStatus != oldWigo.GlobalStatus {
+		// CHANGED STATUS
+		this.Message = fmt.Sprintf("Wigo %s status switched from %d to %d", newWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
+
 	}
-
-	this = new(Notification)
-	this.Type		= t
-	this.OldProbe	= oldProbe
-	this.NewProbe	= newProbe
-	this.Message	= fmt.Sprintf("Probe %s switched from %d to %d on host %s", oldProbe.Name, oldProbe.Status, newProbe.Status, host.Name)
-	this.Receiver	= receiver
-	this.Hostname	= host.Name
-
-	this.HostProbesInError = host.GetErrorsProbesList()
-
-    // Private 
-    this.host       = host
 
 	return
 }
 
-func (this *Notification) Send( ci chan Event ){
-	this.HostProbesInError = this.host.GetErrorsProbesList()
-	this.Date = time.Now().Format(dateLayout)
-	ci <- Event{ SENDNOTIFICATION, this }
+func NewNotificationHost( receiver string, oldHost *Host, newHost *Host ) ( this *NotificationHost ){
+	this 				= new(NotificationHost)
+	this.Notification	= NewNotification(receiver)
+	this.OldHost		= oldHost
+	this.NewHost		= newHost
+
+	if newHost.Status != oldHost.Status {
+		this.Message = fmt.Sprintf("Host %s changed status from %d to %d", newHost.Name, oldHost.Status, newHost.Status)
+	}
+
+	return
 }
 
+func NewNotificationProbe( receiver string, oldProbe *ProbeResult, newProbe *ProbeResult ) ( this *NotificationProbe ){
+	this 				= new(NotificationProbe)
+	this.Notification	= NewNotification(receiver)
+	this.OldProbe		= oldProbe
+	this.NewProbe		= newProbe
+
+	if newProbe.Status != oldProbe.Status {
+		this.Message = fmt.Sprintf("Probe %s status changed from %d to %d : %s", newProbe.Name, oldProbe.Status, newProbe.Status, newProbe.Message )
+	}
+
+	return
+}
+
+
+// Getters
 func (this *Notification) ToJson() ( ba []byte, e error ) {
 	return json.Marshal(this)
 }
+
+func (this *Notification) GetMessage() ( string ){
+	return this.Message
+}
+
+func (this *Notification) GetReceiver() ( string ){
+	return this.Receiver
+}
+
