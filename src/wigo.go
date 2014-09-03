@@ -36,7 +36,6 @@ func main() {
 
 	// Init Wigo
 	Wigo := wigo.InitWigo(configFile)
-	localHost := Wigo.GetLocalHost()
 
 
 	// Launch goroutines
@@ -60,10 +59,6 @@ func main() {
 	// Signals
 	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM)
 
-	// Result object
-	globalResultsObject := make(map[string] *wigo.Host)
-	globalResultsObject[ localHost.Name ] = Wigo.GetLocalHost()
-
 
 	// Selection
 	for {
@@ -75,7 +70,6 @@ func main() {
 			switch e.Type {
 
 			case wigo.DELETEPROBERESULT :
-				delete(globalResultsObject[ localHost.Name ].Probes, e.Value.(string))
 
 			case wigo.NEWREMOTERESULT :
 				if _, ok := e.Value.(*wigo.Wigo); ok {
@@ -503,7 +497,7 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 
 	case <-time.After(time.Second * time.Duration(timeOut)) :
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, "Probe timeout", "")
-	probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+		probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
 		log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory)
 
 		// Killing it..
@@ -523,17 +517,20 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 
 func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Event) {
 	for {
-		connectionOk := false
 
-		conn, err := net.Dial("tcp", host)
+		conn, err := net.DialTimeout("tcp", host, time.Second * 2)
+
 		if err != nil {
 			log.Printf("Error connecting to host %s : %s", host, err)
-			connectionOk = false
-		} else {
-			connectionOk = true
-		}
 
-		if (connectionOk) {
+			// Create wigo in error
+			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err))
+			errorWigo.SetHostname(host)
+
+			// Send it to main
+			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, errorWigo }
+
+		} else {
 
 			completeOutput := new(bytes.Buffer)
 
@@ -541,6 +538,13 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 				reply := make([]byte, 512)
 				read_len, err := conn.Read(reply)
 				if ( err != nil ) {
+					// Create wigo in error
+					errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err))
+					errorWigo.SetHostname(host)
+
+					// Send it to main
+					probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, errorWigo }
+
 					break
 				}
 
@@ -548,17 +552,17 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 			}
 
 			// Instanciate object from remote return
-			wikoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
+			wigoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
 			if (err != nil) {
 				log.Printf("Failed to parse return from host %s : %s", host, err)
 				continue
 			}
 
 			// Set hostname with config file name
-			wikoObj.SetHostname(host)
+			wigoObj.SetHostname(host)
 
 			// Send it to main
-			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, wikoObj }
+			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, wigoObj }
 		}
 
 		time.Sleep(time.Second * 10)

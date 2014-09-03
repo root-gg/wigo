@@ -3,12 +3,14 @@ package wigo
 import (
 	"log"
 	"container/list"
+	"encoding/json"
 )
 
 
 type Wigo struct {
 	Version			string
 	GlobalStatus	int
+	GlobalMessage	string
 
 	LocalHost		*Host
 	RemoteWigos		map[string] *Wigo
@@ -22,6 +24,7 @@ func InitWigo( configFile string ) ( this *Wigo ){
 	this 				= new(Wigo)
 	this.Version 		= "Wigo v0.32"
 	this.GlobalStatus	= 0
+	this.GlobalMessage	= "OK"
 
 	this.LocalHost		= NewLocalHost()
 	this.RemoteWigos	= make(map[string] *Wigo)
@@ -32,6 +35,31 @@ func InitWigo( configFile string ) ( this *Wigo ){
 
 	// Init channels
 	InitChannels()
+
+	return
+}
+
+// Constructors
+
+func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
+
+	this = new(Wigo)
+
+	err := json.Unmarshal( ba, this )
+	if( err != nil ){
+		return nil, err
+	}
+
+	return
+}
+
+func NewWigoFromErrorMessage( message string ) ( this *Wigo ){
+
+	this = new(Wigo)
+	this.GlobalStatus 	= 500
+	this.GlobalMessage	= message
+	this.RemoteWigos	= make(map[string] *Wigo)
+	this.LocalHost		= new(Host)
 
 	return
 }
@@ -96,10 +124,7 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 		}
 	}
 
-	if remoteWigo.LocalHost != nil {
-		this.RemoteWigos[ wigoName ] = remoteWigo
-	}
-
+	this.RemoteWigos[ wigoName ] = remoteWigo
 	this.RecomputeGlobalStatus()
 }
 
@@ -115,11 +140,12 @@ func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
 		if oldProbe.Status != probe.Status {
 			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, this.LocalHost.Name, oldProbe.Status, probe.Status)
 
-			if(this.config.CallbackUrl != ""){
+			if (this.config.CallbackUrl != "") {
 				notification = NewNotification("url", this.config.CallbackUrl, this.LocalHost, oldProbe, probe )
 			}
 		}
 	}
+
 
 	// Update
 	this.LocalHost.Probes[ probe.Name ] = probe
@@ -143,15 +169,15 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 	allNotifications = list.New()
 
 	// LocalProbes
-	for probeName := range oldWigo.LocalHost.Probes{
+	for probeName := range oldWigo.LocalHost.Probes {
 		oldProbe := oldWigo.LocalHost.Probes[ probeName ]
 
 		if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[ probeName ] ; ok {
 
 			// Probe still exist in new
 			// Status has changed ? -> Notification
-			if( oldProbe.Status != probeWhichStillExistInNew.Status ){
-				notification := NewNotification("url", this.config.CallbackUrl, oldWigo.LocalHost, oldProbe, probeWhichStillExistInNew )
+			if ( oldProbe.Status != probeWhichStillExistInNew.Status ) {
+				notification := NewNotification("url", this.config.CallbackUrl, oldWigo.LocalHost, oldProbe, probeWhichStillExistInNew)
 				allNotifications.PushBack(notification)
 			}
 
@@ -167,10 +193,11 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 		oldWigo := oldWigo.RemoteWigos[ wigoName ]
 
 		if wigoStillExistInNew, ok := newWigo.RemoteWigos[ wigoName ]; ok {
-			remoteNotifications := this.CompareTwoWigosAndRaiseNotifications( oldWigo, wigoStillExistInNew )
+			remoteNotifications := this.CompareTwoWigosAndRaiseNotifications(oldWigo, wigoStillExistInNew)
 			allNotifications.PushBackList(remoteNotifications)
 		}
 	}
+
 
 	return allNotifications
 }

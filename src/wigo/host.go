@@ -3,7 +3,6 @@ package wigo
 import (
 	"os"
 	"log"
-	"encoding/json"
 )
 
 
@@ -46,17 +45,6 @@ func NewLocalHost() ( this *Host ){
 	return
 }
 
-func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
-
-	this = new(Wigo)
-
-	err := json.Unmarshal( ba, this )
-	if( err != nil ){
-		return nil, err
-	}
-
-	return
-}
 
 
 // Methods
