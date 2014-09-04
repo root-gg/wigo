@@ -180,14 +180,18 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 		} else {
 
 			// Prob disappeard !
-			Channels.ChanCallbacks <- NewNotificationProbe( oldProbe, nil )
+			if newWigo.IsAlive {
+				Channels.ChanCallbacks <- NewNotificationProbe(oldProbe, nil)
+			}
 		}
 	}
 
-	// Detect new probes
-	for probeName := range newWigo.LocalHost.Probes {
-		if _,ok := oldWigo.LocalHost.Probes[probeName] ; !ok {
-			Channels.ChanCallbacks <- NewNotificationProbe( nil, newWigo.LocalHost.Probes[probeName] )
+	// Detect new probes (only if new wigo is up)
+	if newWigo.IsAlive {
+		for probeName := range newWigo.LocalHost.Probes {
+			if _,ok := oldWigo.LocalHost.Probes[probeName] ; !ok {
+				Channels.ChanCallbacks <- NewNotificationProbe( nil, newWigo.LocalHost.Probes[probeName] )
+			}
 		}
 	}
 
