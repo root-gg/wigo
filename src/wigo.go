@@ -74,12 +74,14 @@ func threadWatch(ci chan wigo.Event) {
 	watcherNew, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
+		return
 	}
 
 	// Create a watcher on checks directory
 	err = watcherNew.Watch(wigo.GetLocalWigo().GetConfig().ProbesDirectory)
 	if err != nil {
 		log.Fatal(err)
+		return
 	}
 
 	// Watch for changes forever
