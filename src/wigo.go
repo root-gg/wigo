@@ -208,6 +208,7 @@ func threadLocalChecks() {
 							if (probeIsDeleted) {
 								log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName)
 								currentProbesList.Remove(c)
+								wigo.GetLocalWigo().LocalHost.DeleteProbeByName(probeName)
 								continue
 							}
 						}
@@ -337,6 +338,22 @@ func execProbe(probePath string, timeOut int) {
 
 	// Create ProbeResult
 	var probeResult *wigo.ProbeResult
+
+	// Stat prob
+	fileInfo, err := os.Stat(probePath)
+	if err != nil {
+		log.Printf("Failed to stat probe %s : %s",probePath,err)
+		return
+	}
+
+	// Test if executable
+	if m := fileInfo.Mode() ; m&0111 == 0 {
+		log.Printf(" - Probe %s is not executable (%s)", probePath, m.Perm().String())
+
+		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("probe is not executable (%s)", m.Perm().String()), "")
+		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		return
+	}
 
 	// Create Command
 	cmd := exec.Command(probePath)

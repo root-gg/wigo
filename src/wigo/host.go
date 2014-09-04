@@ -90,6 +90,14 @@ func (this *Host) AddOrUpdateProbe( probe *ProbeResult ){
 	return
 }
 
+
+func (this *Host) DeleteProbeByName( probeName string ){
+	if probeToDelete, ok := this.Probes[ probeName ] ; ok {
+		Channels.ChanCallbacks <- NewNotificationProbe( probeToDelete, nil )
+		delete(this.Probes,probeName)
+	}
+}
+
 func (this *Host) GetErrorsProbesList() ( list []string ){
 
 	list = make([]string,0)
