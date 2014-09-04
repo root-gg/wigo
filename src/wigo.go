@@ -434,6 +434,7 @@ func execProbe(probePath string, timeOut int) {
 		}
 
 		return
+		return
 	}
 }
 

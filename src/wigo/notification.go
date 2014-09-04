@@ -52,15 +52,15 @@ func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWig
 
 	if oldWigo.IsAlive && !newWigo.IsAlive {
 		// UP -> DOWN
-		this.Message = fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage )
+		this.Message = fmt.Sprintf("Host %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage )
 
 	} else if !oldWigo.IsAlive && newWigo.IsAlive {
 		// DOWN -> UP
-		this.Message = fmt.Sprintf("Wigo %s UP", newWigo.GetHostname())
+		this.Message = fmt.Sprintf("Host %s UP", newWigo.GetHostname())
 
 	} else if newWigo.GlobalStatus != oldWigo.GlobalStatus {
 		// CHANGED STATUS
-		this.Message = fmt.Sprintf("Wigo %s status switched from %d to %d", newWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
+		this.Message = fmt.Sprintf("Host %s status switched from %d to %d", newWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
 
 	}
 
