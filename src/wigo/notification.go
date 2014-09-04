@@ -99,6 +99,15 @@ func NewNotificationProbe( receiver string, oldProbe *ProbeResult, newProbe *Pro
 func (this *Notification) ToJson() ( ba []byte, e error ) {
 	return json.Marshal(this)
 }
+func (this *NotificationWigo) ToJson() ( ba []byte, e error ) {
+	return json.Marshal(this)
+}
+func (this *NotificationHost) ToJson() ( ba []byte, e error ) {
+	return json.Marshal(this)
+}
+func (this *NotificationProbe) ToJson() ( ba []byte, e error ) {
+	return json.Marshal(this)
+}
 
 func (this *Notification) GetMessage() ( string ){
 	return this.Message
