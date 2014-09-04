@@ -37,16 +37,15 @@ type NotificationProbe struct {
 
 
 // Constructors
-func NewNotification( receiver string ) ( this *Notification ){
+func NewNotification() ( this *Notification ){
 	this				= new(Notification)
 	this.Date			= time.Now().Format(dateLayout)
-	this.Receiver		= receiver
 	return
 }
 
-func NewNotificationWigo( receiver string, oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWigo ){
+func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWigo ){
 	this 				= new(NotificationWigo)
-	this.Notification	= NewNotification(receiver)
+	this.Notification	= NewNotification()
 	this.OldWigo 		= oldWigo
 	this.NewWigo		= newWigo
 
@@ -68,9 +67,9 @@ func NewNotificationWigo( receiver string, oldWigo *Wigo, newWigo *Wigo ) ( this
 	return
 }
 
-func NewNotificationHost( receiver string, oldHost *Host, newHost *Host ) ( this *NotificationHost ){
+func NewNotificationHost( oldHost *Host, newHost *Host ) ( this *NotificationHost ){
 	this 				= new(NotificationHost)
-	this.Notification	= NewNotification(receiver)
+	this.Notification	= NewNotification()
 	this.OldHost		= oldHost
 	this.NewHost		= newHost
 
@@ -81,14 +80,20 @@ func NewNotificationHost( receiver string, oldHost *Host, newHost *Host ) ( this
 	return
 }
 
-func NewNotificationProbe( receiver string, oldProbe *ProbeResult, newProbe *ProbeResult ) ( this *NotificationProbe ){
+func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this *NotificationProbe ){
 	this 				= new(NotificationProbe)
-	this.Notification	= NewNotification(receiver)
+	this.Notification	= NewNotification()
 	this.OldProbe		= oldProbe
 	this.NewProbe		= newProbe
 
-	if newProbe.Status != oldProbe.Status {
-		this.Message = fmt.Sprintf("Probe %s status changed from %d to %d : %s", newProbe.Name, oldProbe.Status, newProbe.Status, newProbe.Message )
+	if oldProbe == nil && newProbe != nil {
+		this.Message = fmt.Sprintf("New probe %s with status %d detected on host %s", newProbe.Name, newProbe.Status, newProbe.GetHost().Name)
+	} else if oldProbe != nil && newProbe == nil {
+		this.Message = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, oldProbe.GetHost().Name, oldProbe.Status )
+	} else if oldProbe != nil && newProbe != nil {
+		if newProbe.Status != oldProbe.Status {
+			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s (%s)", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().Name, newProbe.Message)
+		}
 	}
 
 	return
@@ -108,11 +113,9 @@ func (this *NotificationHost) ToJson() ( ba []byte, e error ) {
 func (this *NotificationProbe) ToJson() ( ba []byte, e error ) {
 	return json.Marshal(this)
 }
-
 func (this *Notification) GetMessage() ( string ){
 	return this.Message
 }
-
 func (this *Notification) GetReceiver() ( string ){
 	return this.Receiver
 }

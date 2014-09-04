@@ -1,10 +1,15 @@
 package wigo
 
 import (
-	"log"
 	"encoding/json"
+	"sync"
+	"os"
+	"fmt"
+	"log"
 )
 
+// Static global object
+var LocalWigo 	*Wigo
 
 type Wigo struct {
 	Version			string
@@ -16,31 +21,54 @@ type Wigo struct {
 	LocalHost		*Host
 	RemoteWigos		map[string] *Wigo
 
-	config			*Config
 	hostname		string
+	config			*Config
+	locker			*sync.RWMutex
 }
 
-func InitWigo( configFile string ) ( this *Wigo ){
+func InitWigo() (){
 
-	this 				= new(Wigo)
+	if LocalWigo == nil {
+		LocalWigo 				= new(Wigo)
 
-	this.IsAlive		= true
-	this.Version 		= "Wigo v0.32"
-	this.GlobalStatus	= 0
-	this.GlobalMessage	= "OK"
+		LocalWigo.IsAlive 		= true
+		LocalWigo.Version 		= "Wigo v0.40"
+		LocalWigo.GlobalStatus 	= 0
+		LocalWigo.GlobalMessage = "OK"
 
-	this.LocalHost		= NewLocalHost()
-	this.RemoteWigos	= make(map[string] *Wigo)
 
-	// Private vars
-	this.config			= NewConfig(configFile)
-	this.hostname		= "localhost"
+		// Init LocalHost and RemoteWigos list
+		LocalWigo.LocalHost 	= NewLocalHost()
+		LocalWigo.RemoteWigos 	= make(map[string] *Wigo)
 
-	// Init channels
-	InitChannels()
+		// Private vars
+		LocalWigo.config 		= NewConfig()
+		LocalWigo.hostname 		= "localhost"
+		LocalWigo.locker 		= new(sync.RWMutex)
+
+
+		// Log
+		f, err := os.OpenFile(LocalWigo.GetConfig().LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().LogFile, err)
+		} else {
+			log.SetOutput(f)
+			log.SetPrefix(LocalWigo.GetLocalHost().Name + " ")
+		}
+
+		// Init channels
+		InitChannels()
+	}
 
 	return
 }
+
+// Factory
+
+func GetLocalWigo() ( *Wigo ){
+	return LocalWigo
+}
+
 
 // Constructors
 
@@ -53,6 +81,8 @@ func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 	if( err != nil ){
 		return nil, err
 	}
+
+	this.SetParentHostsInProbes()
 
 	return
 }
@@ -116,38 +146,15 @@ func (this *Wigo) SetHostname( hostname string ){
 
 func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
+	this.Lock()
+
 	if oldWigo, ok := this.RemoteWigos[ wigoName ] ; ok {
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
 	}
 
 	this.RemoteWigos[ wigoName ] = remoteWigo
 	this.RecomputeGlobalStatus()
-}
-
-
-func (this *Wigo) AddOrUpdateLocalProbe( probe *ProbeResult ){
-
-	// If old prove, test if status is different
-	if oldProbe, ok := this.LocalHost.Probes[ probe.Name ] ; ok {
-
-		// Notification
-		if oldProbe.Status != probe.Status {
-			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, this.LocalHost.Name, oldProbe.Status, probe.Status)
-
-			if (this.config.CallbackUrl != "") {
-				Channels.ChanCallbacks <- NewNotificationProbe( this.config.CallbackUrl, oldProbe, probe )
-			}
-		}
-	}
-
-	// Update
-	this.LocalHost.Probes[ probe.Name ] = probe
-	this.LocalHost.RecomputeStatus()
-
-	// Recompute status
-	this.RecomputeGlobalStatus()
-
-	return
+	this.Unlock()
 }
 
 
@@ -156,10 +163,10 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 
 	// Send wigo notif if status is not the same
 	if(newWigo.GlobalStatus != oldWigo.GlobalStatus){
-		Channels.ChanCallbacks <- NewNotificationWigo( this.config.CallbackUrl, oldWigo, newWigo)
+		Channels.ChanCallbacks <- NewNotificationWigo( oldWigo, newWigo )
 	}
 
-	// LocalProbes
+	// Detect changes and deleted probes
 	for probeName := range oldWigo.LocalHost.Probes {
 		oldProbe := oldWigo.LocalHost.Probes[ probeName ]
 
@@ -168,14 +175,21 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 			// Probe still exist in new
 			// Status has changed ? -> Notification
 			if ( oldProbe.Status != probeWhichStillExistInNew.Status ) {
-				Channels.ChanCallbacks <- NewNotificationProbe( this.config.CallbackUrl, oldProbe, probeWhichStillExistInNew)
+				Channels.ChanCallbacks <- NewNotificationProbe( oldProbe, probeWhichStillExistInNew )
 			}
-
 		} else {
-			// New Probe
+
+			// Prob disappeard !
+			Channels.ChanCallbacks <- NewNotificationProbe( oldProbe, nil )
 		}
 	}
 
+	// Detect new probes
+	for probeName := range newWigo.LocalHost.Probes {
+		if _,ok := oldWigo.LocalHost.Probes[probeName] ; !ok {
+			Channels.ChanCallbacks <- NewNotificationProbe( nil, newWigo.LocalHost.Probes[probeName] )
+		}
+	}
 
 	// Remote Wigos
 	for wigoName := range oldWigo.RemoteWigos {
@@ -186,4 +200,39 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 			this.CompareTwoWigosAndRaiseNotifications(oldWigo, wigoStillExistInNew)
 		}
 	}
+}
+
+
+func (this *Wigo) SetParentHostsInProbes(){
+	for localProbeName := range this.GetLocalHost().Probes {
+		this.LocalHost.Probes[localProbeName].SetHost( this.LocalHost )
+	}
+
+	for remoteWigo := range this.RemoteWigos{
+		this.RemoteWigos[remoteWigo].SetParentHostsInProbes()
+	}
+}
+
+
+// Locks
+func (this *Wigo) Lock(){
+	this.locker.Lock()
+}
+
+func (this *Wigo) Unlock(){
+	this.locker.Unlock()
+}
+
+
+// Serialize
+func (this *Wigo) ToJsonString() ( string, error ){
+
+	// Send json to socket channel
+	j, e := json.MarshalIndent( this, "", "    ")
+	if ( e != nil ) {
+		return "", e
+	}
+
+
+	return string(j), nil
 }

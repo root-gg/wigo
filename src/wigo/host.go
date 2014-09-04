@@ -62,6 +62,34 @@ func (this *Host) RecomputeStatus(){
 	return
 }
 
+
+func (this *Host) AddOrUpdateProbe( probe *ProbeResult ){
+
+	// If old prove, test if status is different
+	if oldProbe, ok := GetLocalWigo().GetLocalHost().Probes[ probe.Name ] ; ok {
+
+		// Notification
+		if oldProbe.Status != probe.Status {
+			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, GetLocalWigo().GetLocalHost().Name, oldProbe.Status, probe.Status)
+
+			Channels.ChanCallbacks <- NewNotificationProbe( oldProbe, probe )
+		}
+	} else {
+
+		// New probe
+		probe.SetHost( this )
+	}
+
+	// Update
+	GetLocalWigo().LocalHost.Probes[ probe.Name ] = probe
+	GetLocalWigo().LocalHost.RecomputeStatus()
+
+	// Recompute status
+	GetLocalWigo().RecomputeGlobalStatus()
+
+	return
+}
+
 func (this *Host) GetErrorsProbesList() ( list []string ){
 
 	list = make([]string,0)

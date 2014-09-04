@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -14,47 +16,28 @@ import (
 	"syscall"
 	"strconv"
 	"container/list"
-	"encoding/json"
+	"bytes"
+	"crypto/tls"
 
 	// Custom libs
 	"code.google.com/p/go.exp/inotify"
 	"wigo"
-	"bytes"
-	"net/http"
-	"crypto/tls"
-	"net/url"
 )
 
-const listenProto = "tcp4"
-const listenPort = 4000
-const listenAddr = ":"
-const checksDirectory = "/usr/local/wigo/probes"
-const logFile = "/var/log/wigo.log"
-const configFile = "/etc/wigo.conf"
 
 func main() {
 
 	// Init Wigo
-	Wigo := wigo.InitWigo(configFile)
+	wigo.InitWigo()
 
 
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
-	go threadLocalChecks(wigo.Channels.ChanChecks, wigo.Channels.ChanResults)
-	go threadRemoteChecks(Wigo.GetConfig().HostsToCheck, wigo.Channels.ChanResults)
-	go threadSocket(Wigo.GetConfig().ListenAddress, Wigo.GetConfig().ListenPort, wigo.Channels.ChanSocket)
+	go threadLocalChecks()
+	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().HostsToCheck, wigo.Channels.ChanResults)
+	go threadSocket(wigo.GetLocalWigo().GetConfig().ListenAddress, wigo.GetLocalWigo().GetConfig().ListenPort, wigo.Channels.ChanSocket)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 
-	// Log
-	f, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		fmt.Printf("Fail to open logfile %s : %s\n", logFile, err)
-	} else {
-		defer f.Close()
-
-		log.SetOutput(f)
-		log.SetPrefix(Wigo.GetLocalHost().Name + " ")
-	}
 
 	// Signals
 	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM)
@@ -63,41 +46,6 @@ func main() {
 	// Selection
 	for {
 		select {
-		case e := <-wigo.Channels.ChanWatch :
-		wigo.Channels.ChanChecks <- e
-
-		case e := <-wigo.Channels.ChanResults :
-			switch e.Type {
-
-			case wigo.DELETEPROBERESULT :
-
-			case wigo.NEWREMOTERESULT :
-				if _, ok := e.Value.(*wigo.Wigo); ok {
-					remoteWigo := e.Value.(*wigo.Wigo)
-					Wigo.AddOrUpdateRemoteWigo(remoteWigo.GetHostname(), remoteWigo)
-				}
-
-			default:
-				if _, ok := e.Value.(*wigo.ProbeResult); ok {
-					probeResult := e.Value.(*wigo.ProbeResult)
-					Wigo.AddOrUpdateLocalProbe(probeResult)
-				}
-			}
-
-		case e := <-wigo.Channels.ChanSocket :
-			switch e.Type {
-			case wigo.NEWCONNECTION :
-				log.Printf("Got a new connection : %s\n", e.Value)
-
-				// Send json to socket channel
-				j, err := json.MarshalIndent(Wigo, "", "    ")
-				if ( err != nil ) {
-					log.Println("Fail to encode to json : ", err)
-					break
-				}
-
-			wigo.Channels.ChanSocket <- wigo.Event{ wigo.SENDRESULTS , j }
-			}
 
 		case <-wigo.Channels.ChanSignals :
 			os.Exit(0)
@@ -111,14 +59,14 @@ func main() {
 
 func threadWatch(ci chan wigo.Event) {
 	// Vars
-	checkDirectories := make([]string, 0)
+	probeDirectories := make([]string, 0)
 
 	// First list
-	checkDirectories, err := listChecksDirectories()
+	probeDirectories, err := wigo.ListProbesDirectories()
 
 	// Send
-	for _, dir := range checkDirectories {
-		ci <- wigo.Event{ wigo.ADDDIRECTORY, checksDirectory + "/" + dir }
+	for _, dir := range probeDirectories {
+		ci <- wigo.Event{ wigo.ADDDIRECTORY, wigo.GetLocalWigo().GetConfig().ProbesDirectory + "/" + dir }
 	}
 
 	// Init inotify
@@ -129,7 +77,7 @@ func threadWatch(ci chan wigo.Event) {
 	}
 
 	// Create a watcher on checks directory
-	err = watcher.Watch(checksDirectory)
+	err = watcher.Watch(wigo.GetLocalWigo().GetConfig().ProbesDirectory)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -156,7 +104,7 @@ func threadWatch(ci chan wigo.Event) {
 	}
 }
 
-func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event) {
+func threadLocalChecks() {
 
 	// Directory list
 	var checksDirectories list.List
@@ -165,7 +113,7 @@ func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event)
 	// Listen events
 	go func() {
 		for {
-			ev := <-ci
+			ev := <-wigo.Channels.ChanWatch
 
 			switch ev.Type {
 			case wigo.ADDDIRECTORY :
@@ -176,7 +124,7 @@ func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event)
 				checksDirectories.PushBack(directory)
 
 				// Create local list of probes to detect removes
-				currentProbesList, err := listProbesInDirectory(directory)
+				currentProbesList, err := wigo.ListProbesInDirectory(directory)
 				if (err != nil) {
 					log.Printf("Fail to read directory %s : %s", directory, err)
 				}
@@ -196,7 +144,9 @@ func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event)
 							// Delete probes results of this directory
 							for c := currentProbesList.Front(); c != nil; c = c.Next() {
 								probeName := c.Value.(string)
-								probeResultsChannel <- wigo.Event{ wigo.DELETEPROBERESULT, probeName }
+								if _,ok := wigo.GetLocalWigo().GetLocalHost().Probes[probeName] ; ok {
+									delete(wigo.GetLocalWigo().GetLocalHost().Probes, probeName)
+								}
 							}
 
 							return
@@ -211,7 +161,7 @@ func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event)
 						}
 
 						// Update probes list
-						newProbesList, err := listProbesInDirectory(directory)
+						newProbesList, err := wigo.ListProbesInDirectory(directory)
 						if err != nil {
 							break
 						}
@@ -251,7 +201,6 @@ func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event)
 
 							if (probeIsDeleted) {
 								log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName)
-								probeResultsChannel <- wigo.Event{ wigo.DELETEPROBERESULT, probeName }
 								currentProbesList.Remove(c)
 								continue
 							}
@@ -263,7 +212,7 @@ func threadLocalChecks(ci chan wigo.Event , probeResultsChannel chan wigo.Event)
 						for c := currentProbesList.Front(); c != nil; c = c.Next() {
 							probeName := c.Value.(string)
 
-							go execProbe(directory+"/"+probeName, probeResultsChannel, 5)
+							go execProbe(directory+"/"+probeName, 5)
 						}
 
 						// Sleep right amount of time
@@ -296,7 +245,7 @@ func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan wigo.Eve
 func threadSocket(listenAddress string, listenPort int, ci chan wigo.Event) {
 
 	// Listen
-	listener, err := net.Listen(listenProto, listenAddress+":"+strconv.Itoa(listenPort))
+	listener, err := net.Listen("tcp4", listenAddress+":"+strconv.Itoa(listenPort))
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
@@ -309,115 +258,73 @@ func threadSocket(listenAddress string, listenPort int, ci chan wigo.Event) {
 			log.Fatal(err)
 		}
 
-		go handleRequest(c, ci)
+		go func(){
+			log.Printf("Got a new connection : %s\n",c.RemoteAddr())
+			defer c.Close()
+
+			json,err := wigo.GetLocalWigo().ToJsonString()
+			if(err != nil){
+				log.Println("Fail to encode to json : ", err)
+				return
+			}
+
+			// Print json to socket
+			fmt.Fprintln(c, json)
+
+			return
+		}()
 	}
 }
 
 func threadCallbacks(chanCallbacks chan wigo.INotification) {
 	for {
 		notification := <-chanCallbacks
+		callbackUrl  := wigo.GetLocalWigo().GetConfig().CallbackUrl
 
-		go func() {
-			// Create http client with timeout
-			c := http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-
-					Dial: func(netw, addr string) (net.Conn, error) {
-						deadline := time.Now().Add(2 * time.Second)
-						c, err := net.DialTimeout(netw, addr, time.Second*2)
-						if err != nil {
-							return nil, err
-						}
-						c.SetDeadline(deadline)
-						return c, nil
+		if callbackUrl != "" {
+			go func() {
+				// Create http client with timeout
+				c := http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+						Dial: func(netw, addr string) (net.Conn, error) {
+							deadline := time.Now().Add(2 * time.Second)
+							c, err := net.DialTimeout(netw, addr, time.Second*2)
+							if err != nil {
+								return nil, err
+							}
+							c.SetDeadline(deadline)
+							return c, nil
+						},
 					},
-				},
-			}
+				}
 
-			// Jsonize notification
-			json, err := notification.ToJson()
-			if err != nil{
-				return
-			}
+				// Jsonize notification
+				json, err := notification.ToJson()
+				if err != nil {
+					return
+				}
 
-			// Make post values
-			postValues := url.Values{}
-			postValues.Add("Notification", string(json))
-
-
-			// Make request
-			_, reqErr := c.PostForm( notification.GetReceiver(), postValues )
-			if (reqErr != nil) {
-				log.Printf("Error sending callback to url %s : %s", notification.GetReceiver(), reqErr)
-			} else {
-				log.Printf("Successfully called callback url %s", notification.GetReceiver())
-			}
-		}()
-	}
-}
+				// Make post values
+				postValues := url.Values{}
+				postValues.Add("Notification", string(json))
 
 
-func handleRequest(c net.Conn, ci chan wigo.Event) error {
-
-	// Request json
-	ci <- wigo.Event{ wigo.NEWCONNECTION , c.RemoteAddr() }
-
-	// Wait
-	ev := <-ci
-	if (ev.Type == wigo.SENDRESULTS) {
-
-		// Send results
-		fmt.Fprintln(c, string(ev.Value.([]byte)))
-	}
-
-	return c.Close()
-}
-
-
-func listChecksDirectories() ([]string, error) {
-
-	// List checks directory
-	files, err := ioutil.ReadDir(checksDirectory)
-	if err != nil {
-		return nil, err
-	}
-
-	// Init array
-	subdirectories := make([]string, 0)
-
-
-	// Return only subdirectories
-	for _, f := range files {
-		if (f.IsDir()) {
-			subdirectories = append(subdirectories, f.Name())
+				// Make request
+				_, reqErr := c.PostForm( callbackUrl, postValues )
+				if (reqErr != nil) {
+					log.Printf("Error sending callback to url %s : %s", notification.GetReceiver(), reqErr)
+				} else {
+					log.Printf("Notif : %s", notification.GetMessage())
+					//log.Printf("Successfully called callback url %s", notification.GetReceiver())
+				}
+			}()
 		}
 	}
-
-	return subdirectories, nil
 }
 
-func listProbesInDirectory(directory string) ( probesList *list.List, error error) {
 
-	probesList = new(list.List)
-
-	// List checks directory
-	files, err := ioutil.ReadDir(directory)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return only executables files
-	for _, f := range files {
-		if ( !f.IsDir() ) {
-			probesList.PushBack(f.Name())
-		}
-	}
-
-	return probesList, nil
-}
-
-func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut int) {
+func execProbe(probePath string, timeOut int) {
 
 	// Get probe name
 	probeDirectory , probeName := path.Split(probePath)
@@ -435,14 +342,14 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 	outputPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s", err), "")
-		probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
 		return
 	}
 
 	errPipe, err := cmd.StderrPipe()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error getting stderr pipe: %s", err), "")
-		probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
 		return
 	}
 
@@ -453,7 +360,7 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 	err = cmd.Start()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error starting command: %s", err), "")
-		probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
 		return
 	}
 
@@ -463,7 +370,7 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 		commandOutput, err = ioutil.ReadAll(combinedOutput)
 		if (err != nil) {
 			probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error reading pipe: %s", err), "")
-			probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
 			return
 		}
 
@@ -476,19 +383,21 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 	case err := <-done :
 		if (err != nil) {
 			probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error: %s", err), string(commandOutput))
-			probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
 			return
 
 		} else {
 			probeResult = wigo.NewProbeResultFromJson(probeName, commandOutput)
-			probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+
 			log.Printf(" - Probe %s in directory %s responded with status : %d\n", probeResult.Name, probeDirectory, probeResult.Status)
 			return
 		}
 
 	case <-time.After(time.Second * time.Duration(timeOut)) :
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, "Probe timeout", "")
-		probeResultsChannel <- wigo.Event{ wigo.NEWPROBERESULT , probeResult }
+		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+
 		log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory)
 
 		// Killing it..
@@ -503,7 +412,6 @@ func execProbe(probePath string, probeResultsChannel chan wigo.Event, timeOut in
 
 		return
 	}
-
 }
 
 func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Event) {
@@ -518,8 +426,7 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
 			errorWigo.SetHostname(host)
 
-			// Send it to main
-			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, errorWigo }
+			wigo.GetLocalWigo().AddOrUpdateRemoteWigo( host, errorWigo)
 
 		} else {
 
@@ -546,7 +453,7 @@ func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Eve
 			wigoObj.SetHostname(host)
 
 			// Send it to main
-			probeResultsChannel <- wigo.Event{ wigo.NEWREMOTERESULT, wigoObj }
+			wigo.GetLocalWigo().AddOrUpdateRemoteWigo( host, wigoObj)
 		}
 
 		time.Sleep(time.Second * 10)

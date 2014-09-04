@@ -23,6 +23,8 @@ type ProbeResult struct {
 
 	Status      int
 	ExitCode    int
+
+	parentHost	*Host
 }
 
 func NewProbeResultFromJson( name string, ba []byte ) ( this *ProbeResult ){
@@ -33,6 +35,8 @@ func NewProbeResultFromJson( name string, ba []byte ) ( this *ProbeResult ){
 	this.Name      	= name
 	this.ProbeDate 	= time.Now().Format(dateLayout)
 	this.ExitCode  	= 0
+
+	this.parentHost = GetLocalWigo().GetLocalHost()
 
 	return
 }
@@ -46,6 +50,19 @@ func NewProbeResult( name string, status int, exitCode int, message string, deta
 	this.Detail     = detail
 	this.ProbeDate  = time.Now().Format(dateLayout)
 
+	this.parentHost = GetLocalWigo().GetLocalHost()
+
 	return
 }
 
+
+// Getters
+func ( this *ProbeResult ) GetHost() ( *Host ){
+	return this.parentHost
+}
+
+
+// Setters
+func ( this *ProbeResult ) SetHost( h *Host )(){
+	this.parentHost = h
+}
