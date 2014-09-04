@@ -187,7 +187,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 	}
 
 	// Detect new probes (only if new wigo is up)
-	if newWigo.IsAlive {
+	if newWigo.IsAlive && oldWigo.IsAlive {
 		for probeName := range newWigo.LocalHost.Probes {
 			if _,ok := oldWigo.LocalHost.Probes[probeName] ; !ok {
 				Channels.ChanCallbacks <- NewNotificationProbe( nil, newWigo.LocalHost.Probes[probeName] )
