@@ -20,8 +20,8 @@ import (
 	"crypto/tls"
 
 	// Custom libs
-	"code.google.com/p/go.exp/inotify"
 	"wigo"
+	"github.com/howeyc/fsnotify"
 )
 
 
@@ -34,8 +34,8 @@ func main() {
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
-	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().HostsToCheck, wigo.Channels.ChanResults)
-	go threadSocket(wigo.GetLocalWigo().GetConfig().ListenAddress, wigo.GetLocalWigo().GetConfig().ListenPort, wigo.Channels.ChanSocket)
+	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().HostsToCheck)
+	go threadSocket(wigo.GetLocalWigo().GetConfig().ListenAddress, wigo.GetLocalWigo().GetConfig().ListenPort)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 
 
@@ -58,6 +58,7 @@ func main() {
 //
 
 func threadWatch(ci chan wigo.Event) {
+
 	// Vars
 	probeDirectories := make([]string, 0)
 
@@ -70,36 +71,39 @@ func threadWatch(ci chan wigo.Event) {
 	}
 
 	// Init inotify
-	watcher, err := inotify.NewWatcher()
+	watcherNew, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
 
 	// Create a watcher on checks directory
-	err = watcher.Watch(wigo.GetLocalWigo().GetConfig().ProbesDirectory)
+	err = watcherNew.Watch(wigo.GetLocalWigo().GetConfig().ProbesDirectory)
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
 
 	// Watch for changes forever
 	for {
 		select {
-		case ev := <-watcher.Event:
-			switch ev.Mask {
-			case syscall.IN_CREATE | syscall.IN_ISDIR :
-			ci <- wigo.Event{ wigo.ADDDIRECTORY, ev.Name}
-			case syscall.IN_DELETE | syscall.IN_ISDIR :
-			ci <- wigo.Event{ wigo.REMOVEDIRECTORY, ev.Name}
-			case syscall.IN_MOVED_TO | syscall.IN_ISDIR :
-			ci <- wigo.Event{ wigo.ADDDIRECTORY, ev.Name}
-			case syscall.IN_MOVED_FROM | syscall.IN_ISDIR :
-			ci <- wigo.Event{ wigo.REMOVEDIRECTORY, ev.Name}
-			}
 
-		case err := <-watcher.Error:
-			log.Println("directoryWatcher:", err)
+		case ev := <- watcherNew.Event:
+
+			if ev.IsCreate() {
+				fileInfo, err := os.Stat(ev.Name)
+				if err != nil{
+					log.Printf("Error stating %s : %s", ev.Name, err)
+					return
+				}
+
+				if fileInfo.IsDir() {
+					ci <- wigo.Event{ wigo.ADDDIRECTORY, ev.Name}
+				}
+
+			} else if ev.IsDelete() {
+				ci <- wigo.Event{ wigo.REMOVEDIRECTORY, ev.Name}
+			} else if ev.IsRename() {
+				ci <- wigo.Event{ wigo.REMOVEDIRECTORY, ev.Name}
+			}
 		}
 	}
 }
@@ -223,7 +227,7 @@ func threadLocalChecks() {
 			case wigo.REMOVEDIRECTORY :
 				for el := checksDirectories.Front(); el != nil ; el = el.Next() {
 					if (el.Value == ev.Value) {
-						log.Println("Removing ", ev.Value)
+						log.Println("Removing directory ", ev.Value)
 						checksDirectories.Remove(el)
 						break
 					}
@@ -233,16 +237,16 @@ func threadLocalChecks() {
 	}()
 }
 
-func threadRemoteChecks(hostsToCheck []string, probeResultsChannel chan wigo.Event) {
+func threadRemoteChecks(hostsToCheck []string) {
 	log.Println("Listing hostsToCheck : ")
 
 	for _, host := range hostsToCheck {
 		log.Printf(" -> Adding %s to the remote check list\n", host)
-		go launchRemoteHostCheckRoutine(host, probeResultsChannel)
+		go launchRemoteHostCheckRoutine(host)
 	}
 }
 
-func threadSocket(listenAddress string, listenPort int, ci chan wigo.Event) {
+func threadSocket(listenAddress string, listenPort int) {
 
 	// Listen
 	listener, err := net.Listen("tcp4", listenAddress+":"+strconv.Itoa(listenPort))
@@ -414,7 +418,7 @@ func execProbe(probePath string, timeOut int) {
 	}
 }
 
-func launchRemoteHostCheckRoutine(host string, probeResultsChannel chan wigo.Event) {
+func launchRemoteHostCheckRoutine(host string) {
 	for {
 
 		conn, err := net.DialTimeout("tcp", host, time.Second * 2)
