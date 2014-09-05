@@ -162,7 +162,7 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 	this.Lock()
 
 	// Test is remote is not me :D
-	if this.Uuid == remoteWigo.Uuid {
+	if remoteWigo.Uuid!= "" && this.Uuid == remoteWigo.Uuid {
 		log.Printf("Try to add a remote wigo %s with same uuid as me.. Discarding..",remoteWigo.GetHostname())
 		return
 	}
@@ -222,7 +222,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 		if wigoStillExistInNew, ok := newWigo.RemoteWigos[ wigoName ]; ok {
 
 			// Test if a remote wigo is not me
-			if this.Uuid == wigoStillExistInNew.Uuid {
+			if wigoStillExistInNew.Uuid != "" && this.Uuid == wigoStillExistInNew.Uuid {
 				log.Printf("Detected myself in remote wigo %s. Discarding.", wigoStillExistInNew.GetHostname())
 				return
 			}
