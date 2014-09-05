@@ -6,6 +6,7 @@ import (
 	"os"
 	"fmt"
 	"log"
+	"io"
 )
 
 // Static global object
@@ -26,7 +27,7 @@ type Wigo struct {
 	locker			*sync.RWMutex
 }
 
-func InitWigo() (){
+func InitWigo() ( err error ){
 
 	if LocalWigo == nil {
 		LocalWigo 				= new(Wigo)
@@ -52,15 +53,23 @@ func InitWigo() (){
 		if err != nil {
 			fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().LogFile, err)
 		} else {
-			log.SetOutput(f)
+			writer := io.MultiWriter( os.Stdout, f )
+
+			log.SetOutput(writer)
 			log.SetPrefix(LocalWigo.GetLocalHost().Name + " ")
+		}
+
+		// Test probes directory
+		_, err = os.Stat( LocalWigo.GetConfig().ProbesDirectory )
+		if err != nil {
+			return err
 		}
 
 		// Init channels
 		InitChannels()
 	}
 
-	return
+	return nil
 }
 
 // Factory

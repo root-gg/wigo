@@ -28,8 +28,11 @@ import (
 func main() {
 
 	// Init Wigo
-	wigo.InitWigo()
-
+	err := wigo.InitWigo()
+	if err != nil {
+		log.Printf("Error initialising Wigo : %s", err)
+		os.Exit(1)
+	}
 
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
