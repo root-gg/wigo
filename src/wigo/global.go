@@ -160,6 +160,7 @@ func (this *Wigo) SetHostname( hostname string ){
 func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 	this.Lock()
+	defer this.Unlock()
 
 	// Test is remote is not me :D
 	if remoteWigo.Uuid!= "" && this.Uuid == remoteWigo.Uuid {
@@ -173,7 +174,6 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 	this.RemoteWigos[ wigoName ] = remoteWigo
 	this.RecomputeGlobalStatus()
-	this.Unlock()
 }
 
 
