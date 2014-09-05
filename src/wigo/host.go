@@ -29,7 +29,7 @@ func NewHost( hostname string ) ( this *Host ){
 func NewLocalHost() ( this *Host ){
 
 	this                = new( Host )
-	this.Status			= 0
+	this.Status			= 100
 	this.Probes         = make(map[string] *ProbeResult)
 
 	// Get hostname

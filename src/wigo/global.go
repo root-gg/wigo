@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"log"
 	"io"
+
+	"code.google.com/p/go-uuid/uuid"
 )
 
 // Static global object
 var LocalWigo 	*Wigo
 
 type Wigo struct {
+	Uuid			string
 	Version			string
 	IsAlive			bool
 
@@ -32,9 +35,10 @@ func InitWigo() ( err error ){
 	if LocalWigo == nil {
 		LocalWigo 				= new(Wigo)
 
+		LocalWigo.Uuid			= uuid.New()
 		LocalWigo.IsAlive 		= true
 		LocalWigo.Version 		= "Wigo v0.40"
-		LocalWigo.GlobalStatus 	= 0
+		LocalWigo.GlobalStatus 	= 100
 		LocalWigo.GlobalMessage = "OK"
 
 
@@ -157,6 +161,12 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 	this.Lock()
 
+	// Test is remote is not me :D
+	if this.Uuid == remoteWigo.Uuid {
+		log.Printf("Try to add a remote wigo %s with same uuid as me.. Discarding..",remoteWigo.GetHostname())
+		return
+	}
+
 	if oldWigo, ok := this.RemoteWigos[ wigoName ] ; ok {
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
 	}
@@ -210,6 +220,14 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 		oldWigo := oldWigo.RemoteWigos[ wigoName ]
 
 		if wigoStillExistInNew, ok := newWigo.RemoteWigos[ wigoName ]; ok {
+
+			// Test if a remote wigo is not me
+			if this.Uuid == wigoStillExistInNew.Uuid {
+				log.Printf("Detected myself in remote wigo %s. Discarding.", wigoStillExistInNew.GetHostname())
+				return
+			}
+
+			// Recursion
 			this.CompareTwoWigosAndRaiseNotifications(oldWigo, wigoStillExistInNew)
 		}
 	}
