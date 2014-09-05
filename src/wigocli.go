@@ -7,10 +7,50 @@ import (
 	"wigo"
 	"bytes"
 	"fmt"
+
+	"github.com/docopt/docopt-go"
+	"os"
 )
 
+var command 		string	= ""
+var showOnlyErrors 	bool 	= true
 
 func main(){
+
+	// Usage
+	usage := `wigocli
+
+Usage:
+	wigocli
+	wigocli <command>
+
+Commands:
+	detail
+
+Options
+	--help
+	--version
+`
+
+	// Parse args
+	arguments, _ := docopt.Parse(usage, nil, true, "wigocli v0.1", false)
+
+	for key, value := range arguments {
+
+		if _, ok := value.(string); ok {
+			if key == "<command>" {
+				command = value.(string)
+
+				if command == "detail" {
+					showOnlyErrors = false
+
+				} else {
+					fmt.Printf("Unknown command %s\n",command)
+					os.Exit(1)
+				}
+			}
+		}
+	}
 
 	// Connect
 	conn, err := net.DialTimeout("tcp", "127.0.0.1:4000", time.Second * 2)
@@ -41,6 +81,6 @@ func main(){
 
 
 	// Print summary
-	fmt.Printf(wigoObj.GenerateSummary(true))
+	fmt.Printf(wigoObj.GenerateSummary(showOnlyErrors))
 
 }
