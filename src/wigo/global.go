@@ -174,8 +174,9 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
 	}
 
-	this.RemoteWigos[ wigoName ].SetHostname(wigoName)
+
 	this.RemoteWigos[ wigoName ] = remoteWigo
+	this.RemoteWigos[ wigoName ].SetHostname(wigoName)
 	this.RecomputeGlobalStatus()
 }
 
