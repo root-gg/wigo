@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"code.google.com/p/go-uuid/uuid"
+	"strings"
 )
 
 // Static global object
@@ -96,6 +97,7 @@ func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 	}
 
 	this.SetParentHostsInProbes()
+	this.SetRemoteWigosHostnames()
 
 	return
 }
@@ -172,6 +174,7 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
 	}
 
+	this.RemoteWigos[ wigoName ].SetHostname(wigoName)
 	this.RemoteWigos[ wigoName ] = remoteWigo
 	this.RecomputeGlobalStatus()
 }
@@ -244,6 +247,14 @@ func (this *Wigo) SetParentHostsInProbes(){
 	}
 }
 
+func (this *Wigo) SetRemoteWigosHostnames(){
+
+	for remoteWigo := range this.RemoteWigos{
+		this.RemoteWigos[remoteWigo].SetHostname(remoteWigo)
+		this.RemoteWigos[remoteWigo].SetRemoteWigosHostnames()
+	}
+}
+
 
 // Locks
 func (this *Wigo) Lock(){
@@ -266,4 +277,75 @@ func (this *Wigo) ToJsonString() ( string, error ){
 
 
 	return string(j), nil
+}
+
+
+func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
+
+	summary += fmt.Sprintf("%s running on %s \n", this.Version, this.LocalHost.Name)
+	summary += fmt.Sprintf("Local Status 	: %d\n", this.LocalHost.Status)
+	summary += fmt.Sprintf("Global Status	: %d\n\n", this.GlobalStatus)
+
+	if showOnlyErrors && this.LocalHost.Status != 100 {
+		summary += "Local probes : \n"
+
+		for probeName := range this.LocalHost.Probes {
+			summary += fmt.Sprintf("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+		}
+
+		summary += "\n"
+	}
+
+	summary += this.GenerateRemoteWigosSummary(0 , showOnlyErrors)
+
+	return
+}
+
+func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) ( summary string ) {
+
+	for remoteWigo := range this.RemoteWigos {
+
+		if(showOnlyErrors && this.RemoteWigos[remoteWigo].GlobalStatus == 100){
+			continue;
+		}
+
+
+		// Nice align
+		tabs := ""
+		for i := 0; i <= level; i++{
+			tabs += "\t"
+		}
+
+
+		// Host down ?
+		if ! this.RemoteWigos[remoteWigo].IsAlive {
+			summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " DOWN : \n"
+			summary += tabs + "\t" + this.RemoteWigos[remoteWigo].GlobalMessage + "\n"
+
+		} else {
+			summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " ( " + this.RemoteWigos[remoteWigo].LocalHost.Name + " ) : \n"
+		}
+
+
+		// Iterate on probes
+		for probeName := range this.RemoteWigos[remoteWigo].GetLocalHost().Probes {
+
+			currentProbe := this.RemoteWigos[remoteWigo].GetLocalHost().Probes[probeName]
+
+			summary += tabs
+			summary += fmt.Sprintf("\t%-25s : %d", currentProbe.Name, currentProbe.Status )
+
+			if(currentProbe.Message != ""){
+				escaped := strings.Replace( currentProbe.Message, "%", "%%", -1 )
+				summary += " - " + escaped
+			}
+
+			summary += "\n"
+		}
+
+		summary += "\n"
+		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(level, showOnlyErrors)
+	}
+
+	return
 }
