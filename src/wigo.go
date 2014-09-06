@@ -39,7 +39,7 @@ func main() {
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
-	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().HostsToCheck)
+	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().RemoteWigos)
 	go threadSocket(wigo.GetLocalWigo().GetConfig().ListenAddress, wigo.GetLocalWigo().GetConfig().ListenPort)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 
@@ -245,10 +245,10 @@ func threadLocalChecks() {
 	}()
 }
 
-func threadRemoteChecks(hostsToCheck []string) {
-	log.Println("Listing hostsToCheck : ")
+func threadRemoteChecks(remoteWigos []string) {
+	log.Println("Listing remoteWigos : ")
 
-	for _, host := range hostsToCheck {
+	for _, host := range remoteWigos {
 		log.Printf(" -> Adding %s to the remote check list\n", host)
 		go launchRemoteHostCheckRoutine(host)
 	}
