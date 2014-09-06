@@ -486,8 +486,27 @@ func execProbe(probePath string, timeOut int) {
 	select {
 	case err := <-done :
 		if (err != nil) {
-			probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error: %s", err), string(commandOutput))
+
+			// Get exit code
+			exitCode := 1
+
+			if exiterr, ok := err.(*exec.ExitError); ok {
+				// The program has exited with an exit code != 0
+
+				// This works on both Unix and Windows. Although package
+				// syscall is generally platform dependent, WaitStatus is
+				// defined for both Unix and Windows and in both cases has
+				// an ExitStatus() method with the same signature.
+				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+					exitCode = status.ExitStatus()
+				}
+			}
+
+			// Create error probe
+			probeResult = wigo.NewProbeResult(probeName, 500, exitCode, fmt.Sprintf("error: %s", err), string(commandOutput))
 			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+
+			log.Printf(" - Probe %s in directory %s failed to exec : %s\n", probeResult.Name, probeDirectory, err)
 			return
 
 		} else {
