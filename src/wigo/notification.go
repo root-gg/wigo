@@ -11,12 +11,14 @@ type Notification struct {
 	Receiver	string
 	Message		string
 	Date		string
+	Ressource	string
 }
 
 type INotification interface {
 	ToJson() 		([]byte, error)
 	GetMessage()	string
 	GetReceiver()	string
+	GetRessource()	string
 }
 
 type NotificationWigo struct {
@@ -48,7 +50,7 @@ func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWig
 	this.Notification	= NewNotification()
 	this.OldWigo 		= oldWigo
 	this.NewWigo		= newWigo
-
+	this.Ressource		= oldWigo.GetHostname()
 
 	if oldWigo.IsAlive && !newWigo.IsAlive {
 		// UP -> DOWN
@@ -72,6 +74,7 @@ func NewNotificationHost( oldHost *Host, newHost *Host ) ( this *NotificationHos
 	this.Notification	= NewNotification()
 	this.OldHost		= oldHost
 	this.NewHost		= newHost
+	this.Ressource		= oldHost.Name
 
 	if newHost.Status != oldHost.Status {
 		this.Message = fmt.Sprintf("Host %s changed status from %d to %d", newHost.Name, oldHost.Status, newHost.Status)
@@ -88,9 +91,14 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 
 	if oldProbe == nil && newProbe != nil {
 		this.Message = fmt.Sprintf("New probe %s with status %d detected on host %s", newProbe.Name, newProbe.Status, newProbe.GetHost().Name)
+		this.Ressource = newProbe.Name
+
 	} else if oldProbe != nil && newProbe == nil {
 		this.Message = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, oldProbe.GetHost().Name, oldProbe.Status )
+		this.Ressource = oldProbe.Name
+
 	} else if oldProbe != nil && newProbe != nil {
+		this.Ressource = newProbe.Name
 		if newProbe.Status != oldProbe.Status {
 			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s (%s)", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().Name, newProbe.Message)
 		}
@@ -113,10 +121,15 @@ func (this *NotificationHost) ToJson() ( ba []byte, e error ) {
 func (this *NotificationProbe) ToJson() ( ba []byte, e error ) {
 	return json.Marshal(this)
 }
+
+
 func (this *Notification) GetMessage() ( string ){
 	return this.Message
 }
 func (this *Notification) GetReceiver() ( string ){
 	return this.Receiver
+}
+func (this *Notification) GetRessource() ( string ){
+	return this.Ressource
 }
 

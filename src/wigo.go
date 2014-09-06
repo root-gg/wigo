@@ -22,6 +22,8 @@ import (
 	// Custom libs
 	"wigo"
 	"github.com/howeyc/fsnotify"
+	"net/smtp"
+	"net/mail"
 )
 
 
@@ -287,49 +289,125 @@ func threadSocket(listenAddress string, listenPort int) {
 }
 
 func threadCallbacks(chanCallbacks chan wigo.INotification) {
+	httpEnabled := wigo.GetLocalWigo().GetConfig().NotificationsHttpEnabled
+	mailEnabled := wigo.GetLocalWigo().GetConfig().NotificationsEmailEnabled
+
 	for {
 		notification := <-chanCallbacks
-		callbackUrl  := wigo.GetLocalWigo().GetConfig().CallbackUrl
-
-		if callbackUrl != "" {
-			go func() {
-				// Create http client with timeout
-				c := http.Client{
-					Transport: &http.Transport{
-						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-						Dial: func(netw, addr string) (net.Conn, error) {
-							deadline := time.Now().Add(2 * time.Second)
-							c, err := net.DialTimeout(netw, addr, time.Second*2)
-							if err != nil {
-								return nil, err
-							}
-							c.SetDeadline(deadline)
-							return c, nil
-						},
-					},
-				}
-
-				// Jsonize notification
-				json, err := notification.ToJson()
-				if err != nil {
-					return
-				}
-
-				// Make post values
-				postValues := url.Values{}
-				postValues.Add("Notification", string(json))
 
 
-				// Make request
-				_, reqErr := c.PostForm( callbackUrl, postValues )
-				if (reqErr != nil) {
-					log.Printf("Error sending callback to url %s : %s", notification.GetReceiver(), reqErr)
-				} else {
-					log.Printf("Notif : %s", notification.GetMessage())
-					//log.Printf("Successfully called callback url %s", notification.GetReceiver())
-				}
-			}()
+		// Serialize notification
+		json, err := notification.ToJson()
+		if err != nil {
+			log.Printf("Fail to decode notification : ", err)
+			continue
 		}
+
+		// Log it
+		log.Printf("New notification : %s", notification.GetMessage())
+
+
+		// Send it
+		go func() {
+			if httpEnabled {
+
+				httpUrl := wigo.GetLocalWigo().GetConfig().NotificationsHttpUrl
+
+				go func() {
+					// Create http client with timeout
+					c := http.Client{
+						Transport: &http.Transport{
+							TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+							Dial: func(netw, addr string) (net.Conn, error) {
+								deadline := time.Now().Add(2 * time.Second)
+								c, err := net.DialTimeout(netw, addr, time.Second*2)
+								if err != nil {
+									return nil, err
+								}
+								c.SetDeadline(deadline)
+								return c, nil
+							},
+						},
+					}
+
+					// Make post values
+					postValues := url.Values{}
+					postValues.Add("Notification", string(json))
+
+					// Make request
+					_, reqErr := c.PostForm(httpUrl, postValues)
+					if (reqErr != nil) {
+						log.Printf("Error sending callback to url %s : %s", httpUrl, reqErr)
+					} else {
+						log.Printf(" - Sent to http url : %s", httpUrl)
+					}
+				}()
+			}
+
+			if mailEnabled {
+
+				recipients := wigo.GetLocalWigo().GetConfig().NotificationsEmailRecipients
+				server := wigo.GetLocalWigo().GetConfig().NotificationsEmailSmtpServer
+				from := mail.Address{
+					wigo.GetLocalWigo().GetConfig().NotificationsEmailFromName,
+					wigo.GetLocalWigo().GetConfig().NotificationsEmailFromAddress,
+				}
+
+
+				for i := range recipients {
+
+					to := mail.Address{ "", recipients[i] }
+
+					go func() {
+						// setup a map for the headers
+						header := make(map[string]string)
+						header["From"] = from.String()
+						header["To"] = to.String()
+						header["Subject"] = notification.GetMessage()
+
+						// setup the message
+						message := ""
+						for k, v := range header {
+							message += fmt.Sprintf("%s: %s\r\n", k, v)
+						}
+						message += "\r\n"
+						message += "Here is the dump of the notification : \n\n"
+						message += string(json)
+
+
+						// Connect to the remote SMTP server.
+						c, err := smtp.Dial(server)
+						if err != nil {
+							log.Printf("Fail to dial connect to smtp server %s : %s", server, err)
+							return
+						}
+
+
+						// Set the sender and recipient.
+						c.Mail(from.Address)
+						c.Rcpt(to.Address)
+
+
+						// Send the email body.
+						wc, err := c.Data()
+						if err != nil {
+							log.Printf("Fail to send DATA to smtp server : %s", err)
+							return
+						}
+
+						buf := bytes.NewBufferString(message)
+						if _, err = buf.WriteTo(wc); err != nil {
+							log.Printf("Fail to send notification to %s : %s", to.String(), err)
+							return
+						}
+
+						log.Printf(" - Sent to email address %s", to.String())
+
+						wc.Close()
+					}()
+				}
+			}
+		}()
 	}
 }
 
