@@ -9,9 +9,18 @@ use JSON::XS;
 my $coder = JSON::XS->new->pretty;
 
 
+# Number of cores
+my $cores = `grep '^processor' /proc/cpuinfo | sort -u | wc -l`;
+chomp $cores;
+
 # Warn levels
 my $warnLevel   = 1;
 my $critLevel   = 2;
+
+if($cores =~ /^\d+$/){
+    $warnLevel   = $cores;
+    $critLevel   = 1.5*$cores;
+}
 
 my $return = {
     Version    => "0.10",
