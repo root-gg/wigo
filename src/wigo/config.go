@@ -8,21 +8,18 @@ import (
 
 type Config struct {
 
-	ListenPort		int
-	ListenAddress	string
-
-	ProbesDirectory	string
-	LogFile			string
-	ConfigFile		string
-
-	HostsToCheck 	[]string
-
-	CallbackUrl		string
+	// General params
+	ListenPort						int
+	ListenAddress					string
+	ProbesDirectory					string
+	LogFile							string
+	ConfigFile						string
 
 
 	// Remmote wigos params
-	RemoteWigosCheckInterval	int
-	RemoteWigosCheckTries		int
+	RemoteWigos						[]string
+	RemoteWigosCheckInterval		int
+	RemoteWigosCheckTries			int
 
 
 	// Noticications
@@ -39,19 +36,17 @@ type Config struct {
 
 func NewConfig() ( this *Config){
 
-	// Default conf
+	// General params
 	this = new(Config)
 	this.ListenPort 					= 4000
 	this.ListenAddress					= "0.0.0.0"
-
 	this.ProbesDirectory				= "/usr/local/wigo/probes"
 	this.LogFile						= "/var/log/wigo.log"
 	this.ConfigFile						= "/etc/wigo.conf"
 
-	this.HostsToCheck					= nil
-	this.CallbackUrl					= ""
 
 	// Remote Wigos
+	this.RemoteWigos					= nil
 	this.RemoteWigosCheckInterval 		= 10
 	this.RemoteWigosCheckTries	  		= 3
 
