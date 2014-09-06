@@ -17,7 +17,7 @@ type Config struct {
 
 
 	// Remmote wigos params
-	RemoteWigos						[]string
+	RemoteWigosList					[]string
 	RemoteWigosCheckInterval		int
 	RemoteWigosCheckTries			int
 
@@ -46,7 +46,7 @@ func NewConfig() ( this *Config){
 
 
 	// Remote Wigos
-	this.RemoteWigos					= nil
+	this.RemoteWigosList				= nil
 	this.RemoteWigosCheckInterval 		= 10
 	this.RemoteWigosCheckTries	  		= 3
 

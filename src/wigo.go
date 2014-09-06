@@ -39,7 +39,7 @@ func main() {
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
-	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().RemoteWigos)
+	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().RemoteWigosList)
 	go threadSocket(wigo.GetLocalWigo().GetConfig().ListenAddress, wigo.GetLocalWigo().GetConfig().ListenPort)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 
