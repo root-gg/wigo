@@ -465,7 +465,7 @@ func launchRemoteHostCheckRoutine(host string) {
 
 		// Can't connect, give up and create wigo in error
 		if err != nil {
-			log.Printf("Can't connect to %s after %d tries", host, tries)
+			log.Printf("Can't connect to %s after %d tries : %s", host, tries, err)
 
 			// Create wigo in error
 			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
