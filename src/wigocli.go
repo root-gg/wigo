@@ -53,7 +53,7 @@ Options
 	}
 
 	// Connect
-	conn, err := net.DialTimeout("tcp", "127.0.0.1:4000", time.Second * 2)
+	conn, err := net.DialTimeout("tcp", "backbone.root.gg:4000", time.Second * 2)
 	if err != nil {
 		fmt.Printf("Could not connect to wigo : %s", err)
 		return

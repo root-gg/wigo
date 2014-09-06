@@ -443,47 +443,69 @@ func execProbe(probePath string, timeOut int) {
 
 func launchRemoteHostCheckRoutine(host string) {
 	for {
+		secondsToSleep := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckInterval
 
-		conn, err := net.DialTimeout("tcp", host, time.Second * 2)
 
+		// Create connection
+		var connection net.Conn
+		var err error
+
+		// Try
+		tries := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckTries
+
+		for i := 1; i <= tries; i++ {
+			connection, err = net.DialTimeout("tcp", host, time.Second*2)
+
+			if err != nil {
+				log.Printf("Error connecting to host %s : %s", host, err)
+				time.Sleep( time.Second )
+			} else {
+				break
+			}
+		}
+
+		// Can't connect, give up and create wigo in error
 		if err != nil {
-			log.Printf("Error connecting to host %s : %s", host, err)
+			log.Printf("Can't connect to %s after %d tries", host, tries)
 
 			// Create wigo in error
 			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
 			errorWigo.SetHostname(host)
 
-			wigo.GetLocalWigo().AddOrUpdateRemoteWigo( host, errorWigo)
+			wigo.GetLocalWigo().AddOrUpdateRemoteWigo(host, errorWigo)
 
-		} else {
-
-			completeOutput := new(bytes.Buffer)
-
-			for {
-				reply := make([]byte, 512)
-				read_len, err := conn.Read(reply)
-				if ( err != nil ) {
-					break
-				}
-
-				completeOutput.Write(reply[:read_len])
-			}
-
-			// Instanciate object from remote return
-			wigoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
-			if (err != nil) {
-				log.Printf("Failed to parse return from host %s : %s", host, err)
-				continue
-			}
-
-			// Set hostname with config file name
-			wigoObj.SetHostname(host)
-
-			// Send it to main
-			wigo.GetLocalWigo().AddOrUpdateRemoteWigo( host, wigoObj)
+			time.Sleep( time.Second * time.Duration(secondsToSleep) )
+			continue
 		}
 
-		time.Sleep(time.Second * 10)
+		// Get content
+		completeOutput := new(bytes.Buffer)
+
+		for {
+			reply := make([]byte, 512)
+			read_len, err := connection.Read(reply)
+			if ( err != nil ) {
+				break
+			}
+
+			completeOutput.Write(reply[:read_len])
+		}
+
+		// Instanciate object from remote return
+		wigoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
+		if (err != nil) {
+			log.Printf("Failed to parse return from host %s : %s", host, err)
+			continue
+		}
+
+		// Set hostname with config file name
+		wigoObj.SetHostname(host)
+
+		// Send it to main
+		wigo.GetLocalWigo().AddOrUpdateRemoteWigo( host, wigoObj)
+
+		// Sleep
+		time.Sleep( time.Second * time.Duration(secondsToSleep))
 	}
 }
 

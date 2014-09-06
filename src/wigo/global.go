@@ -181,30 +181,32 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 }
 
 
-func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *Wigo ) (){
+func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *Wigo ) () {
 
 
 	// Send wigo notif if status is not the same
-	if(newWigo.GlobalStatus != oldWigo.GlobalStatus){
-		Channels.ChanCallbacks <- NewNotificationWigo( oldWigo, newWigo )
+	if (newWigo.GlobalStatus != oldWigo.GlobalStatus) {
+		Channels.ChanCallbacks <- NewNotificationWigo(oldWigo, newWigo)
 	}
 
 	// Detect changes and deleted probes
-	for probeName := range oldWigo.LocalHost.Probes {
-		oldProbe := oldWigo.LocalHost.Probes[ probeName ]
+	if oldWigo.LocalHost != nil {
+		for probeName := range oldWigo.LocalHost.Probes {
+			oldProbe := oldWigo.LocalHost.Probes[ probeName ]
 
-		if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[ probeName ] ; ok {
+			if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[ probeName ] ; ok {
 
-			// Probe still exist in new
-			// Status has changed ? -> Notification
-			if ( oldProbe.Status != probeWhichStillExistInNew.Status ) {
-				Channels.ChanCallbacks <- NewNotificationProbe( oldProbe, probeWhichStillExistInNew )
-			}
-		} else {
+				// Probe still exist in new
+				// Status has changed ? -> Notification
+				if ( oldProbe.Status != probeWhichStillExistInNew.Status ) {
+					Channels.ChanCallbacks <- NewNotificationProbe(oldProbe, probeWhichStillExistInNew)
+				}
+			} else {
 
-			// Prob disappeard !
-			if newWigo.IsAlive {
-				Channels.ChanCallbacks <- NewNotificationProbe(oldProbe, nil)
+				// Prob disappeard !
+				if newWigo.IsAlive {
+					Channels.ChanCallbacks <- NewNotificationProbe(oldProbe, nil)
+				}
 			}
 		}
 	}
