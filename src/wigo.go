@@ -457,7 +457,6 @@ func launchRemoteHostCheckRoutine(host string) {
 			connection, err = net.DialTimeout("tcp", host, time.Second*2)
 
 			if err != nil {
-				log.Printf("Error connecting to host %s : %s", host, err)
 				time.Sleep( time.Second )
 			} else {
 				break
