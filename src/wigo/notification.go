@@ -100,7 +100,7 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 	} else if oldProbe != nil && newProbe != nil {
 		this.Ressource = newProbe.Name
 		if newProbe.Status != oldProbe.Status {
-			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s (%s)", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().Name, newProbe.Message)
+			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().Name)
 		}
 	}
 
