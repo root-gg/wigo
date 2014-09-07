@@ -538,10 +538,18 @@ func execProbe(probePath string, timeOut int) {
 	}
 }
 
-func launchRemoteHostCheckRoutine(host string) {
-	for {
-		secondsToSleep := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckInterval
+func launchRemoteHostCheckRoutine(hostname string) {
 
+	secondsToSleep := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckInterval
+
+	// Split host/port
+	host,_,e := net.SplitHostPort(hostname)
+	if e != nil {
+		log.Printf("Fail to get host/port from hostname %s : %s",hostname,e)
+		host = hostname
+	}
+
+	for {
 
 		// Create connection
 		var connection net.Conn
@@ -551,7 +559,7 @@ func launchRemoteHostCheckRoutine(host string) {
 		tries := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckTries
 
 		for i := 1; i <= tries; i++ {
-			connection, err = net.DialTimeout("tcp", host, time.Second*2)
+			connection, err = net.DialTimeout("tcp", hostname, time.Second*2)
 
 			if err != nil {
 				time.Sleep( time.Second )
@@ -562,7 +570,7 @@ func launchRemoteHostCheckRoutine(host string) {
 
 		// Can't connect, give up and create wigo in error
 		if err != nil {
-			log.Printf("Can't connect to %s after %d tries : %s", host, tries, err)
+			log.Printf("Can't connect to %s after %d tries : %s", hostname, tries, err)
 
 			// Create wigo in error
 			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
@@ -590,7 +598,7 @@ func launchRemoteHostCheckRoutine(host string) {
 		// Instanciate object from remote return
 		wigoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
 		if (err != nil) {
-			log.Printf("Failed to parse return from host %s : %s", host, err)
+			log.Printf("Failed to parse return from host %s : %s", hostname, err)
 			continue
 		}
 
