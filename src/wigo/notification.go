@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"encoding/json"
 	"time"
+	"log"
 )
 
 type Notification struct {
@@ -54,16 +55,24 @@ func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWig
 
 	if oldWigo.IsAlive && !newWigo.IsAlive {
 		// UP -> DOWN
-		this.Message = fmt.Sprintf("Host %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage )
+		this.Message = fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage )
 
 	} else if !oldWigo.IsAlive && newWigo.IsAlive {
 		// DOWN -> UP
-		this.Message = fmt.Sprintf("Host %s UP", newWigo.GetHostname())
+		this.Message = fmt.Sprintf("Wigo %s UP", newWigo.GetHostname())
 
 	} else if newWigo.GlobalStatus != oldWigo.GlobalStatus {
 		// CHANGED STATUS
-		this.Message = fmt.Sprintf("Host %s status switched from %d to %d", newWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
+		this.Message = fmt.Sprintf("Wigo %s status switched from %d to %d", newWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
 
+	}
+
+	// Log
+	log.Printf("New Wigo Notification : %s", this.Message)
+
+	// Send ?
+	if GetLocalWigo().GetConfig().NotificationsOnWigoChange {
+		Channels.ChanCallbacks <- this
 	}
 
 	return
@@ -77,7 +86,15 @@ func NewNotificationHost( oldHost *Host, newHost *Host ) ( this *NotificationHos
 	this.Ressource		= oldHost.Name
 
 	if newHost.Status != oldHost.Status {
-		this.Message = fmt.Sprintf("Host %s changed status from %d to %d", newHost.Name, oldHost.Status, newHost.Status)
+		this.Message = fmt.Sprintf("Host %s changed status from %d to %d", oldHost.Name, oldHost.Status, newHost.Status)
+	}
+
+	// Log
+	log.Printf("New Host Notification : %s", this.Message)
+
+	// Send ?
+	if GetLocalWigo().GetConfig().NotificationsOnHostChange {
+		Channels.ChanCallbacks <- this
 	}
 
 	return
@@ -102,6 +119,15 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 		if newProbe.Status != oldProbe.Status {
 			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().Name)
 		}
+	}
+
+
+	// Log
+	log.Printf("New Probe Notification : %s", this.Message)
+
+	// Send ?
+	if GetLocalWigo().GetConfig().NotificationsOnProbeChange {
+		Channels.ChanCallbacks <- this
 	}
 
 	return

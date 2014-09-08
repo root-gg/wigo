@@ -70,9 +70,7 @@ func (this *Host) AddOrUpdateProbe( probe *ProbeResult ){
 
 		// Notification
 		if oldProbe.Status != probe.Status {
-			log.Printf("Probe %s on host %s switch from %d to %d\n", oldProbe.Name, GetLocalWigo().GetLocalHost().Name, oldProbe.Status, probe.Status)
-
-			Channels.ChanCallbacks <- NewNotificationProbe( oldProbe, probe )
+			NewNotificationProbe( oldProbe, probe )
 		}
 	} else {
 
@@ -93,7 +91,7 @@ func (this *Host) AddOrUpdateProbe( probe *ProbeResult ){
 
 func (this *Host) DeleteProbeByName( probeName string ){
 	if probeToDelete, ok := this.Probes[ probeName ] ; ok {
-		Channels.ChanCallbacks <- NewNotificationProbe( probeToDelete, nil )
+		NewNotificationProbe( probeToDelete, nil )
 		delete(this.Probes,probeName)
 	}
 }

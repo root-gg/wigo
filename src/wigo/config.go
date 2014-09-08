@@ -23,6 +23,10 @@ type Config struct {
 
 
 	// Noticications
+	NotificationsOnWigoChange		bool
+	NotificationsOnHostChange		bool
+	NotificationsOnProbeChange		bool
+
 	NotificationsHttpEnabled		bool
 	NotificationsHttpUrl			string
 
@@ -52,8 +56,13 @@ func NewConfig() ( this *Config){
 
 
 	// Notifications
+	this.NotificationsOnWigoChange		= false
+	this.NotificationsOnHostChange		= false
+	this.NotificationsOnProbeChange		= false
+
 	this.NotificationsHttpEnabled		= false
 	this.NotificationsHttpUrl			= ""
+
 	this.NotificationsEmailEnabled		= false
 	this.NotificationsEmailSmtpServer	= ""
 	this.NotificationsEmailFromAddress 	= ""

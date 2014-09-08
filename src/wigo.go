@@ -295,17 +295,12 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 	for {
 		notification := <-chanCallbacks
 
-
 		// Serialize notification
 		json, err := notification.ToJson()
 		if err != nil {
 			log.Printf("Fail to decode notification : ", err)
 			continue
 		}
-
-		// Log it
-		log.Printf("New notification : %s", notification.GetMessage())
-
 
 		// Send it
 		go func() {
