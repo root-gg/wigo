@@ -13,7 +13,7 @@ Main features
 
 Version
 ----
-0.32
+0.41
 
 
 Installation
