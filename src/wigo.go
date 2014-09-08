@@ -366,8 +366,7 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 							message += fmt.Sprintf("%s: %s\r\n", k, v)
 						}
 						message += "\r\n"
-						message += "Here is the dump of the notification : \n\n"
-						message += string(json)
+						message += notification.GetSummary()
 
 
 						// Connect to the remote SMTP server.
