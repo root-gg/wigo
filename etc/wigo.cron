@@ -1,0 +1,1 @@
+* * * * * root if [ ! `pgrep wigo` ] ; then /etc/init.d/wigo start > /dev/null 2> /dev/null ; fi
