@@ -430,9 +430,6 @@ func execProbe(probePath string, timeOut int) {
 	// Test if executable
 	if m := fileInfo.Mode() ; m&0111 == 0 {
 		log.Printf(" - Probe %s is not executable (%s)", probePath, m.Perm().String())
-
-		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("probe is not executable (%s)", m.Perm().String()), "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
 		return
 	}
 
