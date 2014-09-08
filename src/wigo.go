@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"net/smtp"
+	"net/mail"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -22,8 +24,6 @@ import (
 	// Custom libs
 	"wigo"
 	"github.com/howeyc/fsnotify"
-	"net/smtp"
-	"net/mail"
 )
 
 

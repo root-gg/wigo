@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"code.google.com/p/go-uuid/uuid"
+	"github.com/fatih/color"
 	"strings"
 )
 
@@ -288,18 +289,32 @@ func (this *Wigo) ToJsonString() ( string, error ){
 
 func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 
+	red 	:= color.New( color.FgRed ).SprintfFunc()
+	yellow 	:= color.New( color.FgYellow ).SprintfFunc()
+
 	summary += fmt.Sprintf("%s running on %s \n", this.Version, this.LocalHost.Name)
 	summary += fmt.Sprintf("Local Status 	: %d\n", this.LocalHost.Status)
 	summary += fmt.Sprintf("Global Status	: %d\n\n", this.GlobalStatus)
 
 	if showOnlyErrors && this.LocalHost.Status != 100 {
-		summary += "Local probes : \n"
+		summary += "Local probes : \n\n"
 
 		for probeName := range this.LocalHost.Probes {
-			summary += fmt.Sprintf("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+			if this.LocalHost.Probes[probeName].Status > 100 && this.LocalHost.Probes[probeName].Status < 300 {
+				summary += yellow("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+			} else if this.LocalHost.Probes[probeName].Status >= 300 {
+				summary += red("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+			} else {
+				summary += fmt.Sprintf("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+			}
 		}
 
 		summary += "\n"
+	}
+
+
+	if this.GlobalStatus > 100 {
+		summary += "Remote Wigos : \n\n"
 	}
 
 	summary += this.GenerateRemoteWigosSummary(0 , showOnlyErrors)
@@ -308,6 +323,9 @@ func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 }
 
 func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) ( summary string ) {
+
+	red 	:= color.New( color.FgRed ).SprintfFunc()
+	yellow 	:= color.New( color.FgYellow ).SprintfFunc()
 
 	for remoteWigo := range this.RemoteWigos {
 
@@ -325,8 +343,8 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 
 		// Host down ?
 		if ! this.RemoteWigos[remoteWigo].IsAlive {
-			summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " DOWN : \n"
-			summary += tabs + "\t" + this.RemoteWigos[remoteWigo].GlobalMessage + "\n"
+			summary += tabs + red(this.RemoteWigos[remoteWigo].GetHostname() + " DOWN : \n")
+			summary += tabs + red("\t" + this.RemoteWigos[remoteWigo].GlobalMessage + "\n")
 
 		} else {
 			summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " ( " + this.RemoteWigos[remoteWigo].LocalHost.Name + " ) : \n"
@@ -337,16 +355,15 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 		for probeName := range this.RemoteWigos[remoteWigo].GetLocalHost().Probes {
 
 			currentProbe := this.RemoteWigos[remoteWigo].GetLocalHost().Probes[probeName]
-
 			summary += tabs
-			summary += fmt.Sprintf("\t%-25s : %d", currentProbe.Name, currentProbe.Status )
 
-			if(currentProbe.Message != ""){
-				escaped := strings.Replace( currentProbe.Message, "%", "%%", -1 )
-				summary += " - " + escaped
+			if currentProbe.Status > 100 && currentProbe.Status < 300 {
+				summary += yellow("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, strings.Replace(currentProbe.Message, "%", "%%", -1))
+			} else if currentProbe.Status >= 300 {
+				summary += red("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, strings.Replace(currentProbe.Message, "%", "%%", -1))
+			} else {
+				summary += fmt.Sprintf("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, strings.Replace(currentProbe.Message, "%", "%%", -1))
 			}
-
-			summary += "\n"
 		}
 
 		summary += "\n"
