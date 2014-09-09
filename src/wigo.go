@@ -58,9 +58,9 @@ func main() {
 				log.Printf("Caught SIGHUP. Reloading logger filehandle and configuration file...\n")
 				wigo.GetLocalWigo().InitOrReloadLogger()
 			case syscall.SIGTERM :
-
+                os.Exit(0)
 			case os.Interrupt :
-
+                os.Exit(0)
 			}
 		}
 	}
