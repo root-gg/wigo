@@ -30,6 +30,7 @@ type Wigo struct {
 	hostname		string
 	config			*Config
 	locker			*sync.RWMutex
+	logfilehandle	*os.File
 }
 
 func InitWigo() ( err error ){
@@ -55,15 +56,8 @@ func InitWigo() ( err error ){
 
 
 		// Log
-		f, err := os.OpenFile(LocalWigo.GetConfig().LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().LogFile, err)
-		} else {
-			writer := io.MultiWriter( os.Stdout, f )
+		LocalWigo.InitOrReloadLogger()
 
-			log.SetOutput(writer)
-			log.SetPrefix(LocalWigo.GetLocalHost().Name + " ")
-		}
 
 		// Test probes directory
 		_, err = os.Stat( LocalWigo.GetConfig().ProbesDirectory )
@@ -262,6 +256,30 @@ func (this *Wigo) SetRemoteWigosHostnames(){
 	}
 }
 
+// Reloads
+
+func (this *Wigo) InitOrReloadLogger() ( err error ){
+	if this.logfilehandle != nil {
+		err = this.logfilehandle.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	f, err := os.OpenFile(LocalWigo.GetConfig().LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().LogFile, err)
+		return err
+	} else {
+		LocalWigo.logfilehandle = f
+		writer := io.MultiWriter( os.Stdout, f )
+
+		log.SetOutput(writer)
+		log.SetPrefix(LocalWigo.GetLocalHost().Name + " ")
+	}
+
+	return nil
+}
 
 // Locks
 func (this *Wigo) Lock(){

@@ -45,15 +45,23 @@ func main() {
 
 
 	// Signals
-	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 
 	// Selection
 	for {
 		select {
 
-		case <-wigo.Channels.ChanSignals :
-			os.Exit(0)
+		case sig := <-wigo.Channels.ChanSignals :
+			switch sig {
+			case syscall.SIGHUP :
+				log.Printf("Caught SIGHUP. Reloading logger filehandle and configuration file...\n")
+				wigo.GetLocalWigo().InitOrReloadLogger()
+			case syscall.SIGTERM :
+
+			case os.Interrupt :
+
+			}
 		}
 	}
 }
