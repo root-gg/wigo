@@ -7,5 +7,6 @@
     delaycompress
     compress
     postrotate
+        /etc/init.d/wigo reload
     endscript
 }
