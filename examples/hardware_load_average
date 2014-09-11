@@ -23,12 +23,11 @@ if($cores =~ /^\d+$/){
 }
 
 my $return = {
-    Version    => "0.10",
+    Version    => "0.11",
     
     Status     => 398,
     Message    => "No results",
 
-    Value      => "",
     Detail     => "",
 };
 
@@ -44,8 +43,6 @@ if($? != 0)
 }
 else
 {
-    $return->{'Detail'}     = $fnret;
-
     if($fnret =~ /^([\d\.]+)\s([\d\.]+)\s([\d\.]+)/)
     {
         my $rawValue5 = $1;
@@ -53,12 +50,13 @@ else
         my $rawValue15 = $3;
 
         $return->{'Status'}     = 100;
-        $return->{'Message'}    = "";
-        $return->{'Value'}      = $rawValue5;
+        $return->{'Message'}    = "$rawValue5 $rawValue10 $rawValue15";
 
-        $return->{'Metrics'}->{'load5'}     = $rawValue5        + 0;
-        $return->{'Metrics'}->{'load10'}    = $rawValue10       + 0;
-        $return->{'Metrics'}->{'load15'}    = $rawValue15       + 0;
+        $return->{'Metrics'}    = [
+            { Tags => { "load" => "load5" }, Value => $rawValue5 + 0 },
+            { Tags => { "load" => "load10" }, Value => $rawValue10 + 0 },
+            { Tags => { "load" => "load15" }, Value => $rawValue15 + 0 },
+        ];
 
         if($rawValue5 > $warnLevel)
         {
