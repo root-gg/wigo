@@ -92,7 +92,7 @@ func ( this *ProbeResult ) GraphMetrics(){
 
 				// Tags
 				put.Tags = make(map[string]string)
-				put.Tags["hostname"] = GetLocalWigo().GetLocalHost().Name
+				put.Tags["hostname"] = this.GetHost().Name
 
 				if _,ok := putTmp["Tags"].(map[string]interface {}) ; ok {
 					for k, v := range putTmp["Tags"].(map[string]interface {}) {
