@@ -40,7 +40,7 @@ func InitWigo() ( err error ){
 
 		LocalWigo.Uuid			= uuid.New()
 		LocalWigo.IsAlive 		= true
-		LocalWigo.Version 		= "Wigo v0.41"
+		LocalWigo.Version 		= "Wigo v0.42"
 		LocalWigo.GlobalStatus 	= 100
 		LocalWigo.GlobalMessage = "OK"
 
