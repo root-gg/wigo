@@ -82,6 +82,9 @@ func (this *Host) AddOrUpdateProbe( probe *ProbeResult ){
 	GetLocalWigo().LocalHost.Probes[ probe.Name ] = probe
 	GetLocalWigo().LocalHost.RecomputeStatus()
 
+	// Graph
+	probe.GraphMetrics()
+
 	// Recompute status
 	GetLocalWigo().RecomputeGlobalStatus()
 

@@ -36,6 +36,10 @@ type Config struct {
 	NotificationsEmailFromName		string
 	NotificationsEmailFromAddress 	string
 
+
+	// OpenTSDB
+	OpenTSDBAddress					string
+	OpenTSDBPort					int
 }
 
 func NewConfig() ( this *Config){
@@ -68,6 +72,10 @@ func NewConfig() ( this *Config){
 	this.NotificationsEmailFromAddress 	= ""
 	this.NotificationsEmailFromName		= ""
 	this.NotificationsEmailRecipients	= nil
+
+	// OpenTSDB
+	this.OpenTSDBAddress				= ""
+	this.OpenTSDBPort					= 0
 
 
 	// Override with config file

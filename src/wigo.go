@@ -598,6 +598,7 @@ func launchRemoteHostCheckRoutine(hostname string) {
 		wigoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
 		if (err != nil) {
 			log.Printf("Failed to parse return from host %s : %s", hostname, err)
+			time.Sleep( time.Second * time.Duration(secondsToSleep))
 			continue
 		}
 

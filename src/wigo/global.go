@@ -8,6 +8,7 @@ import (
 	"log"
 	"io"
 
+	"git.root.gg/bodji/gopentsdb"
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/fatih/color"
 	"strings"
@@ -31,6 +32,7 @@ type Wigo struct {
 	config			*Config
 	locker			*sync.RWMutex
 	logfilehandle	*os.File
+	gopentsdb		*gopentsdb.OpenTsdb
 }
 
 func InitWigo() ( err error ){
@@ -67,6 +69,13 @@ func InitWigo() ( err error ){
 
 		// Init channels
 		InitChannels()
+
+
+		// OpenTSDB
+		if LocalWigo.config.OpenTSDBAddress != "" && LocalWigo.config.OpenTSDBPort != 0 {
+			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort)
+			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort)
+		}
 	}
 
 	return nil
@@ -147,6 +156,9 @@ func (this *Wigo) GetHostname() ( string ){
 	return this.hostname
 }
 
+func (this *Wigo) GetOpenTsdb() ( *gopentsdb.OpenTsdb ){
+	return this.gopentsdb
+}
 
 // Setters
 
@@ -195,6 +207,10 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 			if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[ probeName ] ; ok {
 
 				// Probe still exist in new
+
+				// Graph
+				probeWhichStillExistInNew.GraphMetrics()
+
 				// Status has changed ? -> Notification
 				if ( oldProbe.Status != probeWhichStillExistInNew.Status ) {
 					NewNotificationProbe(oldProbe, probeWhichStillExistInNew)
