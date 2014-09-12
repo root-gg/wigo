@@ -8,12 +8,12 @@ Main features
   - Write probes in any language you want
   - Notifications when a probe status change (http,email)
   - Proxy mode for hosts behind NAT/Gateways
-
+  - Graphing probes metrics to OpenTSDB instances
 
 
 Version
 ----
-0.41
+0.42
 
 
 Installation
@@ -59,21 +59,36 @@ Write your own probes !
 -------------------------
 Probes are binaires, written in any language you want, that output a json string with at least Status param :
 ```sh
+
+$ ./hardware_load_average
 {
-   "Detail" : "0.01 0.03 0.05 2/126 22686",
-   "Value" : "0.01",
-   "Version" : "0.10",
-   "Message" : "",
+   "Detail" : "",
+   "Version" : "0.11",
+   "Message" : "0.38 0.26 0.24",
    "Status" : 100,
-   "Metrics" : {
-      "load10" : 0.03,
-      "load15" : 0.05,
-      "load5" : 0.01
-   }
+   "Metrics" : [
+      {
+         "Value" : 0.38,
+         "Tags" : {
+            "load" : "load5"
+         }
+      },
+      {
+         "Value" : 0.26,
+         "Tags" : {
+            "load" : "load10"
+         }
+      },
+      {
+         "Value" : 0.24,
+         "Tags" : {
+            "load" : "load15"
+         }
+      }
+   ]
 }
 ```
 
-The metrics are a hashmap[string] float, that will be pushed to OpenTSDB to graph your probe values (soon)
 
 
 
