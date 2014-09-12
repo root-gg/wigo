@@ -75,40 +75,42 @@ func ( this *ProbeResult ) SetHost( h *Host )(){
 
 func ( this *ProbeResult ) GraphMetrics(){
 
-	if _,ok := this.Metrics.([]interface {}) ; ok {
-		puts := this.Metrics.([]interface {})
+	if GetLocalWigo().GetConfig().OpenTSDBEnabled {
+		if _, ok := this.Metrics.([]interface{}) ; ok {
+			puts := this.Metrics.([]interface{})
 
-		for i := range puts {
-			if _,ok := puts[i].(map[string] interface {}) ; ok {
-				put    := new(Put)
-				putTmp := puts[i].(map[string] interface {})
+			for i := range puts {
+				if _, ok := puts[i].(map[string] interface{}) ; ok {
+					put := new(Put)
+					putTmp := puts[i].(map[string] interface{})
 
-				// Test if we have value
-				if _,ok := putTmp["Value"].(float64) ; ok {
-					put.Value = putTmp["Value"].(float64)
-				} else {
-					continue
-				}
+					// Test if we have value
+					if _, ok := putTmp["Value"].(float64) ; ok {
+						put.Value = putTmp["Value"].(float64)
+					} else {
+						continue
+					}
 
-				// Tags
-				put.Tags = make(map[string]string)
-				put.Tags["hostname"] = this.GetHost().Name
+					// Tags
+					put.Tags = make(map[string]string)
+					put.Tags["hostname"] = this.GetHost().Name
 
-				if _,ok := putTmp["Tags"].(map[string]interface {}) ; ok {
-					for k, v := range putTmp["Tags"].(map[string]interface {}) {
-						if _, ok := v.(string) ; ok {
-							put.Tags[strings.ToLower(k)] = string(v.(string))
+					if _, ok := putTmp["Tags"].(map[string]interface{}) ; ok {
+						for k, v := range putTmp["Tags"].(map[string]interface{}) {
+							if _, ok := v.(string) ; ok {
+								put.Tags[strings.ToLower(k)] = string(v.(string))
+							}
 						}
 					}
-				}
 
-				// Push
-				putStr, err := GetLocalWigo().GetOpenTsdb().Put("wigo."+this.Name, put.Value, put.Tags)
-				if err != nil {
-					log.Printf("Error while pushing to OpenTSDB : %s", err)
-				}
+					// Push
+					putStr, err := GetLocalWigo().GetOpenTsdb().Put("wigo."+this.Name, put.Value, put.Tags)
+					if err != nil {
+						log.Printf("Error while pushing to OpenTSDB : %s", err)
+					}
 
-				log.Printf("[TSD] " + putStr + "\n")
+					log.Printf("[TSD] " + putStr + "\n")
+				}
 			}
 		}
 	}

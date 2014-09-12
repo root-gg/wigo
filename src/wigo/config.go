@@ -38,6 +38,7 @@ type Config struct {
 
 
 	// OpenTSDB
+	OpenTSDBEnabled					bool
 	OpenTSDBAddress					string
 	OpenTSDBPort					int
 }
@@ -74,6 +75,7 @@ func NewConfig() ( this *Config){
 	this.NotificationsEmailRecipients	= nil
 
 	// OpenTSDB
+	this.OpenTSDBEnabled				= false
 	this.OpenTSDBAddress				= ""
 	this.OpenTSDBPort					= 0
 
