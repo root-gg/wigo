@@ -11,7 +11,7 @@ my $coder = JSON::XS->new->pretty;
 
 
 # Excludes
-my $excludedPartitions = ['rootfs','tmpfs','udev'];
+my $excludedPartitions = ['rootfs','tmpfs','udev','none'];
 
 
 # Warn levels
