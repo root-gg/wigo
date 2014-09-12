@@ -501,6 +501,12 @@ func execProbe(probePath string, timeOut int) {
 				}
 			}
 
+			// Test Exit 13
+			if exitCode == 13 {
+				log.Printf(" - Probe %s in directory %s responded with special exit code 13. Discarding result...\n", probeResult.Name, probeResult)
+				return
+			}
+
 			// Create error probe
 			probeResult = wigo.NewProbeResult(probeName, 500, exitCode, fmt.Sprintf("error: %s", err), string(commandOutput))
 			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
@@ -532,7 +538,6 @@ func execProbe(probePath string, timeOut int) {
 			log.Printf(" - Probe %s successfully killed\n", probeName)
 		}
 
-		return
 		return
 	}
 }
