@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+
+# Init Json
+use JSON::XS;
+my $coder = JSON::XS->new->pretty;
+
+my $processNamesToCheck = [
+    "/usr/sbin/sshd", 
+];
+
+my $return = {
+    Version    => "0.10",
+    
+    Status     => 100,
+    Message    => "",
+
+    Value      => "",
+    Detail     => "",
+};
+
+
+# Exec
+my @inactiveProcesses;
+
+for my $processName ( @{ $processNamesToCheck } )
+{
+    my $fnret = `ps ax | grep -v grep | grep "$processName"`;
+
+    if($? != 0)
+    {
+        push @inactiveProcesses, $processName; 
+    }
+}
+
+my $countInactiveProcesses = scalar( @inactiveProcesses );
+if( $countInactiveProcesses )
+{
+    $return->{'Status'}     = 200 + $countInactiveProcesses;
+    $return->{'Message'}    = $countInactiveProcesses . " process not running : " . join(",",@inactiveProcesses);
+    $return->{'Value'}      = $countInactiveProcesses + 0;
+}
+
+else
+{
+    $return->{'Status'}     = 100;
+    $return->{'Message'}    = "All process configured in probe are running";
+    $return->{'Detail'}     = join(" ", @{ $processNamesToCheck });
+    $return->{'Value'}      = 0;
+
+}
+
+
+print $coder->encode( $return );
+
