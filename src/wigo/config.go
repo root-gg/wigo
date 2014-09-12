@@ -50,7 +50,7 @@ func NewConfig() ( this *Config){
 	this.ListenAddress					= "0.0.0.0"
 	this.ProbesDirectory				= "/usr/local/wigo/probes"
 	this.LogFile						= "/var/log/wigo.log"
-	this.ConfigFile						= "/etc/wigo.conf"
+	this.ConfigFile						= "/etc/wigo/wigo.conf"
 
 
 	// Remote Wigos
