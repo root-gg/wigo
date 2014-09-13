@@ -6,7 +6,7 @@ import (
 	"time"
 	"strings"
 	"log"
-	"git.root.gg/bodji/gopentsdb"
+	"github.com/bodji/gopentsdb"
 )
 
 const dateLayout  = "2006-01-02T15:04:05.999999 (MST)"
