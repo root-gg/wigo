@@ -6,6 +6,7 @@ import (
 	"time"
 	"strings"
 	"log"
+	"git.root.gg/bodji/gopentsdb"
 )
 
 const dateLayout  = "2006-01-02T15:04:05.999999 (MST)"
@@ -81,35 +82,35 @@ func ( this *ProbeResult ) GraphMetrics(){
 
 			for i := range puts {
 				if _, ok := puts[i].(map[string] interface{}) ; ok {
-					put := new(Put)
+
 					putTmp := puts[i].(map[string] interface{})
 
 					// Test if we have value
+					var putValue float64
 					if _, ok := putTmp["Value"].(float64) ; ok {
-						put.Value = putTmp["Value"].(float64)
+						putValue = putTmp["Value"].(float64)
 					} else {
 						continue
 					}
 
 					// Tags
-					put.Tags = make(map[string]string)
-					put.Tags["hostname"] = this.GetHost().Name
+					putTags := make(map[string]string)
+					putTags["hostname"] = this.GetHost().Name
 
 					if _, ok := putTmp["Tags"].(map[string]interface{}) ; ok {
 						for k, v := range putTmp["Tags"].(map[string]interface{}) {
 							if _, ok := v.(string) ; ok {
-								put.Tags[strings.ToLower(k)] = string(v.(string))
+								putTags[strings.ToLower(k)] = string(v.(string))
 							}
 						}
 					}
 
 					// Push
-					putStr, err := GetLocalWigo().GetOpenTsdb().Put("wigo."+this.Name, put.Value, put.Tags)
+					put := gopentsdb.NewPut("wigo."+this.Name, putTags, putValue)
+					_, err := GetLocalWigo().GetOpenTsdb().Put( put )
 					if err != nil {
 						log.Printf("Error while pushing to OpenTSDB : %s", err)
 					}
-
-					log.Printf("[TSD] " + putStr + "\n")
 				}
 			}
 		}
