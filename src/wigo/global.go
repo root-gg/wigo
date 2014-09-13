@@ -197,10 +197,6 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 	// Detect changes and deleted probes
 	if oldWigo.LocalHost != nil {
 
-		if oldWigo.LocalHost.Status != newWigo.LocalHost.Status {
-			NewNotificationHost(oldWigo.LocalHost, newWigo.LocalHost)
-		}
-
 		for probeName := range oldWigo.LocalHost.Probes {
 			oldProbe := oldWigo.LocalHost.Probes[ probeName ]
 

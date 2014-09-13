@@ -26,11 +26,6 @@ type NotificationWigo struct {
 	OldWigo		*Wigo
 	NewWigo		*Wigo
 }
-type NotificationHost struct {
-	*Notification
-	OldHost		*Host
-	NewHost		*Host
-}
 type NotificationProbe struct {
 	*Notification
 	OldProbe	*ProbeResult
@@ -71,28 +66,6 @@ func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWig
 
 	// Send ?
 	if GetLocalWigo().GetConfig().NotificationsOnWigoChange {
-		Channels.ChanCallbacks <- this
-	}
-
-	return
-}
-
-func NewNotificationHost( oldHost *Host, newHost *Host ) ( this *NotificationHost ){
-	this 				= new(NotificationHost)
-	this.Notification	= NewNotification()
-	this.Type			= "Host"
-	this.OldHost		= oldHost
-	this.NewHost		= newHost
-
-	if newHost.Status != oldHost.Status {
-		this.Message = fmt.Sprintf("Host %s changed status from %d to %d", oldHost.Name, oldHost.Status, newHost.Status)
-	}
-
-	// Log
-	log.Printf("New Host Notification : %s", this.Message)
-
-	// Send ?
-	if GetLocalWigo().GetConfig().NotificationsOnHostChange {
 		Channels.ChanCallbacks <- this
 	}
 
@@ -149,9 +122,6 @@ func (this *Notification) ToJson() ( ba []byte, e error ) {
 func (this *NotificationWigo) ToJson() ( ba []byte, e error ) {
 	return json.Marshal(this)
 }
-func (this *NotificationHost) ToJson() ( ba []byte, e error ) {
-	return json.Marshal(this)
-}
 func (this *NotificationProbe) ToJson() ( ba []byte, e error ) {
 	return json.Marshal(this)
 }
@@ -161,9 +131,6 @@ func (this *Notification) GetSummary() ( s string ) {
 	return this.Summary
 }
 func (this *NotificationWigo) GetSummary() ( s string ) {
-	return this.Summary
-}
-func (this *NotificationHost) GetSummary() ( s string ) {
 	return this.Summary
 }
 func (this *NotificationProbe) GetSummary() ( s string ) {
