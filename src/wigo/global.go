@@ -8,7 +8,7 @@ import (
 	"log"
 	"io"
 
-	"git.root.gg/bodji/gopentsdb"
+	"github.com/bodji/gopentsdb"
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/fatih/color"
 	"strings"
