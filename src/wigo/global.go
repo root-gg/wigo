@@ -53,7 +53,7 @@ func InitWigo() ( err error ){
 
 		// Private vars
 		LocalWigo.config 		= NewConfig()
-		LocalWigo.hostname 		= "localhost"
+		LocalWigo.hostname 		= LocalWigo.LocalHost.Name
 		LocalWigo.locker 		= new(sync.RWMutex)
 
 
