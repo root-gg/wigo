@@ -10,9 +10,9 @@ import (
 
 type Host struct {
 	Name                string
-
 	Status        		int
 	Probes              map[string] *ProbeResult
+	parentWigo			*Wigo
 }
 
 func NewHost( hostname string ) ( this *Host ){
@@ -41,6 +41,9 @@ func NewLocalHost() ( this *Host ){
 	} else {
 		this.Name	= localHostname
 	}
+
+	// Set parent wigo
+	this.parentWigo		= GetLocalWigo()
 
 	return
 }
@@ -113,3 +116,9 @@ func (this *Host) GetErrorsProbesList() ( list []string ){
 }
 
 
+func (this *Host) GetParentWigo() ( *Wigo ){
+	return this.parentWigo
+}
+func (this *Host) SetParentWigo( w *Wigo ){
+	this.parentWigo = w
+}

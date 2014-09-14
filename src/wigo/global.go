@@ -203,6 +203,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 			if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[ probeName ] ; ok {
 
 				// Probe still exist in new
+				newWigo.LocalHost.SetParentWigo(newWigo)
 
 				// Graph
 				probeWhichStillExistInNew.GraphMetrics()

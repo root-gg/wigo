@@ -9,7 +9,6 @@ import (
 
 type Notification struct {
 	Type		string
-	Receiver	string
 	Message		string
 	Date		string
 	Summary		string
@@ -28,8 +27,9 @@ type NotificationWigo struct {
 }
 type NotificationProbe struct {
 	*Notification
-	OldProbe	*ProbeResult
-	NewProbe	*ProbeResult
+	OldProbe			*ProbeResult
+	NewProbe			*ProbeResult
+	HostProbesInError	[]string
 }
 
 
@@ -93,12 +93,15 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 
 	} else if oldProbe != nil && newProbe != nil {
 		if newProbe.Status != oldProbe.Status {
-			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().Name)
+			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().GetParentWigo().GetHostname())
 
-			this.Summary += fmt.Sprintf("Probe %s on host %s : \n\n", oldProbe.Name, oldProbe.GetHost().Name)
+			this.Summary += fmt.Sprintf("Probe %s on host %s : \n\n", oldProbe.Name, oldProbe.GetHost().GetParentWigo().GetHostname())
 			this.Summary += fmt.Sprintf("\tOld Status : %d\n", oldProbe.Status)
 			this.Summary += fmt.Sprintf("\tNew Status : %d\n\n", newProbe.Status)
 			this.Summary += fmt.Sprintf("Message :\n\n\t%s\n\n", newProbe.Message)
+
+			// List parent host probes in error
+			this.HostProbesInError = newProbe.parentHost.GetErrorsProbesList()
 		}
 	}
 
