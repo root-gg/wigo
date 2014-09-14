@@ -10,8 +10,9 @@ my $coder = JSON::XS->new->pretty;
 
 
 # Warn levels
-my $warnLevel   = 75;
-my $critLevel   = 90;
+my $warnLevel       = 75;
+my $critLevel       = 90;
+my $wantedFields    = ['SwapFree','SwapTotal','Cached','MemTotal','MemFree'];
 
 my $return = {
     Version    => "0.10",
@@ -19,8 +20,7 @@ my $return = {
     Status     => 398,
     Message    => "No results",
 
-    Value      => "",
-    Detail     => "",
+    Metrics    => [],
 };
 
 
@@ -34,21 +34,38 @@ if($? != 0)
 else
 {
     my %values = map { chomp; $_ =~ /(.*):\s+(.*) [\w]+/ } @meminfo;
-    foreach my $key ( keys %values ){ $values{ $key } = $values{ $key } ? $values{ $key } + 0 : 0 }
+    foreach my $key ( keys %values )
+    {
+        if( grep { $_ eq $key } @{ $wantedFields } )
+        {
+            my $value   = $values{ $key } ? $values{ $key } + 0 : 0;
+            my $Metric  = {
+                Tags    => { type => $key },
+                Value   => $value,
+            };
+
+            push @{ $return->{'Metrics'} }, $Metric;
+        }
+    }
 
     my $realFree         = $values{'MemFree'} + $values{'Cached'} + $values{'Buffers'};
     my $realUsed         = $values{'MemTotal'} - $realFree;
     my $usePercentage    = sprintf( "%.2f", $realUsed * 100 / $values{'MemTotal'});
 
-    $return->{'Detail'}  = \%values;
+    # Add MemUsed
+    push @{ $return->{'Metrics'} }, {
+        Tags    => { type => "MemUsed" },
+        Value   => $realUsed,
+    };
+
+    push @{ $return->{'Metrics'} }, {
+        Tags    => { type => "MemRealFree" },
+        Value   => $realFree,
+    };
+
 
     $return->{'Status'}  = 100;
     $return->{'Message'} = "Current memory usage is $usePercentage%";
-    $return->{'Value'}   = $usePercentage + 0;
-
-    $return->{'Metrics'}->{'Total'} = $values{'MemTotal'} + 0;
-    $return->{'Metrics'}->{'Used'}  = $realUsed + 0;
-    $return->{'Metrics'}->{'Free'}  = $realFree + 0;
 
     if($usePercentage > $critLevel)
     {
