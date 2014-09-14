@@ -77,13 +77,9 @@ func ( this *ProbeResult ) SetHost( h *Host )(){
 func ( this *ProbeResult ) GraphMetrics(){
 
 	if GetLocalWigo().GetConfig().OpenTSDBEnabled {
-		if _, ok := this.Metrics.([]interface{}) ; ok {
-			puts := this.Metrics.([]interface{})
-
+		if puts, ok := this.Metrics.([]interface{}) ; ok {
 			for i := range puts {
-				if _, ok := puts[i].(map[string] interface{}) ; ok {
-
-					putTmp := puts[i].(map[string] interface{})
+				if putTmp, ok := puts[i].(map[string] interface{}) ; ok {
 
 					// Test if we have value
 					var putValue float64
@@ -97,8 +93,8 @@ func ( this *ProbeResult ) GraphMetrics(){
 					putTags := make(map[string]string)
 					putTags["hostname"] = this.GetHost().GetParentWigo().GetHostname()
 
-					if _, ok := putTmp["Tags"].(map[string]interface{}) ; ok {
-						for k, v := range putTmp["Tags"].(map[string]interface{}) {
+					if tags, ok := putTmp["Tags"].(map[string]interface{}) ; ok {
+						for k, v := range tags {
 							if _, ok := v.(string) ; ok {
 								putTags[strings.ToLower(k)] = string(v.(string))
 							}
