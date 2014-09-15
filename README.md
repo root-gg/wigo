@@ -24,6 +24,7 @@ On Debian Wheezy :
 ##### Add repository and install package
 ```sh
 echo "deb http://mir.root.gg wheezy main" > /etc/apt/sources.list.d/mir.root.gg.list
+curl http://mir.root.gg/gg.key | apt-key add -
 apt-get install wigo
 ```
 
