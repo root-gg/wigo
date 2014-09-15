@@ -14,6 +14,7 @@ type Config struct {
 	ProbesDirectory					string
 	LogFile							string
 	ConfigFile						string
+	Group							string
 
 	// Remmote wigos params
 	RemoteWigosList					[]string
@@ -54,6 +55,7 @@ func NewConfig() ( this *Config){
 	this.ProbesDirectory				= "/usr/local/wigo/probes"
 	this.LogFile						= "/var/log/wigo.log"
 	this.ConfigFile						= "/etc/wigo/wigo.conf"
+	this.Group							= ""
 
 
 	// Remote Wigos

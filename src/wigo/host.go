@@ -10,6 +10,7 @@ import (
 
 type Host struct {
 	Name                string
+	Group				string
 	Status        		int
 	Probes              map[string] *ProbeResult
 	parentWigo			*Wigo
@@ -21,6 +22,7 @@ func NewHost( hostname string ) ( this *Host ){
 
 	this.Status   		= 0
 	this.Name           = hostname
+	this.Group			= ""
 	this.Probes         = make(map[string] *ProbeResult)
 
 	return
@@ -44,6 +46,9 @@ func NewLocalHost() ( this *Host ){
 
 	// Set parent wigo
 	this.parentWigo		= GetLocalWigo()
+
+	// Set group
+	this.Group			= GetLocalWigo().GetConfig().Group
 
 	return
 }

@@ -46,16 +46,16 @@ func InitWigo() ( err error ){
 		LocalWigo.GlobalStatus 	= 100
 		LocalWigo.GlobalMessage = "OK"
 
+		// Load config
+		LocalWigo.config 		= NewConfig()
 
 		// Init LocalHost and RemoteWigos list
 		LocalWigo.LocalHost 	= NewLocalHost()
 		LocalWigo.RemoteWigos 	= make(map[string] *Wigo)
 
 		// Private vars
-		LocalWigo.config 		= NewConfig()
 		LocalWigo.hostname 		= LocalWigo.LocalHost.Name
 		LocalWigo.locker 		= new(sync.RWMutex)
-
 
 		// Log
 		LocalWigo.InitOrReloadLogger()

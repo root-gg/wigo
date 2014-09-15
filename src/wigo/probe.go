@@ -93,6 +93,11 @@ func ( this *ProbeResult ) GraphMetrics(){
 					putTags := make(map[string]string)
 					putTags["hostname"] = this.GetHost().GetParentWigo().GetHostname()
 
+					// Group ?
+					if this.GetHost().Group != "" {
+						putTags["group"] = this.GetHost().Group
+					}
+
 					if tags, ok := putTmp["Tags"].(map[string]interface{}) ; ok {
 						for k, v := range tags {
 							if _, ok := v.(string) ; ok {
