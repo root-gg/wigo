@@ -66,7 +66,19 @@ func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWig
 
 	// Send ?
 	if GetLocalWigo().GetConfig().NotificationsOnWigoChange {
-		Channels.ChanCallbacks <- this
+		weSend := false
+
+		if newWigo.Status < oldWigo.Status{
+			// It's an UP
+			weSend = true
+		} else if newWigo.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
+			// It's a DOWN, check if new status is > to MinLevelToSendNotifications
+			weSend = true
+		}
+
+		if weSend {
+			Channels.ChanCallbacks <- this
+		}
 	}
 
 	return
