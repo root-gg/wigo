@@ -15,7 +15,6 @@ type Config struct {
 	LogFile							string
 	ConfigFile						string
 
-
 	// Remmote wigos params
 	RemoteWigosList					[]string
 	RemoteWigosCheckInterval		int
@@ -23,6 +22,8 @@ type Config struct {
 
 
 	// Noticications
+	MinLevelToSendNotifications		int
+
 	NotificationsOnWigoChange		bool
 	NotificationsOnHostChange		bool
 	NotificationsOnProbeChange		bool
@@ -62,6 +63,8 @@ func NewConfig() ( this *Config){
 
 
 	// Notifications
+	this.MinLevelToSendNotifications	= 101
+
 	this.NotificationsOnWigoChange		= false
 	this.NotificationsOnHostChange		= false
 	this.NotificationsOnProbeChange		= false

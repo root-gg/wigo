@@ -111,7 +111,19 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 
 	// Send ?
 	if GetLocalWigo().GetConfig().NotificationsOnProbeChange {
-		Channels.ChanCallbacks <- this
+		weSend := false
+
+		if newProbe.Status < oldProbe.Status{
+			// It's an UP
+			weSend = true
+		} else if newProbe.Status > GetLocalWigo().GetConfig().MinLevelToSendNotifications {
+			// It's a DOWN, check if new status is > to MinLevelToSendNotifications
+			weSend = true
+		}
+
+		if weSend {
+			Channels.ChanCallbacks <- this
+		}
 	}
 
 	return
