@@ -116,7 +116,7 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 		if newProbe.Status < oldProbe.Status{
 			// It's an UP
 			weSend = true
-		} else if newProbe.Status > GetLocalWigo().GetConfig().MinLevelToSendNotifications {
+		} else if newProbe.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
 			// It's a DOWN, check if new status is > to MinLevelToSendNotifications
 			weSend = true
 		}
