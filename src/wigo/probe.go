@@ -102,7 +102,7 @@ func ( this *ProbeResult ) GraphMetrics(){
 					}
 
 					// Push
-					put := gopentsdb.NewPut("wigo."+this.Name, putTags, putValue)
+					put := gopentsdb.NewPut( GetLocalWigo().GetConfig().OpenTSDBMetricPrefix + "." + this.Name, putTags, putValue)
 					_, err := GetLocalWigo().GetOpenTsdb().Put( put )
 					if err != nil {
 						log.Printf("Error while pushing to OpenTSDB : %s", err)

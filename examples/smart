@@ -44,6 +44,16 @@ my $conf = {
     }
 };
 
+
+###
+# TEST SMARTCTL EXISTANCE
+###
+if( ! -e $conf->{'smartctl'} )
+{
+    exit 13;
+}
+
+
 ###
 # OVERRIDE CONFIG
 ###

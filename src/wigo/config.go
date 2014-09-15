@@ -41,6 +41,7 @@ type Config struct {
 	OpenTSDBEnabled					bool
 	OpenTSDBAddress					string
 	OpenTSDBPort					int
+	OpenTSDBMetricPrefix			string
 }
 
 func NewConfig() ( this *Config){
@@ -78,6 +79,7 @@ func NewConfig() ( this *Config){
 	this.OpenTSDBEnabled				= false
 	this.OpenTSDBAddress				= ""
 	this.OpenTSDBPort					= 0
+	this.OpenTSDBMetricPrefix			= "wigo"
 
 
 	// Override with config file
