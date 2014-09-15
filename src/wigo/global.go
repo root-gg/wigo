@@ -403,3 +403,48 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 
 	return
 }
+
+
+func (this *Wigo) FindRemoteWigoByHostname( hostname string ) ( *Wigo ){
+
+	var foundWigo *Wigo
+
+	for wigoName := range this.RemoteWigos {
+
+		if wigoName == hostname {
+			foundWigo = this.RemoteWigos[wigoName]
+			return foundWigo
+		}
+
+		foundWigo = this.RemoteWigos[wigoName].FindRemoteWigoByHostname(hostname)
+		if foundWigo != nil {
+			return foundWigo
+		}
+	}
+
+	return foundWigo
+}
+
+
+func (this *Wigo) ListRemoteWigosNames() ( []string ) {
+	list := make([]string,0)
+
+	for wigoName := range this.RemoteWigos {
+		list = append(list, this.RemoteWigos[wigoName].hostname)
+		remoteList := this.RemoteWigos[wigoName].ListRemoteWigosNames()
+		list = append(list, remoteList...)
+	}
+
+	return list
+}
+
+
+func (this *Wigo) ListProbes() ( []string ) {
+	list := make([]string,0)
+
+	for probe := range this.LocalHost.Probes {
+		list = append(list, probe)
+	}
+
+	return list
+}

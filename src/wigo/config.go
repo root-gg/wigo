@@ -44,6 +44,11 @@ type Config struct {
 	OpenTSDBAddress					string
 	OpenTSDBPort					int
 	OpenTSDBMetricPrefix			string
+
+	// Api
+	ApiEnabled                    	bool
+	ApiListenAddress               	string
+	ApiListenPort                 	int
 }
 
 func NewConfig() ( this *Config){
@@ -85,6 +90,11 @@ func NewConfig() ( this *Config){
 	this.OpenTSDBAddress				= ""
 	this.OpenTSDBPort					= 0
 	this.OpenTSDBMetricPrefix			= "wigo"
+
+	// Api
+	this.ApiEnabled                    	= false
+	this.ApiListenAddress               = "0.0.0.0"
+	this.ApiListenPort                  = 4001
 
 
 	// Override with config file

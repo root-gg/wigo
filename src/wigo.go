@@ -24,6 +24,7 @@ import (
 	// Custom libs
 	"wigo"
 	"github.com/howeyc/fsnotify"
+	"github.com/codegangsta/martini"
 )
 
 
@@ -42,7 +43,7 @@ func main() {
 	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().RemoteWigosList)
 	go threadSocket(wigo.GetLocalWigo().GetConfig().ListenAddress, wigo.GetLocalWigo().GetConfig().ListenPort)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
-
+	go threadHttp()
 
 	// Signals
 	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
@@ -618,3 +619,32 @@ func launchRemoteHostCheckRoutine(hostname string) {
 	}
 }
 
+func threadHttp(){
+	if wigo.GetLocalWigo().GetConfig().ApiEnabled {
+
+		apiAddress 	:= wigo.GetLocalWigo().GetConfig().ApiListenAddress
+		apiPort 	:= wigo.GetLocalWigo().GetConfig().ApiListenPort
+
+		m := martini.Classic()
+		m.Get("/", func() string {
+			json, err := wigo.GetLocalWigo().ToJsonString()
+			if err != nil {
+				return fmt.Sprintf("%s", err)
+			}
+			return json
+		})
+
+		m.Get("/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus))})
+		m.Get("/remotes", wigo.HttpRemotesHandler)
+		m.Get("/remotes/:hostname", wigo.HttpRemotesHandler)
+		m.Get("/remotes/:hostname/status", wigo.HttpRemotesStatusHandler)
+		m.Get("/remotes/:hostname/probes", wigo.HttpRemotesProbesHandler)
+		m.Get("/remotes/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
+		m.Get("/remotes/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
+
+		err := http.ListenAndServe( apiAddress + ":" + strconv.Itoa(apiPort), m)
+		if err != nil {
+			log.Printf("Failed to spawn API : %s", err)
+		}
+	}
+}
