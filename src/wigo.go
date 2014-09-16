@@ -41,7 +41,6 @@ func main() {
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
 	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().RemoteWigosList)
-	go threadSocket(wigo.GetLocalWigo().GetConfig().ListenAddress, wigo.GetLocalWigo().GetConfig().ListenPort)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 	go threadHttp()
 
@@ -233,7 +232,11 @@ func threadLocalChecks() {
 						for c := currentProbesList.Front(); c != nil; c = c.Next() {
 							probeName := c.Value.(string)
 
-							go execProbe(directory+"/"+probeName, 5)
+							if wigo.GetLocalWigo().IsProbeDisabled( probeName ) {
+								log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName )
+							} else {
+								go execProbe(directory+"/"+probeName, sleepTImeInt - 1)
+							}
 						}
 
 						// Sleep right amount of time
@@ -260,40 +263,6 @@ func threadRemoteChecks(remoteWigos []string) {
 	for _, host := range remoteWigos {
 		log.Printf(" -> Adding %s to the remote check list\n", host)
 		go launchRemoteHostCheckRoutine(host)
-	}
-}
-
-func threadSocket(listenAddress string, listenPort int) {
-
-	// Listen
-	listener, err := net.Listen("tcp4", listenAddress+":"+strconv.Itoa(listenPort))
-	if err != nil {
-		log.Fatal(err)
-		os.Exit(1)
-	}
-
-	// Serve
-	for {
-		c, err := listener.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		go func(){
-			log.Printf("Got a new connection : %s\n",c.RemoteAddr())
-			defer c.Close()
-
-			json,err := wigo.GetLocalWigo().ToJsonString()
-			if(err != nil){
-				log.Println("Fail to encode to json : ", err)
-				return
-			}
-
-			// Print json to socket
-			fmt.Fprintln(c, json)
-
-			return
-		}()
 	}
 }
 
@@ -504,7 +473,11 @@ func execProbe(probePath string, timeOut int) {
 
 			// Test Exit 13
 			if exitCode == 13 {
-				log.Printf(" - Probe %s in directory %s responded with special exit code 13. Discarding result...\n", probeResult.Name, probeResult)
+				log.Printf(" - Probe %s responded with special exit code 13. Discarding result...\n", probeName)
+
+				// Disabling it
+				wigo.GetLocalWigo().DisableProbe( probeName )
+
 				return
 			}
 
@@ -557,18 +530,19 @@ func launchRemoteHostCheckRoutine(hostname string) {
 	for {
 
 		// Create connection
-		var connection net.Conn
+		var body []byte
 		var err error
 
 		// Try
 		tries := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckTries
 
 		for i := 1; i <= tries; i++ {
-			connection, err = net.DialTimeout("tcp", hostname, time.Second*2)
-
+			resp, err := http.Get("http://" + hostname)
 			if err != nil {
-				time.Sleep( time.Second )
+				time.Sleep(time.Second)
 			} else {
+				defer resp.Body.Close()
+				body, err = ioutil.ReadAll(resp.Body)
 				break
 			}
 		}
@@ -587,21 +561,8 @@ func launchRemoteHostCheckRoutine(hostname string) {
 			continue
 		}
 
-		// Get content
-		completeOutput := new(bytes.Buffer)
-
-		for {
-			reply := make([]byte, 512)
-			read_len, err := connection.Read(reply)
-			if ( err != nil ) {
-				break
-			}
-
-			completeOutput.Write(reply[:read_len])
-		}
-
 		// Instanciate object from remote return
-		wigoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
+		wigoObj, err := wigo.NewWigoFromJson(body)
 		if (err != nil) {
 			log.Printf("Failed to parse return from host %s : %s", hostname, err)
 			time.Sleep( time.Second * time.Duration(secondsToSleep))
@@ -620,31 +581,29 @@ func launchRemoteHostCheckRoutine(hostname string) {
 }
 
 func threadHttp(){
-	if wigo.GetLocalWigo().GetConfig().ApiEnabled {
 
-		apiAddress 	:= wigo.GetLocalWigo().GetConfig().ApiListenAddress
-		apiPort 	:= wigo.GetLocalWigo().GetConfig().ApiListenPort
+	apiAddress 	:= wigo.GetLocalWigo().GetConfig().ListenAddress
+	apiPort 	:= wigo.GetLocalWigo().GetConfig().ListenPort
 
-		m := martini.Classic()
-		m.Get("/", func() string {
-			json, err := wigo.GetLocalWigo().ToJsonString()
-			if err != nil {
-				return fmt.Sprintf("%s", err)
-			}
-			return json
-		})
-
-		m.Get("/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus))})
-		m.Get("/remotes", wigo.HttpRemotesHandler)
-		m.Get("/remotes/:hostname", wigo.HttpRemotesHandler)
-		m.Get("/remotes/:hostname/status", wigo.HttpRemotesStatusHandler)
-		m.Get("/remotes/:hostname/probes", wigo.HttpRemotesProbesHandler)
-		m.Get("/remotes/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
-		m.Get("/remotes/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
-
-		err := http.ListenAndServe( apiAddress + ":" + strconv.Itoa(apiPort), m)
+	m := martini.Classic()
+	m.Get("/", func() (int, string) {
+		json, err := wigo.GetLocalWigo().ToJsonString()
 		if err != nil {
-			log.Printf("Failed to spawn API : %s", err)
+			return 500,fmt.Sprintf("%s", err)
 		}
+		return 200,json
+	})
+
+	m.Get("/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus))})
+	m.Get("/remotes", wigo.HttpRemotesHandler)
+	m.Get("/remotes/:hostname", wigo.HttpRemotesHandler)
+	m.Get("/remotes/:hostname/status", wigo.HttpRemotesStatusHandler)
+	m.Get("/remotes/:hostname/probes", wigo.HttpRemotesProbesHandler)
+	m.Get("/remotes/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
+	m.Get("/remotes/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
+
+	err := http.ListenAndServe( apiAddress + ":" + strconv.Itoa(apiPort), m)
+	if err != nil {
+		log.Fatalf("Failed to spawn API : %s", err)
 	}
 }

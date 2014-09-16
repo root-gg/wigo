@@ -12,6 +12,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/fatih/color"
 	"strings"
+	"container/list"
 )
 
 // Static global object
@@ -33,6 +34,7 @@ type Wigo struct {
 	locker			*sync.RWMutex
 	logfilehandle	*os.File
 	gopentsdb		*gopentsdb.OpenTsdb
+	disabledProbes	*list.List
 }
 
 func InitWigo() ( err error ){
@@ -54,8 +56,9 @@ func InitWigo() ( err error ){
 		LocalWigo.RemoteWigos 	= make(map[string] *Wigo)
 
 		// Private vars
-		LocalWigo.hostname 		= LocalWigo.LocalHost.Name
-		LocalWigo.locker 		= new(sync.RWMutex)
+		LocalWigo.hostname 			= LocalWigo.LocalHost.Name
+		LocalWigo.locker 			= new(sync.RWMutex)
+		LocalWigo.disabledProbes	= new(list.List)
 
 		// Log
 		LocalWigo.InitOrReloadLogger()
@@ -317,6 +320,48 @@ func (this *Wigo) ToJsonString() ( string, error ){
 	return string(j), nil
 }
 
+
+// Disabled probes
+func (this *Wigo) GetDisabledProbes() (*list.List) {
+	return this.disabledProbes
+}
+func (this *Wigo) DisableProbe( probeName string ) {
+	alreadyDisabled := false
+
+	if probeName == "" {
+		return
+	}
+
+	// Check if not already disabled
+	for e := this.disabledProbes.Front(); e != nil; e.Next() {
+		if p,ok := e.Value.(string); ok {
+			if p == probeName {
+				alreadyDisabled = true
+			}
+		}
+	}
+
+	if !alreadyDisabled{
+		this.disabledProbes.PushBack(probeName)
+	}
+
+	return
+}
+func (this *Wigo) IsProbeDisabled( probeName string ) bool {
+
+	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
+		if p,ok := e.Value.(string); ok {
+			if p == probeName {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+
+// Summaries
 
 func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 
