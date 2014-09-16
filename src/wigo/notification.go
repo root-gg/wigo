@@ -1,55 +1,54 @@
 package wigo
 
 import (
-	"fmt"
 	"encoding/json"
-	"time"
+	"fmt"
 	"log"
+	"time"
 )
 
 type Notification struct {
-	Type		string
-	Message		string
-	Date		string
-	Summary		string
+	Type    string
+	Message string
+	Date    string
+	Summary string
 }
 
 type INotification interface {
-	ToJson() 		([]byte, error)
-	GetMessage()	string
-	GetSummary()	string
+	ToJson() ([]byte, error)
+	GetMessage() string
+	GetSummary() string
 }
 
 type NotificationWigo struct {
 	*Notification
-	OldWigo		*Wigo
-	NewWigo		*Wigo
+	OldWigo *Wigo
+	NewWigo *Wigo
 }
 type NotificationProbe struct {
 	*Notification
-	OldProbe			*ProbeResult
-	NewProbe			*ProbeResult
-	HostProbesInError	[]string
+	OldProbe          *ProbeResult
+	NewProbe          *ProbeResult
+	HostProbesInError []string
 }
 
-
 // Constructors
-func NewNotification() ( this *Notification ){
-	this				= new(Notification)
-	this.Date			= time.Now().Format(dateLayout)
+func NewNotification() (this *Notification) {
+	this = new(Notification)
+	this.Date = time.Now().Format(dateLayout)
 	return
 }
 
-func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWigo ){
-	this 				= new(NotificationWigo)
-	this.Notification	= NewNotification()
-	this.Type			= "Wigo"
-	this.OldWigo 		= oldWigo
-	this.NewWigo		= newWigo
+func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) {
+	this = new(NotificationWigo)
+	this.Notification = NewNotification()
+	this.Type = "Wigo"
+	this.OldWigo = oldWigo
+	this.NewWigo = newWigo
 
 	if oldWigo.IsAlive && !newWigo.IsAlive {
 		// UP -> DOWN
-		this.Message = fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage )
+		this.Message = fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage)
 
 	} else if !oldWigo.IsAlive && newWigo.IsAlive {
 		// DOWN -> UP
@@ -84,12 +83,12 @@ func NewNotificationWigo( oldWigo *Wigo, newWigo *Wigo ) ( this *NotificationWig
 	return
 }
 
-func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this *NotificationProbe ){
-	this 				= new(NotificationProbe)
-	this.Notification	= NewNotification()
-	this.Type			= "Probe"
-	this.OldProbe		= oldProbe
-	this.NewProbe		= newProbe
+func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *NotificationProbe) {
+	this = new(NotificationProbe)
+	this.Notification = NewNotification()
+	this.Type = "Probe"
+	this.OldProbe = oldProbe
+	this.NewProbe = newProbe
 
 	if oldProbe == nil && newProbe != nil {
 		this.Message = fmt.Sprintf("New probe %s with status %d detected on host %s", newProbe.Name, newProbe.Status, newProbe.GetHost().Name)
@@ -98,7 +97,7 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 		this.Summary += fmt.Sprintf("\t%s\n", newProbe.Message)
 
 	} else if oldProbe != nil && newProbe == nil {
-		this.Message = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, oldProbe.GetHost().Name, oldProbe.Status )
+		this.Message = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, oldProbe.GetHost().Name, oldProbe.Status)
 
 		this.Summary += fmt.Sprintf("Probe %s has been deleted on host %s : \n\n", oldProbe.Name, oldProbe.GetHost().Name)
 		this.Summary += fmt.Sprintf("Last message was : \n\n%s\n", oldProbe.Message)
@@ -117,7 +116,6 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 		}
 	}
 
-
 	// Log
 	log.Printf("New Probe Notification : %s", this.Message)
 
@@ -125,12 +123,14 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 	if GetLocalWigo().GetConfig().NotificationsOnProbeChange {
 		weSend := false
 
-		if newProbe.Status < oldProbe.Status{
-			// It's an UP
-			weSend = true
-		} else if newProbe.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
-			// It's a DOWN, check if new status is > to MinLevelToSendNotifications
-			weSend = true
+		if oldProbe != nil && newProbe != nil {
+			if newProbe.Status < oldProbe.Status {
+				// It's an UP
+				weSend = true
+			} else if newProbe.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
+				// It's a DOWN, check if new status is > to MinLevelToSendNotifications
+				weSend = true
+			}
 		}
 
 		if weSend {
@@ -141,32 +141,27 @@ func NewNotificationProbe( oldProbe *ProbeResult, newProbe *ProbeResult ) ( this
 	return
 }
 
-
 // Getters
-func (this *Notification) ToJson() ( ba []byte, e error ) {
+func (this *Notification) ToJson() (ba []byte, e error) {
 	return json.Marshal(this)
 }
-func (this *NotificationWigo) ToJson() ( ba []byte, e error ) {
+func (this *NotificationWigo) ToJson() (ba []byte, e error) {
 	return json.Marshal(this)
 }
-func (this *NotificationProbe) ToJson() ( ba []byte, e error ) {
+func (this *NotificationProbe) ToJson() (ba []byte, e error) {
 	return json.Marshal(this)
 }
 
-
-func (this *Notification) GetSummary() ( s string ) {
+func (this *Notification) GetSummary() (s string) {
 	return this.Summary
 }
-func (this *NotificationWigo) GetSummary() ( s string ) {
+func (this *NotificationWigo) GetSummary() (s string) {
 	return this.Summary
 }
-func (this *NotificationProbe) GetSummary() ( s string ) {
+func (this *NotificationProbe) GetSummary() (s string) {
 	return this.Summary
 }
 
-
-func (this *Notification) GetMessage() ( string ){
+func (this *Notification) GetMessage() string {
 	return this.Message
 }
-
-
