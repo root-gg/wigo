@@ -2,14 +2,12 @@
 package  main
 
 import (
-	"net"
-	"time"
 	"wigo"
-	"bytes"
 	"fmt"
-
 	"github.com/docopt/docopt-go"
 	"os"
+	"net/http"
+	"io/ioutil"
 )
 
 var command 		string	= ""
@@ -53,34 +51,19 @@ Options
 	}
 
 	// Connect
-	conn, err := net.DialTimeout("tcp", "127.0.0.1:4000", time.Second * 2)
+	resp, err := http.Get("http://127.0.0.1:4000")
 	if err != nil {
-		fmt.Printf("Could not connect to wigo : %s", err)
-		return
+		fmt.Printf("Error : %s\n",err)
+		os.Exit(1)
 	}
-
-
-	// Get content
-	completeOutput := new(bytes.Buffer)
-
-	for {
-		reply := make([]byte, 512)
-		read_len, err := conn.Read(reply)
-		if ( err != nil ) {
-			break
-		}
-
-		completeOutput.Write(reply[:read_len])
-	}
+	body, err := ioutil.ReadAll(resp.Body)
 
 	// Instanciate object from json
-	wigoObj, err := wigo.NewWigoFromJson(completeOutput.Bytes())
+	wigoObj, err := wigo.NewWigoFromJson(body)
 	if (err != nil) {
 		fmt.Printf("Failed to parse return from host : %s", err)
 	}
 
-
 	// Print summary
 	fmt.Printf(wigoObj.GenerateSummary(showOnlyErrors))
-
 }
