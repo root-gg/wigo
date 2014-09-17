@@ -333,7 +333,7 @@ func (this *Wigo) DisableProbe( probeName string ) {
 	}
 
 	// Check if not already disabled
-	for e := this.disabledProbes.Front(); e != nil; e.Next() {
+	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
 		if p,ok := e.Value.(string); ok {
 			if p == probeName {
 				alreadyDisabled = true
