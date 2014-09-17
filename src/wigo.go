@@ -529,20 +529,24 @@ func launchRemoteHostCheckRoutine(hostname string) {
 
 	for {
 
-		// Create connection
+		// Create vars
+		var resp *http.Response
 		var body []byte
 		var err error
+
+		// Create http client
+		client := http.Client{ Timeout: time.Duration( time.Second ) }
 
 		// Try
 		tries := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckTries
 
 		for i := 1; i <= tries; i++ {
-			resp, err := http.Get("http://" + hostname)
+			resp, err = client.Get("http://" + hostname)
 			if err != nil {
 				time.Sleep(time.Second)
 			} else {
 				defer resp.Body.Close()
-				body, err = ioutil.ReadAll(resp.Body)
+				body, _ = ioutil.ReadAll(resp.Body)
 				break
 			}
 		}
