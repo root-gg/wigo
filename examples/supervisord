@@ -1,0 +1,128 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Data::Dumper;
+
+# Init Json
+use JSON::XS;
+my $coder = JSON::XS->new->pretty;
+
+my $return = {
+    Version     => "0.10",
+    
+    Status      => 100,
+    Message     => "",
+
+    Detail      => {},
+};
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'supervisorctl' => '/usr/bin/supervisorctl',
+    'include' => undef, # list of monitored processus ( undef means all )
+    'exclude' => undef, # list of not monitored processus ( undef means none )
+};
+
+###
+# OVERRIDE CONFIG
+###
+
+if ( -r '/etc/wigo/conf.d/supervisord.conf' )
+{
+    if ( ! open JSON_CONFIG, '<', '/etc/wigo/conf.d/supervisord.conf' )
+    {
+        $return->{'Status'}     = 500;
+        $return->{'Message'}    = "Error while opening json config file for read : " . $!;
+        print $coder->encode($return);
+        exit 13;
+    }
+
+    my $json = join '', (<JSON_CONFIG>);
+    close JSON_CONFIG;
+    
+    eval {
+        $conf = decode_json( $json );
+    };
+
+    if ( $@ )
+    {
+        $return->{'Status'}     = 500;
+        $return->{'Message'}    = "Error while decoding json config: " . $@;
+        print $coder->encode($return);
+        exit 13;
+    }
+}
+
+my $supervisorctl = $conf->{'supervisorctl'};
+
+unless ( -x $supervisorctl )
+{
+	$return->{'Status'}     = 500;
+        $return->{'Message'}    = "supervisorctl $supervisorctl is not executable";
+        print $coder->encode($return);
+        exit 13;
+}
+
+###
+# GET STATUS LIST
+###
+
+my $statuslist = `$supervisorctl status`;
+if ( $? )
+{
+	$return->{'Status'}     = 500;
+        $return->{'Message'}    = "Error while getting status list";
+	$return->{'Detail'} 	= $statuslist;
+        print $coder->encode($return);
+	exit 1;
+}
+
+###
+# PARSE STATUS LIST
+###
+
+my $count = 0;
+for my $line ( split "\n", $statuslist )
+{
+	if ( my ($process,$status,$detail) = $line =~ /^(\S+)\s+(\w+)\s+(.*)$/ )
+	{
+		if ( defined $conf->{'include'} and ! grep { $process =~ /^$_$/ } @{$conf->{'include'}} )
+		{
+			next;
+		}
+		
+		if ( defined $conf->{'exclude'} and grep { $process =~ /^$_$/ } @{$conf->{'exclude'}} )
+		{
+			next;
+		}
+
+		$return->{'Detail'}->{$process} = { 'status' => $status, 'detail' => $detail };
+	
+		if ( $status ne 'RUNNING' )
+		{
+			$return->{'Status'} 	 = 300;
+			$return->{'Message'} 	.= "$process is $status ";
+		}
+		else
+		{
+			$count++;
+		}
+	}
+}
+
+if ( $return->{'Status'} == 100 )
+{
+	$return->{'Message'} = "All $count processuses are RUNNING";
+}
+else
+{
+	$count and $return->{'Message'} .= ", $count other processus are RUNNING";
+}
+
+print $coder->encode( $return );
+exit 0;
