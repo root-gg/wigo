@@ -67,7 +67,7 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	if GetLocalWigo().GetConfig().NotificationsOnWigoChange {
 		weSend := false
 
-		if newWigo.GlobalStatus < oldWigo.GlobalStatus {
+		if newWigo.GlobalStatus < oldWigo.GlobalStatus && oldWigo.GlobalStatus >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
 			// It's an UP
 			weSend = true
 		} else if newWigo.GlobalStatus >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
@@ -124,7 +124,7 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 		weSend := false
 
 		if oldProbe != nil && newProbe != nil {
-			if newProbe.Status < oldProbe.Status {
+			if newProbe.Status < oldProbe.Status && oldProbe.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
 				// It's an UP
 				weSend = true
 			} else if newProbe.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
