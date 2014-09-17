@@ -423,7 +423,11 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 			summary += tabs + red("\t" + this.RemoteWigos[remoteWigo].GlobalMessage + "\n")
 
 		} else {
-			summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " ( " + this.RemoteWigos[remoteWigo].LocalHost.Name + " ) - " + this.RemoteWigos[remoteWigo].Version + ": \n"
+			if this.RemoteWigos[remoteWigo].Version != this.Version {
+				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - " + red(this.RemoteWigos[remoteWigo].Version) +": \n"
+			} else {
+				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - "+this.RemoteWigos[remoteWigo].Version+": \n"
+			}
 		}
 
 
