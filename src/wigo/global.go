@@ -372,7 +372,7 @@ func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 	summary += fmt.Sprintf("Local Status 	: %d\n", this.LocalHost.Status)
 	summary += fmt.Sprintf("Global Status	: %d\n\n", this.GlobalStatus)
 
-	if showOnlyErrors && this.LocalHost.Status != 100 {
+	if this.LocalHost.Status != 100 || !showOnlyErrors {
 		summary += "Local probes : \n\n"
 
 		for probeName := range this.LocalHost.Probes {
