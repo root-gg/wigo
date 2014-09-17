@@ -377,11 +377,11 @@ func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 
 		for probeName := range this.LocalHost.Probes {
 			if this.LocalHost.Probes[probeName].Status > 100 && this.LocalHost.Probes[probeName].Status < 300 {
-				summary += yellow("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+				summary += yellow("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, this.LocalHost.Probes[probeName].Message)
 			} else if this.LocalHost.Probes[probeName].Status >= 300 {
-				summary += red("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+				summary += red("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, this.LocalHost.Probes[probeName].Message)
 			} else {
-				summary += fmt.Sprintf("\t%-25s : %d\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status)
+				summary += fmt.Sprintf("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, this.LocalHost.Probes[probeName].Message)
 			}
 		}
 
