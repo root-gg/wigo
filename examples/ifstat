@@ -27,7 +27,7 @@ my $return = {
 
 my $conf = {
     'last_stats'    => '/tmp/ifstats_last',
-    'match'         => 'eth\d+|em\d+_\d+/\d+|em\d+_\d+|em\d+|p\d+p\d+_\d+/\d+|p\d+p\d+_\d+|p\d+p\d+',
+    'match'         => 'eth\d+|em\d+_\d+/\d+|em\d+_\d+|em\d+|p\d+p\d+_\d+/\d+|p\d+p\d+_\d+|p\d+p\d+|tap\d+',
     'fields'        => {
         'bytes'         => { },
         'packets'       => { },
@@ -141,7 +141,7 @@ foreach my $line ( @lines )
             $new->{$iface}->{$direction}->{$fields[$i]} = $stats[$i];
 
             next unless grep { $fields[$i] eq $_ } keys %{$conf->{'fields'}};
-            push @metrics, { 'Tags' => { 'direction' => $direction,  'field' => $fields[$i] }, 'Value' => $stats[$i] + 0 };
+            push @metrics, { 'Tags' => { 'iface' => $iface, 'direction' => $direction,  'field' => $fields[$i] }, 'Value' => $stats[$i] + 0 };
             
             next unless defined $last->{$iface}->{$direction}->{$fields[$i]};
             my $value = ( $stats[$i] - $last->{$iface}->{$direction}->{$fields[$i]} ) / ( $now - $last_time );

@@ -13,14 +13,13 @@ my $coder = JSON::XS->new->pretty;
 my $cores = `grep '^processor' /proc/cpuinfo | sort -u | wc -l`;
 chomp $cores;
 
-# Warn levels
-my $warnLevel   = 1;
-my $critLevel   = 2;
+# Warn levels if cores information isn't available
+my $warnLevel       = 1;
+my $critLevel       = 2;
 
-if($cores =~ /^\d+$/){
-    $warnLevel   = $cores;
-    $critLevel   = 1.5*$cores;
-}
+# Warn levels in percentage, depending on number of cores
+my $warnPercentage  = 75;
+my $critPercentage  = 150;
 
 my $return = {
     Version    => "0.11",
@@ -58,13 +57,29 @@ else
             { Tags => { "load" => "load15" }, Value => $rawValue15 + 0 },
         ];
 
-        if($rawValue5 > $warnLevel)
+        if ($cores =~ /^\d+$/)
         {
-            $return->{'Status'} = 250;
+            my $percentage = $rawValue5 * 100 / $cores;
+
+            if ($percentage > $critPercentage)
+            {
+                $return->{'Status'} = 300;
+            }
+            elsif ($percentage > $warnPercentage)
+            {
+                $return->{'Status'} = 250; 
+            }
         }
-        if($rawValue5 > $critLevel)
+        else
         {
-            $return->{'Status'} = 350;
+            if($rawValue5 > $warnLevel)
+            {
+                $return->{'Status'} = 250;
+            }
+            if($rawValue5 > $critLevel)
+            {
+                $return->{'Status'} = 300;
+            }
         }
     }
 }
