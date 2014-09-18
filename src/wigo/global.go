@@ -393,12 +393,12 @@ func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 		summary += "Remote Wigos : \n\n"
 	}
 
-	summary += this.GenerateRemoteWigosSummary(0 , showOnlyErrors)
+	summary += this.GenerateRemoteWigosSummary(0 , showOnlyErrors, this.Version)
 
 	return
 }
 
-func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) ( summary string ) {
+func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool, version string ) ( summary string ) {
 
 	red 	:= color.New( color.FgRed ).SprintfFunc()
 	yellow 	:= color.New( color.FgYellow ).SprintfFunc()
@@ -423,7 +423,7 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 			summary += tabs + red("\t" + this.RemoteWigos[remoteWigo].GlobalMessage + "\n")
 
 		} else {
-			if this.RemoteWigos[remoteWigo].Version != LocalWigo.Version {
+			if this.RemoteWigos[remoteWigo].Version != version {
 				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - " + red(this.RemoteWigos[remoteWigo].Version) +": \n"
 			} else {
 				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - "+this.RemoteWigos[remoteWigo].Version+": \n"
@@ -447,7 +447,7 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 		}
 
 		summary += "\n"
-		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(level, showOnlyErrors)
+		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(level, showOnlyErrors, version)
 	}
 
 	return
