@@ -446,8 +446,9 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool, v
 			}
 		}
 
+		nextLevel := level + 1
 		summary += "\n"
-		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(level, showOnlyErrors, version)
+		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(nextLevel, showOnlyErrors, version)
 	}
 
 	return
