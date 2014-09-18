@@ -187,21 +187,8 @@ if ( open NEW_STATS, '>', $conf->{'last_stats'} )
     }
 }
 
-if ( open TAGGLE, '>', "/tmp/taggle" )
-{
-    eval {
-        print TAGGLE $coder->encode($conf);
-    };
-
-    if ( $@ )
-    {
-        print "FAIL " . $@;
-    }
-}
-
 
 #$return->{'Detail'} = $details;
 $return->{'Metrics'} = \@metrics;
 
 print $coder->encode( $return );
-
