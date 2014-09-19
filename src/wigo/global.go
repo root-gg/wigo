@@ -93,7 +93,7 @@ func GetLocalWigo() ( *Wigo ){
 
 // Constructors
 
-func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
+func NewWigoFromJson( ba []byte, checkRemotes bool ) ( this *Wigo, e error ){
 
 	this 			= new(Wigo)
 	this.IsAlive 	= true
@@ -102,6 +102,10 @@ func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 	if( err != nil ){
 		return nil, err
 	}
+
+    if checkRemotes != true {
+        this.RemoteWigos = make(map[string] *Wigo)
+    }
 
 	this.SetParentHostsInProbes()
 	this.SetRemoteWigosHostnames()

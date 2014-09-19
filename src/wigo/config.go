@@ -17,7 +17,7 @@ type Config struct {
 	Group							string
 
 	// Remmote wigos params
-	RemoteWigosList					[]string
+	RemoteWigosList					[]RemoteWigoConfig
 	RemoteWigosCheckInterval		int
 	RemoteWigosCheckTries			int
 
