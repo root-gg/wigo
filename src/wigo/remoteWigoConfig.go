@@ -4,11 +4,11 @@ import (
 )
 
 type RemoteWigoConfig struct {
-	Hostname        string
-	Port            int
-	CheckRemotes    bool
-	CheckInterval   int
-	CheckTries      int
+	Hostname            string
+	Port                int
+	CheckRemotesDepth   int
+	CheckInterval       int
+	CheckTries          int
 }
 
 // Constructors

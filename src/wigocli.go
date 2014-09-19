@@ -59,7 +59,7 @@ Options
 	body, err := ioutil.ReadAll(resp.Body)
 
 	// Instanciate object from json
-	wigoObj, err := wigo.NewWigoFromJson(body, true)
+	wigoObj, err := wigo.NewWigoFromJson(body, 0)
 	if (err != nil) {
 		fmt.Printf("Failed to parse return from host : %s", err)
 	}
