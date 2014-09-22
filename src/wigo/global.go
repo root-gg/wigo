@@ -13,6 +13,7 @@ import (
 	"github.com/fatih/color"
 	"strings"
 	"container/list"
+	"strconv"
 )
 
 // Static global object
@@ -79,6 +80,33 @@ func InitWigo() ( err error ){
 			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort)
 			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort, true)
 		}
+
+		// Compatiblity with old RemoteWigos lists
+		if LocalWigo.GetConfig().RemoteWigosList != nil {
+			for _, remoteWigo := range LocalWigo.GetConfig().RemoteWigosList {
+
+				// Split data into hostname/port
+				splits := strings.Split(remoteWigo, ":")
+
+				hostname := splits[0]
+				port := 0
+				if len(splits) > 1 {
+					port, _ = strconv.Atoi(splits[1])
+				}
+
+				if port == 0 {
+					port = GetLocalWigo().GetConfig().ListenPort
+				}
+
+				// Create new RemoteWigoConfig
+				AdvancedRemoteWigo := new(RemoteWigoConfig)
+				AdvancedRemoteWigo.Hostname = hostname
+				AdvancedRemoteWigo.Port = port
+
+				// Push new AdvancedRemoteWigo to remoteWigosList
+				LocalWigo.GetConfig().AdvancedRemoteWigosList = append(LocalWigo.GetConfig().AdvancedRemoteWigosList, *AdvancedRemoteWigo)
+			}
+		}
 	}
 
 	return nil
@@ -93,7 +121,7 @@ func GetLocalWigo() ( *Wigo ){
 
 // Constructors
 
-func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
+func NewWigoFromJson( ba []byte, checkRemotesDepth int ) ( this *Wigo, e error ){
 
 	this 			= new(Wigo)
 	this.IsAlive 	= true
@@ -102,6 +130,10 @@ func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 	if( err != nil ){
 		return nil, err
 	}
+
+    if checkRemotesDepth != 0 {
+        this = this.EraseRemoteWigos( checkRemotesDepth )
+    }
 
 	this.SetParentHostsInProbes()
 	this.SetRemoteWigosHostnames()
@@ -498,3 +530,22 @@ func (this *Wigo) ListProbes() ( []string ) {
 
 	return list
 }
+
+// Erase RemoteWigos if maximum wanted depth is reached
+
+func (this *Wigo) EraseRemoteWigos( depth int ) ( *Wigo ){
+
+    depth = depth - 1
+
+    if depth == 0 {
+        this.RemoteWigos = make(map[string] *Wigo);
+        return this;
+    }
+
+    for remoteWigo := range this.RemoteWigos {
+        this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth);
+    }
+
+    return this;
+}
+
