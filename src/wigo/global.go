@@ -13,6 +13,7 @@ import (
 	"github.com/fatih/color"
 	"strings"
 	"container/list"
+	"strconv"
 )
 
 // Static global object
@@ -78,6 +79,33 @@ func InitWigo() ( err error ){
 		if LocalWigo.config.OpenTSDBEnabled {
 			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort)
 			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort, true)
+		}
+
+		// Compatiblity with old RemoteWigos lists
+		if LocalWigo.GetConfig().RemoteWigosList != nil {
+			for _, remoteWigo := range LocalWigo.GetConfig().RemoteWigosList {
+
+				// Split data into hostname/port
+				splits := strings.Split(remoteWigo, ":")
+
+				hostname := splits[0]
+				port := 0
+				if len(splits) > 1 {
+					port, _ = strconv.Atoi(splits[1])
+				}
+
+				if port == 0 {
+					port = GetLocalWigo().GetConfig().ListenPort
+				}
+
+				// Create new RemoteWigoConfig
+				AdvancedRemoteWigo := new(RemoteWigoConfig)
+				AdvancedRemoteWigo.Hostname = hostname
+				AdvancedRemoteWigo.Port = port
+
+				// Push new AdvancedRemoteWigo to remoteWigosList
+				LocalWigo.GetConfig().AdvancedRemoteWigosList = append(LocalWigo.GetConfig().AdvancedRemoteWigosList, *AdvancedRemoteWigo)
+			}
 		}
 	}
 
