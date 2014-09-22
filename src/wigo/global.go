@@ -13,6 +13,7 @@ import (
 	"github.com/fatih/color"
 	"strings"
 	"container/list"
+	"strconv"
 )
 
 // Static global object
@@ -79,6 +80,33 @@ func InitWigo() ( err error ){
 			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort)
 			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort, true)
 		}
+
+		// Compatiblity with old RemoteWigos lists
+		if LocalWigo.GetConfig().RemoteWigosList != nil {
+			for _, remoteWigo := range LocalWigo.GetConfig().RemoteWigosList {
+
+				// Split data into hostname/port
+				splits := strings.Split(remoteWigo, ":")
+
+				hostname := splits[0]
+				port := 0
+				if len(splits) > 1 {
+					port, _ = strconv.Atoi(splits[1])
+				}
+
+				if port == 0 {
+					port = GetLocalWigo().GetConfig().ListenPort
+				}
+
+				// Create new RemoteWigoConfig
+				AdvancedRemoteWigo := new(RemoteWigoConfig)
+				AdvancedRemoteWigo.Hostname = hostname
+				AdvancedRemoteWigo.Port = port
+
+				// Push new AdvancedRemoteWigo to remoteWigosList
+				LocalWigo.GetConfig().AdvancedRemoteWigosList = append(LocalWigo.GetConfig().AdvancedRemoteWigosList, *AdvancedRemoteWigo)
+			}
+		}
 	}
 
 	return nil
@@ -93,7 +121,7 @@ func GetLocalWigo() ( *Wigo ){
 
 // Constructors
 
-func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
+func NewWigoFromJson( ba []byte, checkRemotesDepth int ) ( this *Wigo, e error ){
 
 	this 			= new(Wigo)
 	this.IsAlive 	= true
@@ -102,6 +130,10 @@ func NewWigoFromJson( ba []byte ) ( this *Wigo, e error ){
 	if( err != nil ){
 		return nil, err
 	}
+
+    if checkRemotesDepth != 0 {
+        this = this.EraseRemoteWigos( checkRemotesDepth )
+    }
 
 	this.SetParentHostsInProbes()
 	this.SetRemoteWigosHostnames()
@@ -377,11 +409,11 @@ func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 
 		for probeName := range this.LocalHost.Probes {
 			if this.LocalHost.Probes[probeName].Status > 100 && this.LocalHost.Probes[probeName].Status < 300 {
-				summary += yellow("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, this.LocalHost.Probes[probeName].Message)
+				summary += yellow("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, strings.Replace(this.LocalHost.Probes[probeName].Message, "%", "%%", -1))
 			} else if this.LocalHost.Probes[probeName].Status >= 300 {
-				summary += red("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, this.LocalHost.Probes[probeName].Message)
+				summary += red("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, strings.Replace(this.LocalHost.Probes[probeName].Message, "%", "%%", -1))
 			} else {
-				summary += fmt.Sprintf("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, this.LocalHost.Probes[probeName].Message)
+				summary += fmt.Sprintf("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, strings.Replace(this.LocalHost.Probes[probeName].Message, "%", "%%", -1))
 			}
 		}
 
@@ -393,12 +425,12 @@ func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 		summary += "Remote Wigos : \n\n"
 	}
 
-	summary += this.GenerateRemoteWigosSummary(0 , showOnlyErrors)
+	summary += this.GenerateRemoteWigosSummary(0 , showOnlyErrors, this.Version)
 
 	return
 }
 
-func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) ( summary string ) {
+func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool, version string ) ( summary string ) {
 
 	red 	:= color.New( color.FgRed ).SprintfFunc()
 	yellow 	:= color.New( color.FgYellow ).SprintfFunc()
@@ -423,7 +455,7 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 			summary += tabs + red("\t" + this.RemoteWigos[remoteWigo].GlobalMessage + "\n")
 
 		} else {
-			if this.RemoteWigos[remoteWigo].Version != this.Version {
+			if this.RemoteWigos[remoteWigo].Version != version {
 				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - " + red(this.RemoteWigos[remoteWigo].Version) +": \n"
 			} else {
 				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - "+this.RemoteWigos[remoteWigo].Version+": \n"
@@ -446,8 +478,9 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool ) 
 			}
 		}
 
+		nextLevel := level + 1
 		summary += "\n"
-		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(level, showOnlyErrors)
+		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(nextLevel, showOnlyErrors, version)
 	}
 
 	return
@@ -497,3 +530,22 @@ func (this *Wigo) ListProbes() ( []string ) {
 
 	return list
 }
+
+// Erase RemoteWigos if maximum wanted depth is reached
+
+func (this *Wigo) EraseRemoteWigos( depth int ) ( *Wigo ){
+
+    depth = depth - 1
+
+    if depth == 0 {
+        this.RemoteWigos = make(map[string] *Wigo);
+        return this;
+    }
+
+    for remoteWigo := range this.RemoteWigos {
+        this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth);
+    }
+
+    return this;
+}
+
