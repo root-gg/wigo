@@ -104,7 +104,7 @@ func NewWigoFromJson( ba []byte, checkRemotesDepth int ) ( this *Wigo, e error )
 	}
 
     if checkRemotesDepth != 0 {
-        this = EraseRemoteWigos( this, checkRemotesDepth )
+        this = this.EraseRemoteWigos( checkRemotesDepth )
     }
 
 	this.SetParentHostsInProbes()
@@ -505,19 +505,19 @@ func (this *Wigo) ListProbes() ( []string ) {
 
 // Erase RemoteWigos if maximum wanted depth is reached
 
-func EraseRemoteWigos( wigo *Wigo, depth int ) ( *Wigo ){
+func (this *Wigo) EraseRemoteWigos( depth int ) ( *Wigo ){
 
     depth = depth - 1
 
     if depth == 0 {
-        wigo.RemoteWigos = make(map[string] *Wigo);
-        return wigo;
+        this.RemoteWigos = make(map[string] *Wigo);
+        return this;
     }
 
-    for remoteWigo := range wigo.RemoteWigos {
-        wigo.RemoteWigos[remoteWigo] = EraseRemoteWigos(wigo.RemoteWigos[remoteWigo], depth);
+    for remoteWigo := range this.RemoteWigos {
+        this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth);
     }
 
-    return wigo;
+    return this;
 }
 
