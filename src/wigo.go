@@ -17,6 +17,7 @@ import (
 	"path"
 	"syscall"
 	"strconv"
+    "strings"
 	"container/list"
 	"bytes"
 	"crypto/tls"
@@ -37,10 +38,36 @@ func main() {
 		os.Exit(1)
 	}
 
+    // Compatiblity with old RemoteWigos lists
+    for _, remoteWigo := range wigo.GetLocalWigo().GetConfig().RemoteWigosList {
+
+        // Split data into hostname/port
+        splits := strings.Split(remoteWigo, ":")
+
+        hostname    := splits[0]
+        port        := 0
+        if len(splits) > 1 {
+            port, _ = strconv.Atoi(splits[1])
+        }
+
+        if port == 0 {
+            port = wigo.GetLocalWigo().GetConfig().ListenPort
+        }
+
+        // Create new RemoteWigoConfig
+        AdvancedRemoteWigo := new(wigo.RemoteWigoConfig);
+
+        AdvancedRemoteWigo.Hostname = hostname
+        AdvancedRemoteWigo.Port     = port
+
+        // Push new AdvancedRemoteWigo to remoteWigosList
+        wigo.GetLocalWigo().GetConfig().AdvancedRemoteWigosList = append(wigo.GetLocalWigo().GetConfig().AdvancedRemoteWigosList, *AdvancedRemoteWigo);
+    }
+
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
-	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().RemoteWigosList)
+	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().AdvancedRemoteWigosList)
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 	go threadHttp()
 
