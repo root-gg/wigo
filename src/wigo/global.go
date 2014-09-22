@@ -193,7 +193,7 @@ func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
 
 func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *Wigo ) () {
 
-	if (newWigo.GlobalStatus != oldWigo.GlobalStatus) {
+	if (newWigo.GlobalStatus != oldWigo.GlobalStatus) || (oldWigo.IsAlive != newWigo.IsAlive) {
 		NewNotificationWigo(oldWigo, newWigo)
 	}
 
