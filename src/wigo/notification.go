@@ -67,7 +67,7 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	if GetLocalWigo().GetConfig().NotificationsOnWigoChange {
 		weSend := false
 
-		if newWigo.IsAlive < !oldWigo.IsAlive {
+		if newWigo.IsAlive && !oldWigo.IsAlive {
 			// It's an UP
 			weSend = true
 		} else if !newWigo.IsAlive && oldWigo.IsAlive {
