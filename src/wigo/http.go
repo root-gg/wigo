@@ -1,20 +1,19 @@
 package wigo
 
 import (
-	"github.com/codegangsta/martini"
 	"encoding/json"
+	"github.com/codegangsta/martini"
 	"strconv"
 )
 
-
-func HttpRemotesHandler( params martini.Params ) ( int, string ){
+func HttpRemotesHandler(params martini.Params) (int, string) {
 
 	hostname := params["hostname"]
 
 	if hostname != "" {
 		remoteWigo := GetLocalWigo().FindRemoteWigoByHostname(hostname)
 		if remoteWigo != nil {
-			json,err := remoteWigo.ToJsonString()
+			json, err := remoteWigo.ToJsonString()
 			if err != nil {
 				return 500, "Failed to encode remote wigo"
 			} else {
@@ -24,7 +23,6 @@ func HttpRemotesHandler( params martini.Params ) ( int, string ){
 			return 404, ""
 		}
 	}
-
 
 	// Return remotes list
 	list := GetLocalWigo().ListRemoteWigosNames()
@@ -36,11 +34,10 @@ func HttpRemotesHandler( params martini.Params ) ( int, string ){
 	}
 }
 
-
-func HttpRemotesProbesHandler( params martini.Params ) ( int, string ){
+func HttpRemotesProbesHandler(params martini.Params) (int, string) {
 
 	hostname := params["hostname"]
-	probe	 := params["probe"]
+	probe := params["probe"]
 
 	if hostname == "" {
 		return 404, "No wigo name set in url"
@@ -48,7 +45,7 @@ func HttpRemotesProbesHandler( params martini.Params ) ( int, string ){
 
 	// Get remote wigo
 	remoteWigo := GetLocalWigo().FindRemoteWigoByHostname(hostname)
-	if remoteWigo == nil{
+	if remoteWigo == nil {
 		return 404, "Remote wigo " + hostname + " not found"
 	}
 
@@ -71,11 +68,10 @@ func HttpRemotesProbesHandler( params martini.Params ) ( int, string ){
 		}
 	}
 
-	return 200,""
+	return 200, ""
 }
 
-
-func HttpRemotesStatusHandler( params martini.Params ) ( int, string ){
+func HttpRemotesStatusHandler(params martini.Params) (int, string) {
 
 	hostname := params["hostname"]
 
@@ -85,18 +81,17 @@ func HttpRemotesStatusHandler( params martini.Params ) ( int, string ){
 
 	// Get remote wigo
 	remoteWigo := GetLocalWigo().FindRemoteWigoByHostname(hostname)
-	if remoteWigo == nil{
+	if remoteWigo == nil {
 		return 404, "Remote wigo " + hostname + " not found"
 	}
 
 	return 200, strconv.Itoa(remoteWigo.GlobalStatus)
 }
 
-
-func HttpRemotesProbesStatusHandler( params martini.Params ) ( int, string ){
+func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
 
 	hostname := params["hostname"]
-	probe	 := params["probe"]
+	probe := params["probe"]
 
 	if hostname == "" {
 		return 404, "No wigo name set in url"

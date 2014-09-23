@@ -1,89 +1,85 @@
 package wigo
 
-
 import (
 	"encoding/json"
-	"time"
-	"strings"
-	"log"
 	"github.com/bodji/gopentsdb"
+	"log"
+	"strings"
+	"time"
 )
 
-const dateLayout  = "2006-01-02T15:04:05.999999 (MST)"
+const dateLayout = "2006-01-02T15:04:05.999999 (MST)"
 
 // OpenTSDB
 type Put struct {
-	Value		float64
-	Tags		map[string]string
+	Value float64
+	Tags  map[string]string
 }
 
 type ProbeResult struct {
+	Name      string
+	Version   string
+	Value     interface{}
+	Message   string
+	ProbeDate string
 
-	Name        	string
-	Version     	string
-	Value       	interface{}
-	Message     	string
-	ProbeDate   	string
+	Metrics interface{}
+	Detail  interface{}
 
-	Metrics    		interface{}
-	Detail      	interface{}
+	Status   int
+	ExitCode int
 
-	Status      	int
-	ExitCode    	int
-
-	parentHost	*Host
+	parentHost *Host
 }
 
-func NewProbeResultFromJson( name string, ba []byte ) ( this *ProbeResult ){
-	this = new( ProbeResult )
+func NewProbeResultFromJson(name string, ba []byte) (this *ProbeResult) {
+	this = new(ProbeResult)
 
-	json.Unmarshal( ba, this )
+	json.Unmarshal(ba, this)
 
-	this.Name      	= name
-	this.ProbeDate 	= time.Now().Format(dateLayout)
-	this.ExitCode  	= 0
+	this.Name = name
+	this.ProbeDate = time.Now().Format(dateLayout)
+	this.ExitCode = 0
 
 	this.parentHost = GetLocalWigo().GetLocalHost()
 
 	return
 }
-func NewProbeResult( name string, status int, exitCode int, message string, detail string ) ( this *ProbeResult ){
-	this = new( ProbeResult )
+func NewProbeResult(name string, status int, exitCode int, message string, detail string) (this *ProbeResult) {
+	this = new(ProbeResult)
 
-	this.Name       = name
-	this.Status     = status
-	this.ExitCode   = exitCode
-	this.Message    = message
-	this.Detail     = detail
-	this.ProbeDate  = time.Now().Format(dateLayout)
+	this.Name = name
+	this.Status = status
+	this.ExitCode = exitCode
+	this.Message = message
+	this.Detail = detail
+	this.ProbeDate = time.Now().Format(dateLayout)
 
 	this.parentHost = GetLocalWigo().GetLocalHost()
 
 	return
 }
-
 
 // Getters
-func ( this *ProbeResult ) GetHost() ( *Host ){
+func (this *ProbeResult) GetHost() *Host {
 	return this.parentHost
 }
 
-
 // Setters
-func ( this *ProbeResult ) SetHost( h *Host )(){
+func (this *ProbeResult) SetHost(h *Host) {
 	this.parentHost = h
 }
 
-func ( this *ProbeResult ) GraphMetrics(){
+func (this *ProbeResult) GraphMetrics() {
 
-	if GetLocalWigo().GetConfig().OpenTSDBEnabled {
-		if puts, ok := this.Metrics.([]interface{}) ; ok {
+	if GetLocalWigo().GetConfig().OpenTSDB.Enabled {
+		if puts, ok := this.Metrics.([]interface{}); ok {
 			for i := range puts {
-				if putTmp, ok := puts[i].(map[string] interface{}) ; ok {
+				if putTmp, ok := puts[i].(map[string]interface{}); ok {
 
 					// Test if we have value
 					var putValue float64
-					if _, ok := putTmp["Value"].(float64) ; ok {
+					if _, ok := putTmp["Value"].(float64); ok {
 						putValue = putTmp["Value"].(float64)
 					} else {
 						continue
@@ -98,17 +94,17 @@ func ( this *ProbeResult ) GraphMetrics(){
 						putTags["group"] = this.GetHost().Group
 					}
 
-					if tags, ok := putTmp["Tags"].(map[string]interface{}) ; ok {
+					if tags, ok := putTmp["Tags"].(map[string]interface{}); ok {
 						for k, v := range tags {
-							if _, ok := v.(string) ; ok {
+							if _, ok := v.(string); ok {
 								putTags[strings.ToLower(k)] = string(v.(string))
 							}
 						}
 					}
 
 					// Push
-					put := gopentsdb.NewPut( GetLocalWigo().GetConfig().OpenTSDBMetricPrefix + "." + this.Name, putTags, putValue)
-					_, err := GetLocalWigo().GetOpenTsdb().Put( put )
+					put := gopentsdb.NewPut(GetLocalWigo().GetConfig().OpenTSDB.MetricPrefix+"."+this.Name, putTags, putValue)
+					_, err := GetLocalWigo().GetOpenTsdb().Put(put)
 					if err != nil {
 						log.Printf("Error while pushing to OpenTSDB : %s", err)
 					}

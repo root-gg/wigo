@@ -1,19 +1,18 @@
-
-package  main
+package main
 
 import (
-	"wigo"
 	"fmt"
 	"github.com/docopt/docopt-go"
-	"os"
-	"net/http"
 	"io/ioutil"
+	"net/http"
+	"os"
+	"wigo"
 )
 
-var command 		string	= ""
-var showOnlyErrors 	bool 	= true
+var command string = ""
+var showOnlyErrors bool = true
 
-func main(){
+func main() {
 
 	// Usage
 	usage := `wigocli
@@ -43,7 +42,7 @@ Options
 					showOnlyErrors = false
 
 				} else {
-					fmt.Printf("Unknown command %s\n",command)
+					fmt.Printf("Unknown command %s\n", command)
 					os.Exit(1)
 				}
 			}
@@ -53,14 +52,14 @@ Options
 	// Connect
 	resp, err := http.Get("http://127.0.0.1:4000")
 	if err != nil {
-		fmt.Printf("Error : %s\n",err)
+		fmt.Printf("Error : %s\n", err)
 		os.Exit(1)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 
 	// Instanciate object from json
 	wigoObj, err := wigo.NewWigoFromJson(body, 0)
-	if (err != nil) {
+	if err != nil {
 		fmt.Printf("Failed to parse return from host : %s", err)
 	}
 
