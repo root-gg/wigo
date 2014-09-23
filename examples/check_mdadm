@@ -1,0 +1,94 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Data::Dumper;
+
+# Init Json
+use JSON::XS;
+my $coder  = JSON::XS->new->pretty;
+my $return = {
+    Version    => "0.10",
+    
+    Status     => 398,
+    Message    => "",
+
+    Detail     => {},
+};
+
+# Test if /proc/mdstat exist
+if( ! -e "/proc/mdstat" )
+{
+	# Special exit code to disable proge
+	exit 13;
+}
+
+
+
+# Open mdstat
+my $mdstat;
+my $mdDevices = {};
+my $mdFaultyDevices = 0;
+
+open MDSTAT, "<", "/proc/mdstat" or die $!;
+$mdstat .= $_ while(<MDSTAT>);
+close MDSTAT;
+my @mdstatLines = split("\n",$mdstat);
+
+
+# Parse
+my $currentDevice;
+foreach my $line ( @mdstatLines )
+{
+	if($line =~ /^(md\d+)\s:\s(\w+)\s(\w+)\s(.*)/)
+	{
+		$currentDevice = $1;
+		$return->{'Detail'}->{ $currentDevice }->{'State'}  = $2;
+		$return->{'Detail'}->{ $currentDevice }->{'Type'}   = $3;
+
+        my @Devices = split(" ", $4);
+        foreach my $Device ( @Devices )
+        {
+            if( $Device =~ /^(\w+)\[\d+\](\((\w)\))?$/ )
+            {
+                if( $3 && $3 eq 'S' )
+                {
+                   push @{ $return->{'Detail'}->{ $currentDevice }->{'DevicesSpare'} } , $Device;
+                }
+                else
+                {
+                    push @{ $return->{'Detail'}->{ $currentDevice }->{'Devices'} } , $Device;
+                }
+            } 
+        }
+	}
+	elsif($line =~ /(resync|recovery)\s+=\s+([\d\.]+\%).*finish\=([\d+\.]+\w+).*speed\=(\d+.*)/)
+	{
+		$mdFaultyDevices++;
+		$return->{'Status'}                                             = 350;
+		$return->{'Detail'}->{ $currentDevice }->{'State'} 		= "resync";
+		$return->{'Detail'}->{ $currentDevice }->{'ResyncPercentage'} 	= $2;
+		$return->{'Detail'}->{ $currentDevice }->{'ResyncFinishIn'}	= $3;
+		$return->{'Detail'}->{ $currentDevice }->{'ResyncSpeed'}	= $4;
+
+        if( $1 eq 'recovery')
+        {
+		    $return->{'Message'} .= $currentDevice . " is recovering ( $2 ).";
+        }
+        else
+        {
+            $return->{'Message'} .= $currentDevice . " is resyncing ( $2 ).";
+        }
+	}
+}
+
+
+if($mdFaultyDevices == 0)
+{
+	$return->{'Status'}	= 100;
+	$return->{'Message'} 	= "All arrays ( ". join(" ",keys(%{$return->{'Detail'}})). " ) are OK";
+}
+
+# Print results
+print $coder->encode( $return );
+
