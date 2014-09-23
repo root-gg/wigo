@@ -1,68 +1,65 @@
 package wigo
 
 import (
-	"os"
 	"log"
+	"os"
 )
-
 
 // Host
 
 type Host struct {
-	Name                string
-	Group				string
-	Status        		int
-	Probes              map[string] *ProbeResult
-	parentWigo			*Wigo
+	Name       string
+	Group      string
+	Status     int
+	Probes     map[string]*ProbeResult
+	parentWigo *Wigo
 }
 
-func NewHost( hostname string ) ( this *Host ){
+func NewHost(hostname string) (this *Host) {
 
-	this                = new( Host )
+	this = new(Host)
 
-	this.Status   		= 0
-	this.Name           = hostname
-	this.Group			= ""
-	this.Probes         = make(map[string] *ProbeResult)
+	this.Status = 0
+	this.Name = hostname
+	this.Group = ""
+	this.Probes = make(map[string]*ProbeResult)
 
 	return
 }
 
-func NewLocalHost() ( this *Host ){
+func NewLocalHost() (this *Host) {
 
-	this                = new( Host )
-	this.Status			= 100
-	this.Probes         = make(map[string] *ProbeResult)
+	this = new(Host)
+	this.Status = 100
+	this.Probes = make(map[string]*ProbeResult)
 
 	// Get hostname
 	localHostname, err := os.Hostname()
-	if( err != nil ){
+	if err != nil {
 		log.Println("Couldn't get hostname for local machine, using localhost")
 
-		this.Name	= "localhost"
+		this.Name = "localhost"
 	} else {
-		this.Name	= localHostname
+		this.Name = localHostname
 	}
 
 	// Set parent wigo
-	this.parentWigo		= GetLocalWigo()
+	this.parentWigo = GetLocalWigo()
 
 	// Set group
-	this.Group			= GetLocalWigo().GetConfig().OpenTSDB.Group
+	this.Group = GetLocalWigo().GetConfig().General.Group
 
 	return
 }
 
-
-
 // Methods
 
-func (this *Host) RecomputeStatus(){
+func (this *Host) RecomputeStatus() {
 
 	this.Status = 0
 
 	for probeName := range this.Probes {
-		if(this.Probes[probeName].Status > this.Status){
+		if this.Probes[probeName].Status > this.Status {
 			this.Status = this.Probes[probeName].Status
 		}
 	}
@@ -70,24 +67,23 @@ func (this *Host) RecomputeStatus(){
 	return
 }
 
-
-func (this *Host) AddOrUpdateProbe( probe *ProbeResult ){
+func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
 	// If old prove, test if status is different
-	if oldProbe, ok := GetLocalWigo().GetLocalHost().Probes[ probe.Name ] ; ok {
+	if oldProbe, ok := GetLocalWigo().GetLocalHost().Probes[probe.Name]; ok {
 
 		// Notification
 		if oldProbe.Status != probe.Status {
-			NewNotificationProbe( oldProbe, probe )
+			NewNotificationProbe(oldProbe, probe)
 		}
 	} else {
 
 		// New probe
-		probe.SetHost( this )
+		probe.SetHost(this)
 	}
 
 	// Update
-	GetLocalWigo().LocalHost.Probes[ probe.Name ] = probe
+	GetLocalWigo().LocalHost.Probes[probe.Name] = probe
 	GetLocalWigo().LocalHost.RecomputeStatus()
 
 	// Graph
@@ -99,17 +95,16 @@ func (this *Host) AddOrUpdateProbe( probe *ProbeResult ){
 	return
 }
 
-
-func (this *Host) DeleteProbeByName( probeName string ){
-	if probeToDelete, ok := this.Probes[ probeName ] ; ok {
-		NewNotificationProbe( probeToDelete, nil )
-		delete(this.Probes,probeName)
+func (this *Host) DeleteProbeByName(probeName string) {
+	if probeToDelete, ok := this.Probes[probeName]; ok {
+		NewNotificationProbe(probeToDelete, nil)
+		delete(this.Probes, probeName)
 	}
 }
 
-func (this *Host) GetErrorsProbesList() ( list []string ){
+func (this *Host) GetErrorsProbesList() (list []string) {
 
-	list = make([]string,0)
+	list = make([]string, 0)
 
 	for probeName := range this.Probes {
 		if this.Probes[probeName].Status > 100 {
@@ -120,10 +115,9 @@ func (this *Host) GetErrorsProbesList() ( list []string ){
 	return
 }
 
-
-func (this *Host) GetParentWigo() ( *Wigo ){
+func (this *Host) GetParentWigo() *Wigo {
 	return this.parentWigo
 }
-func (this *Host) SetParentWigo( w *Wigo ){
+func (this *Host) SetParentWigo(w *Wigo) {
 	this.parentWigo = w
 }

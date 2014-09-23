@@ -1,15 +1,14 @@
 package wigo
 
 import (
-	"fmt"
-	"encoding/json"
-	"io/ioutil"
 	"container/list"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 )
 
-
 // List probes in directory
-func ListProbesInDirectory(directory string) ( probesList *list.List, error error) {
+func ListProbesInDirectory(directory string) (probesList *list.List, error error) {
 
 	probesList = new(list.List)
 
@@ -21,7 +20,7 @@ func ListProbesInDirectory(directory string) ( probesList *list.List, error erro
 
 	// Return only executables files
 	for _, f := range files {
-		if ( !f.IsDir() ) {
+		if !f.IsDir() {
 			probesList.PushBack(f.Name())
 		}
 	}
@@ -41,10 +40,9 @@ func ListProbesDirectories() ([]string, error) {
 	// Init array
 	subdirectories := make([]string, 0)
 
-
 	// Return only subdirectories
 	for _, f := range files {
-		if (f.IsDir()) {
+		if f.IsDir() {
 			subdirectories = append(subdirectories, f.Name())
 		}
 	}

@@ -2,70 +2,69 @@ package wigo
 
 import (
 	"encoding/json"
-	"sync"
-	"os"
 	"fmt"
-	"log"
 	"io"
+	"log"
+	"os"
+	"sync"
 
-	"github.com/bodji/gopentsdb"
 	"code.google.com/p/go-uuid/uuid"
+	"container/list"
+	"github.com/bodji/gopentsdb"
 	"github.com/fatih/color"
 	"strings"
-	"container/list"
 )
 
 // Static global object
-var LocalWigo 	*Wigo
+var LocalWigo *Wigo
 
 type Wigo struct {
-	Uuid			string
-	Version			string
-	IsAlive			bool
+	Uuid    string
+	Version string
+	IsAlive bool
 
-	GlobalStatus	int
-	GlobalMessage	string
+	GlobalStatus  int
+	GlobalMessage string
 
-	LocalHost		*Host
-	RemoteWigos		map[string] *Wigo
+	LocalHost   *Host
+	RemoteWigos map[string]*Wigo
 
-	hostname		string
-	config			*Config
-	locker			*sync.RWMutex
-	logfilehandle	*os.File
-	gopentsdb		*gopentsdb.OpenTsdb
-	disabledProbes	*list.List
+	hostname       string
+	config         *Config
+	locker         *sync.RWMutex
+	logfilehandle  *os.File
+	gopentsdb      *gopentsdb.OpenTsdb
+	disabledProbes *list.List
 }
 
-func InitWigo() ( err error ){
+func InitWigo() (err error) {
 
 	if LocalWigo == nil {
-		LocalWigo 				= new(Wigo)
+		LocalWigo = new(Wigo)
 
-		LocalWigo.Uuid			= uuid.New()
-		LocalWigo.IsAlive 		= true
-		LocalWigo.Version 		= "##VERSION##"
-		LocalWigo.GlobalStatus 	= 100
+		LocalWigo.Uuid = uuid.New()
+		LocalWigo.IsAlive = true
+		LocalWigo.Version = "##VERSION##"
+		LocalWigo.GlobalStatus = 100
 		LocalWigo.GlobalMessage = "OK"
 
 		// Load config
-		LocalWigo.config 		= NewConfig()
+		LocalWigo.config = NewConfig()
 
 		// Init LocalHost and RemoteWigos list
-		LocalWigo.LocalHost 	= NewLocalHost()
-		LocalWigo.RemoteWigos 	= make(map[string] *Wigo)
+		LocalWigo.LocalHost = NewLocalHost()
+		LocalWigo.RemoteWigos = make(map[string]*Wigo)
 
 		// Private vars
-		LocalWigo.hostname 			= LocalWigo.LocalHost.Name
-		LocalWigo.locker 			= new(sync.RWMutex)
-		LocalWigo.disabledProbes	= new(list.List)
+		LocalWigo.hostname = LocalWigo.LocalHost.Name
+		LocalWigo.locker = new(sync.RWMutex)
+		LocalWigo.disabledProbes = new(list.List)
 
 		// Log
 		LocalWigo.InitOrReloadLogger()
 
-
 		// Test probes directory
-		_, err = os.Stat( LocalWigo.GetConfig().General.ProbesDirectory )
+		_, err = os.Stat(LocalWigo.GetConfig().General.ProbesDirectory)
 		if err != nil {
 			return err
 		}
@@ -73,11 +72,10 @@ func InitWigo() ( err error ){
 		// Init channels
 		InitChannels()
 
-
 		// OpenTSDB
-		if LocalWigo.GetConfig().OpenTSDB.OpenTSDBEnabled {
-			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.OpenTSDBAddress, LocalWigo.GetConfig().OpenTSDB.OpenTSDBPort)
-			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.OpenTSDBAddress, LocalWigo.GetConfig().OpenTSDB.OpenTSDBPort, true)
+		if LocalWigo.GetConfig().OpenTSDB.Enabled {
+			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
+			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, true)
 		}
 	}
 
@@ -86,26 +84,25 @@ func InitWigo() ( err error ){
 
 // Factory
 
-func GetLocalWigo() ( *Wigo ){
+func GetLocalWigo() *Wigo {
 	return LocalWigo
 }
 
-
 // Constructors
 
-func NewWigoFromJson( ba []byte, checkRemotesDepth int ) ( this *Wigo, e error ){
+func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 
-	this 			= new(Wigo)
-	this.IsAlive 	= true
+	this = new(Wigo)
+	this.IsAlive = true
 
-	err := json.Unmarshal( ba, this )
-	if( err != nil ){
+	err := json.Unmarshal(ba, this)
+	if err != nil {
 		return nil, err
 	}
 
-    if checkRemotesDepth != 0 {
-        this = this.EraseRemoteWigos( checkRemotesDepth )
-    }
+	if checkRemotesDepth != 0 {
+		this = this.EraseRemoteWigos(checkRemotesDepth)
+	}
 
 	this.SetParentHostsInProbes()
 	this.SetRemoteWigosHostnames()
@@ -113,18 +110,17 @@ func NewWigoFromJson( ba []byte, checkRemotesDepth int ) ( this *Wigo, e error )
 	return
 }
 
-func NewWigoFromErrorMessage( message string, isAlive bool ) ( this *Wigo ){
+func NewWigoFromErrorMessage(message string, isAlive bool) (this *Wigo) {
 
 	this = new(Wigo)
-	this.GlobalStatus 	= 500
-	this.GlobalMessage	= message
-	this.IsAlive		= isAlive
-	this.RemoteWigos	= make(map[string] *Wigo)
-	this.LocalHost		= new(Host)
+	this.GlobalStatus = 500
+	this.GlobalMessage = message
+	this.IsAlive = isAlive
+	this.RemoteWigos = make(map[string]*Wigo)
+	this.LocalHost = new(Host)
 
 	return
 }
-
 
 // Recompute statuses
 func (this *Wigo) RecomputeGlobalStatus() {
@@ -148,54 +144,50 @@ func (this *Wigo) RecomputeGlobalStatus() {
 	return
 }
 
-
-
 // Getters
-func (this *Wigo) GetLocalHost() ( *Host ){
+func (this *Wigo) GetLocalHost() *Host {
 	return this.LocalHost
 }
 
-func (this *Wigo) GetConfig() (*Config){
+func (this *Wigo) GetConfig() *Config {
 	return this.config
 }
 
-func (this *Wigo) GetHostname() ( string ){
+func (this *Wigo) GetHostname() string {
 	return this.hostname
 }
 
-func (this *Wigo) GetOpenTsdb() ( *gopentsdb.OpenTsdb ){
+func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
 	return this.gopentsdb
 }
 
 // Setters
 
-func (this *Wigo) SetHostname( hostname string ){
+func (this *Wigo) SetHostname(hostname string) {
 	this.hostname = hostname
 }
 
-func (this *Wigo) AddOrUpdateRemoteWigo( wigoName string, remoteWigo * Wigo ){
+func (this *Wigo) AddOrUpdateRemoteWigo(wigoName string, remoteWigo *Wigo) {
 
 	this.Lock()
 	defer this.Unlock()
 
 	// Test is remote is not me :D
-	if remoteWigo.Uuid!= "" && this.Uuid == remoteWigo.Uuid {
-		log.Printf("Try to add a remote wigo %s with same uuid as me.. Discarding..",remoteWigo.GetHostname())
+	if remoteWigo.Uuid != "" && this.Uuid == remoteWigo.Uuid {
+		log.Printf("Try to add a remote wigo %s with same uuid as me.. Discarding..", remoteWigo.GetHostname())
 		return
 	}
 
-	if oldWigo, ok := this.RemoteWigos[ wigoName ] ; ok {
-		this.CompareTwoWigosAndRaiseNotifications(oldWigo,remoteWigo)
+	if oldWigo, ok := this.RemoteWigos[wigoName]; ok {
+		this.CompareTwoWigosAndRaiseNotifications(oldWigo, remoteWigo)
 	}
 
-
-	this.RemoteWigos[ wigoName ] = remoteWigo
-	this.RemoteWigos[ wigoName ].SetHostname(wigoName)
+	this.RemoteWigos[wigoName] = remoteWigo
+	this.RemoteWigos[wigoName].SetHostname(wigoName)
 	this.RecomputeGlobalStatus()
 }
 
-
-func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *Wigo ) () {
+func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *Wigo) {
 
 	if (newWigo.GlobalStatus != oldWigo.GlobalStatus) || (oldWigo.IsAlive != newWigo.IsAlive) {
 		NewNotificationWigo(oldWigo, newWigo)
@@ -205,9 +197,9 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 	if oldWigo.LocalHost != nil {
 
 		for probeName := range oldWigo.LocalHost.Probes {
-			oldProbe := oldWigo.LocalHost.Probes[ probeName ]
+			oldProbe := oldWigo.LocalHost.Probes[probeName]
 
-			if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[ probeName ] ; ok {
+			if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[probeName]; ok {
 
 				// Probe still exist in new
 				newWigo.LocalHost.SetParentWigo(newWigo)
@@ -216,7 +208,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 				probeWhichStillExistInNew.GraphMetrics()
 
 				// Status has changed ? -> Notification
-				if ( oldProbe.Status != probeWhichStillExistInNew.Status ) {
+				if oldProbe.Status != probeWhichStillExistInNew.Status {
 					NewNotificationProbe(oldProbe, probeWhichStillExistInNew)
 				}
 			} else {
@@ -232,8 +224,8 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 	// Detect new probes (only if new wigo is up)
 	if newWigo.IsAlive && oldWigo.IsAlive {
 		for probeName := range newWigo.LocalHost.Probes {
-			if _,ok := oldWigo.LocalHost.Probes[probeName] ; !ok {
-				NewNotificationProbe( nil, newWigo.LocalHost.Probes[probeName] )
+			if _, ok := oldWigo.LocalHost.Probes[probeName]; !ok {
+				NewNotificationProbe(nil, newWigo.LocalHost.Probes[probeName])
 			}
 		}
 	}
@@ -241,9 +233,9 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 	// Remote Wigos
 	for wigoName := range oldWigo.RemoteWigos {
 
-		oldWigo := oldWigo.RemoteWigos[ wigoName ]
+		oldWigo := oldWigo.RemoteWigos[wigoName]
 
-		if wigoStillExistInNew, ok := newWigo.RemoteWigos[ wigoName ]; ok {
+		if wigoStillExistInNew, ok := newWigo.RemoteWigos[wigoName]; ok {
 
 			// Test if a remote wigo is not me
 			if wigoStillExistInNew.Uuid != "" && this.Uuid == wigoStillExistInNew.Uuid {
@@ -257,20 +249,19 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications( oldWigo *Wigo, newWigo *
 	}
 }
 
-
-func (this *Wigo) SetParentHostsInProbes(){
+func (this *Wigo) SetParentHostsInProbes() {
 	for localProbeName := range this.GetLocalHost().Probes {
-		this.LocalHost.Probes[localProbeName].SetHost( this.LocalHost )
+		this.LocalHost.Probes[localProbeName].SetHost(this.LocalHost)
 	}
 
-	for remoteWigo := range this.RemoteWigos{
+	for remoteWigo := range this.RemoteWigos {
 		this.RemoteWigos[remoteWigo].SetParentHostsInProbes()
 	}
 }
 
-func (this *Wigo) SetRemoteWigosHostnames(){
+func (this *Wigo) SetRemoteWigosHostnames() {
 
-	for remoteWigo := range this.RemoteWigos{
+	for remoteWigo := range this.RemoteWigos {
 		this.RemoteWigos[remoteWigo].SetHostname(remoteWigo)
 		this.RemoteWigos[remoteWigo].SetRemoteWigosHostnames()
 	}
@@ -278,7 +269,7 @@ func (this *Wigo) SetRemoteWigosHostnames(){
 
 // Reloads
 
-func (this *Wigo) InitOrReloadLogger() ( err error ){
+func (this *Wigo) InitOrReloadLogger() (err error) {
 	if this.logfilehandle != nil {
 		err = this.logfilehandle.Close()
 		if err != nil {
@@ -292,7 +283,7 @@ func (this *Wigo) InitOrReloadLogger() ( err error ){
 		return err
 	} else {
 		LocalWigo.logfilehandle = f
-		writer := io.MultiWriter( os.Stdout, f )
+		writer := io.MultiWriter(os.Stdout, f)
 
 		log.SetOutput(writer)
 		log.SetPrefix(LocalWigo.GetLocalHost().Name + " ")
@@ -302,34 +293,31 @@ func (this *Wigo) InitOrReloadLogger() ( err error ){
 }
 
 // Locks
-func (this *Wigo) Lock(){
+func (this *Wigo) Lock() {
 	this.locker.Lock()
 }
 
-func (this *Wigo) Unlock(){
+func (this *Wigo) Unlock() {
 	this.locker.Unlock()
 }
 
-
 // Serialize
-func (this *Wigo) ToJsonString() ( string, error ){
+func (this *Wigo) ToJsonString() (string, error) {
 
 	// Send json to socket channel
-	j, e := json.MarshalIndent( this, "", "    ")
-	if ( e != nil ) {
+	j, e := json.MarshalIndent(this, "", "    ")
+	if e != nil {
 		return "", e
 	}
-
 
 	return string(j), nil
 }
 
-
 // Disabled probes
-func (this *Wigo) GetDisabledProbes() (*list.List) {
+func (this *Wigo) GetDisabledProbes() *list.List {
 	return this.disabledProbes
 }
-func (this *Wigo) DisableProbe( probeName string ) {
+func (this *Wigo) DisableProbe(probeName string) {
 	alreadyDisabled := false
 
 	if probeName == "" {
@@ -338,23 +326,23 @@ func (this *Wigo) DisableProbe( probeName string ) {
 
 	// Check if not already disabled
 	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
-		if p,ok := e.Value.(string); ok {
+		if p, ok := e.Value.(string); ok {
 			if p == probeName {
 				alreadyDisabled = true
 			}
 		}
 	}
 
-	if !alreadyDisabled{
+	if !alreadyDisabled {
 		this.disabledProbes.PushBack(probeName)
 	}
 
 	return
 }
-func (this *Wigo) IsProbeDisabled( probeName string ) bool {
+func (this *Wigo) IsProbeDisabled(probeName string) bool {
 
 	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
-		if p,ok := e.Value.(string); ok {
+		if p, ok := e.Value.(string); ok {
 			if p == probeName {
 				return true
 			}
@@ -364,13 +352,12 @@ func (this *Wigo) IsProbeDisabled( probeName string ) bool {
 	return false
 }
 
-
 // Summaries
 
-func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
+func (this *Wigo) GenerateSummary(showOnlyErrors bool) (summary string) {
 
-	red 	:= color.New( color.FgRed ).SprintfFunc()
-	yellow 	:= color.New( color.FgYellow ).SprintfFunc()
+	red := color.New(color.FgRed).SprintfFunc()
+	yellow := color.New(color.FgYellow).SprintfFunc()
 
 	summary += fmt.Sprintf("%s running on %s \n", this.Version, this.LocalHost.Name)
 	summary += fmt.Sprintf("Local Status 	: %d\n", this.LocalHost.Status)
@@ -392,48 +379,44 @@ func (this *Wigo) GenerateSummary( showOnlyErrors bool ) ( summary string ){
 		summary += "\n"
 	}
 
-
 	if this.GlobalStatus > 100 {
 		summary += "Remote Wigos : \n\n"
 	}
 
-	summary += this.GenerateRemoteWigosSummary(0 , showOnlyErrors, this.Version)
+	summary += this.GenerateRemoteWigosSummary(0, showOnlyErrors, this.Version)
 
 	return
 }
 
-func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool, version string ) ( summary string ) {
+func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, version string) (summary string) {
 
-	red 	:= color.New( color.FgRed ).SprintfFunc()
-	yellow 	:= color.New( color.FgYellow ).SprintfFunc()
+	red := color.New(color.FgRed).SprintfFunc()
+	yellow := color.New(color.FgYellow).SprintfFunc()
 
 	for remoteWigo := range this.RemoteWigos {
 
-		if(showOnlyErrors && this.RemoteWigos[remoteWigo].GlobalStatus == 100){
-			continue;
+		if showOnlyErrors && this.RemoteWigos[remoteWigo].GlobalStatus == 100 {
+			continue
 		}
-
 
 		// Nice align
 		tabs := ""
-		for i := 0; i <= level; i++{
+		for i := 0; i <= level; i++ {
 			tabs += "\t"
 		}
 
-
 		// Host down ?
-		if ! this.RemoteWigos[remoteWigo].IsAlive {
-			summary += tabs + red(this.RemoteWigos[remoteWigo].GetHostname() + " DOWN : \n")
-			summary += tabs + red("\t" + this.RemoteWigos[remoteWigo].GlobalMessage + "\n")
+		if !this.RemoteWigos[remoteWigo].IsAlive {
+			summary += tabs + red(this.RemoteWigos[remoteWigo].GetHostname()+" DOWN : \n")
+			summary += tabs + red("\t"+this.RemoteWigos[remoteWigo].GlobalMessage+"\n")
 
 		} else {
 			if this.RemoteWigos[remoteWigo].Version != version {
-				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - " + red(this.RemoteWigos[remoteWigo].Version) +": \n"
+				summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " ( " + this.RemoteWigos[remoteWigo].LocalHost.Name + " ) - " + red(this.RemoteWigos[remoteWigo].Version) + ": \n"
 			} else {
-				summary += tabs+this.RemoteWigos[remoteWigo].GetHostname()+" ( "+this.RemoteWigos[remoteWigo].LocalHost.Name+" ) - "+this.RemoteWigos[remoteWigo].Version+": \n"
+				summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " ( " + this.RemoteWigos[remoteWigo].LocalHost.Name + " ) - " + this.RemoteWigos[remoteWigo].Version + ": \n"
 			}
 		}
-
 
 		// Iterate on probes
 		for probeName := range this.RemoteWigos[remoteWigo].GetLocalHost().Probes {
@@ -458,8 +441,7 @@ func (this *Wigo) GenerateRemoteWigosSummary( level int , showOnlyErrors bool, v
 	return
 }
 
-
-func (this *Wigo) FindRemoteWigoByHostname( hostname string ) ( *Wigo ){
+func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 
 	var foundWigo *Wigo
 
@@ -479,9 +461,8 @@ func (this *Wigo) FindRemoteWigoByHostname( hostname string ) ( *Wigo ){
 	return foundWigo
 }
 
-
-func (this *Wigo) ListRemoteWigosNames() ( []string ) {
-	list := make([]string,0)
+func (this *Wigo) ListRemoteWigosNames() []string {
+	list := make([]string, 0)
 
 	for wigoName := range this.RemoteWigos {
 		list = append(list, this.RemoteWigos[wigoName].hostname)
@@ -492,9 +473,8 @@ func (this *Wigo) ListRemoteWigosNames() ( []string ) {
 	return list
 }
 
-
-func (this *Wigo) ListProbes() ( []string ) {
-	list := make([]string,0)
+func (this *Wigo) ListProbes() []string {
+	list := make([]string, 0)
 
 	for probe := range this.LocalHost.Probes {
 		list = append(list, probe)
@@ -505,19 +485,18 @@ func (this *Wigo) ListProbes() ( []string ) {
 
 // Erase RemoteWigos if maximum wanted depth is reached
 
-func (this *Wigo) EraseRemoteWigos( depth int ) ( *Wigo ){
+func (this *Wigo) EraseRemoteWigos(depth int) *Wigo {
 
-    depth = depth - 1
+	depth = depth - 1
 
-    if depth == 0 {
-        this.RemoteWigos = make(map[string] *Wigo);
-        return this;
-    }
+	if depth == 0 {
+		this.RemoteWigos = make(map[string]*Wigo)
+		return this
+	}
 
-    for remoteWigo := range this.RemoteWigos {
-        this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth);
-    }
+	for remoteWigo := range this.RemoteWigos {
+		this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth)
+	}
 
-    return this;
+	return this
 }
-
