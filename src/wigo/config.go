@@ -3,29 +3,36 @@ package wigo
 import (
 	"github.com/BurntSushi/toml"
 	"log"
+    "strconv"
+    "strings"
 )
 
 
 type Config struct {
 
-	// General params
-    General                         GeneralConfig
+    // General params
+    General                         *GeneralConfig
 
     // OpenTSDB params
-    OpenTSDB                        OpenTSDBConfig
+    OpenTSDB                        *OpenTSDBConfig
 
-	// Remmote wigos params
-	RemoteWigos					    RemoteWigoConfig
+    // Remmote wigos params
+    RemoteWigos					    *RemoteWigoConfig
     AdvancedRemoteWigosList         []AdvancedRemoteWigoConfig
 
-	// Noticications
-    Notifications                   NotificationConfig
+    // Noticications
+    Notifications                   *NotificationConfig
 }
 
 func NewConfig() ( this *Config){
 
 	// General params
-	this = new(Config)
+    this                                                = new(Config)
+    this.General                                        = new(GeneralConfig)
+    this.OpenTSDB                                       = new(OpenTSDBConfig)
+    this.RemoteWigos                                    = new(RemoteWigoConfig)
+    this.Notifications                                  = new(NotificationConfig)
+
 	this.General.ListenPort                             = 4000
 	this.General.ListenAddress                          = "0.0.0.0"
 	this.General.ProbesDirectory                        = "/usr/local/wigo/probes"
@@ -63,13 +70,38 @@ func NewConfig() ( this *Config){
 	this.Notifications.NotificationsEmailFromName	    = ""
 	this.Notifications.NotificationsEmailRecipients	    = nil
 
-	// OpenTSDB
-
-
 	// Override with config file
 	if _, err := toml.DecodeFile(this.General.ConfigFile, &this); err != nil {
 		log.Printf("Failed to load configuration file %s : %s\n", this.General.ConfigFile, err)
 	}
+
+    // Compatiblity with old RemoteWigos lists
+    if this.RemoteWigos.RemoteWigosList != nil {
+        for _, remoteWigo := range this.RemoteWigos.RemoteWigosList {
+
+            // Split data into hostname/port
+            splits := strings.Split(remoteWigo, ":")
+
+            hostname := splits[0]
+            port := 0
+            if len(splits) > 1 {
+                port, _ = strconv.Atoi(splits[1])
+            }
+
+            if port == 0 {
+                port = this.General.ListenPort
+            }
+
+            // Create new RemoteWigoConfig
+            AdvancedRemoteWigo := new(AdvancedRemoteWigoConfig)
+            AdvancedRemoteWigo.Hostname = hostname
+            AdvancedRemoteWigo.Port = port
+
+            // Push new AdvancedRemoteWigo to remoteWigosList
+            this.AdvancedRemoteWigosList = append(this.AdvancedRemoteWigosList, *AdvancedRemoteWigo)
+        }
+    }
+
 
 	return
 }
@@ -82,15 +114,6 @@ type GeneralConfig struct {
 	ProbesDirectory					string
 	LogFile							string
 	ConfigFile						string
-
-}
-
-func NewGeneralConfig() ( this *GeneralConfig){
-
-	// General params
-	this = new(GeneralConfig)
-
-	return
 }
 
 type NotificationConfig struct {
@@ -110,15 +133,6 @@ type NotificationConfig struct {
 	NotificationsEmailRecipients	[]string
 	NotificationsEmailFromName		string
 	NotificationsEmailFromAddress 	string
-
-}
-
-func NewNotificationConfig() ( this *NotificationConfig){
-
-	// General params
-	this = new(NotificationConfig)
-
-	return
 }
 
 type RemoteWigoConfig struct {
@@ -130,26 +144,12 @@ type RemoteWigoConfig struct {
 	RemoteWigosList					[]string
 }
 
-func NewRemoteWigoConfig() ( this *RemoteWigoConfig){
-
-	// General params
-	this = new(RemoteWigoConfig)
-
-	return
-}
-
 type AdvancedRemoteWigoConfig struct {
 	Hostname            string
 	Port                int
 	CheckRemotesDepth   int
 	CheckInterval       int
 	CheckTries          int
-}
-
-// Constructors
-func NewAdvancedRemoteWigoConfig() (this *AdvancedRemoteWigoConfig) {
-	this = new(AdvancedRemoteWigoConfig)
-	return
 }
 
 type OpenTSDBConfig struct {
@@ -160,11 +160,4 @@ type OpenTSDBConfig struct {
 	OpenTSDBAddress					string
 	OpenTSDBPort					int
 	OpenTSDBMetricPrefix			string
-
-}
-
-// Constructors
-func NewOpenTSDBConfig() (this *OpenTSDBConfig) {
-	this = new(OpenTSDBConfig)
-	return
 }
