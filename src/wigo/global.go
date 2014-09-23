@@ -491,12 +491,14 @@ func (this *Wigo) EraseRemoteWigos(depth int) *Wigo {
 
 	if depth == 0 {
 		this.RemoteWigos = make(map[string]*Wigo)
+        this.RecomputeGlobalStatus()
 		return this
-	}
-
-	for remoteWigo := range this.RemoteWigos {
-		this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth)
-	}
+	} else {
+	    for remoteWigo := range this.RemoteWigos {
+		    this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth)
+            this.RemoteWigos[remoteWigo].RecomputeGlobalStatus()
+	    }
+    }
 
 	return this
 }
