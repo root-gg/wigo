@@ -76,7 +76,7 @@ func ( this *ProbeResult ) SetHost( h *Host )(){
 
 func ( this *ProbeResult ) GraphMetrics(){
 
-	if GetLocalWigo().GetConfig().OpenTSDBEnabled {
+	if GetLocalWigo().GetConfig().OpenTSDB.OpenTSDBEnabled {
 		if puts, ok := this.Metrics.([]interface{}) ; ok {
 			for i := range puts {
 				if putTmp, ok := puts[i].(map[string] interface{}) ; ok {
@@ -107,7 +107,7 @@ func ( this *ProbeResult ) GraphMetrics(){
 					}
 
 					// Push
-					put := gopentsdb.NewPut( GetLocalWigo().GetConfig().OpenTSDBMetricPrefix + "." + this.Name, putTags, putValue)
+					put := gopentsdb.NewPut( GetLocalWigo().GetConfig().OpenTSDB.OpenTSDBMetricPrefix + "." + this.Name, putTags, putValue)
 					_, err := GetLocalWigo().GetOpenTsdb().Put( put )
 					if err != nil {
 						log.Printf("Error while pushing to OpenTSDB : %s", err)

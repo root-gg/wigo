@@ -81,7 +81,7 @@ func threadWatch(ci chan wigo.Event) {
 
 	// Send
 	for _, dir := range probeDirectories {
-		ci <- wigo.Event{ wigo.ADDDIRECTORY, wigo.GetLocalWigo().GetConfig().ProbesDirectory + "/" + dir }
+		ci <- wigo.Event{ wigo.ADDDIRECTORY, wigo.GetLocalWigo().GetConfig().General.ProbesDirectory + "/" + dir }
 	}
 
 	// Init inotify
@@ -92,7 +92,7 @@ func threadWatch(ci chan wigo.Event) {
 	}
 
 	// Create a watcher on checks directory
-	err = watcherNew.Watch(wigo.GetLocalWigo().GetConfig().ProbesDirectory)
+	err = watcherNew.Watch(wigo.GetLocalWigo().GetConfig().General.ProbesDirectory)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -258,7 +258,7 @@ func threadLocalChecks() {
 	}()
 }
 
-func threadRemoteChecks(remoteWigos []wigo.RemoteWigoConfig) {
+func threadRemoteChecks(remoteWigos []wigo.AdvancedRemoteWigoConfig) {
 	log.Println("Listing remoteWigos : ")
 
 	for _, host := range remoteWigos {
@@ -268,8 +268,8 @@ func threadRemoteChecks(remoteWigos []wigo.RemoteWigoConfig) {
 }
 
 func threadCallbacks(chanCallbacks chan wigo.INotification) {
-	httpEnabled := wigo.GetLocalWigo().GetConfig().NotificationsHttpEnabled
-	mailEnabled := wigo.GetLocalWigo().GetConfig().NotificationsEmailEnabled
+	httpEnabled := wigo.GetLocalWigo().GetConfig().Notifications.NotificationsHttpEnabled
+	mailEnabled := wigo.GetLocalWigo().GetConfig().Notifications.NotificationsEmailEnabled
 
 	for {
 		notification := <-chanCallbacks
@@ -285,7 +285,7 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 		go func() {
 			if httpEnabled {
 
-				httpUrl := wigo.GetLocalWigo().GetConfig().NotificationsHttpUrl
+				httpUrl := wigo.GetLocalWigo().GetConfig().Notifications.NotificationsHttpUrl
 
 				go func() {
 					// Create http client with timeout
@@ -320,11 +320,11 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 
 			if mailEnabled {
 
-				recipients := wigo.GetLocalWigo().GetConfig().NotificationsEmailRecipients
-				server := wigo.GetLocalWigo().GetConfig().NotificationsEmailSmtpServer
+				recipients := wigo.GetLocalWigo().GetConfig().Notifications.NotificationsEmailRecipients
+				server := wigo.GetLocalWigo().GetConfig().Notifications.NotificationsEmailSmtpServer
 				from := mail.Address{
-					wigo.GetLocalWigo().GetConfig().NotificationsEmailFromName,
-					wigo.GetLocalWigo().GetConfig().NotificationsEmailFromAddress,
+					wigo.GetLocalWigo().GetConfig().Notifications.NotificationsEmailFromName,
+					wigo.GetLocalWigo().GetConfig().Notifications.NotificationsEmailFromAddress,
 				}
 
 
@@ -517,9 +517,9 @@ func execProbe(probePath string, timeOut int) {
 	}
 }
 
-func launchRemoteHostCheckRoutine(Hostname wigo.RemoteWigoConfig) {
+func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 
-    secondsToSleep := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckInterval
+    secondsToSleep := wigo.GetLocalWigo().GetConfig().RemoteWigos.RemoteWigosCheckInterval
     if Hostname.CheckInterval != 0 {
         secondsToSleep = Hostname.CheckInterval
     }
@@ -529,7 +529,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.RemoteWigoConfig) {
     if Hostname.Port != 0 {
         host = Hostname.Hostname + ":" + strconv.Itoa(Hostname.Port)
     } else {
-        host = Hostname.Hostname + ":" + strconv.Itoa(wigo.GetLocalWigo().GetConfig().ListenPort)
+        host = Hostname.Hostname + ":" + strconv.Itoa(wigo.GetLocalWigo().GetConfig().General.ListenPort)
     }
 
 	for {
@@ -543,7 +543,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.RemoteWigoConfig) {
 		client := http.Client{ Timeout: time.Duration( time.Second ) }
 
 		// Try
-        tries := wigo.GetLocalWigo().GetConfig().RemoteWigosCheckTries
+        tries := wigo.GetLocalWigo().GetConfig().RemoteWigos.RemoteWigosCheckTries
         if Hostname.CheckTries != 0 {
             tries = Hostname.CheckTries
         }
@@ -594,8 +594,8 @@ func launchRemoteHostCheckRoutine(Hostname wigo.RemoteWigoConfig) {
 
 func threadHttp(){
 
-	apiAddress 	:= wigo.GetLocalWigo().GetConfig().ListenAddress
-	apiPort 	:= wigo.GetLocalWigo().GetConfig().ListenPort
+	apiAddress 	:= wigo.GetLocalWigo().GetConfig().General.ListenAddress
+	apiPort 	:= wigo.GetLocalWigo().GetConfig().General.ListenPort
 
 	m := martini.Classic()
 	m.Get("/", func() (int, string) {

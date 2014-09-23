@@ -64,7 +64,7 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	log.Printf("New Wigo Notification : %s", this.Message)
 
 	// Send ?
-	if GetLocalWigo().GetConfig().NotificationsOnWigoChange {
+	if GetLocalWigo().GetConfig().Notifications.NotificationsOnWigoChange {
 		weSend := false
 
 		if newWigo.IsAlive && !oldWigo.IsAlive {
@@ -120,14 +120,14 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 	log.Printf("New Probe Notification : %s", this.Message)
 
 	// Send ?
-	if GetLocalWigo().GetConfig().NotificationsOnProbeChange {
+	if GetLocalWigo().GetConfig().Notifications.NotificationsOnProbeChange {
 		weSend := false
 
 		if oldProbe != nil && newProbe != nil {
-			if newProbe.Status < oldProbe.Status && oldProbe.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
+			if newProbe.Status < oldProbe.Status && oldProbe.Status >= GetLocalWigo().GetConfig().Notifications.MinLevelToSendNotifications {
 				// It's an UP
 				weSend = true
-			} else if newProbe.Status >= GetLocalWigo().GetConfig().MinLevelToSendNotifications {
+			} else if newProbe.Status >= GetLocalWigo().GetConfig().Notifications.MinLevelToSendNotifications {
 				// It's a DOWN, check if new status is > to MinLevelToSendNotifications
 				weSend = true
 			}

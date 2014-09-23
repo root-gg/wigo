@@ -66,7 +66,7 @@ func InitWigo() ( err error ){
 
 
 		// Test probes directory
-		_, err = os.Stat( LocalWigo.GetConfig().ProbesDirectory )
+		_, err = os.Stat( LocalWigo.GetConfig().General.ProbesDirectory )
 		if err != nil {
 			return err
 		}
@@ -76,14 +76,14 @@ func InitWigo() ( err error ){
 
 
 		// OpenTSDB
-		if LocalWigo.config.OpenTSDBEnabled {
-			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort)
-			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.config.OpenTSDBAddress, LocalWigo.config.OpenTSDBPort, true)
+		if LocalWigo.GetConfig().OpenTSDB.OpenTSDBEnabled {
+			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.OpenTSDBAddress, LocalWigo.GetConfig().OpenTSDB.OpenTSDBPort)
+			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.OpenTSDBAddress, LocalWigo.GetConfig().OpenTSDB.OpenTSDBPort, true)
 		}
 
 		// Compatiblity with old RemoteWigos lists
-		if LocalWigo.GetConfig().RemoteWigosList != nil {
-			for _, remoteWigo := range LocalWigo.GetConfig().RemoteWigosList {
+		if LocalWigo.GetConfig().RemoteWigos.RemoteWigosList != nil {
+			for _, remoteWigo := range LocalWigo.GetConfig().RemoteWigos.RemoteWigosList {
 
 				// Split data into hostname/port
 				splits := strings.Split(remoteWigo, ":")
@@ -95,11 +95,11 @@ func InitWigo() ( err error ){
 				}
 
 				if port == 0 {
-					port = GetLocalWigo().GetConfig().ListenPort
+					port = GetLocalWigo().GetConfig().General.ListenPort
 				}
 
 				// Create new RemoteWigoConfig
-				AdvancedRemoteWigo := new(RemoteWigoConfig)
+				AdvancedRemoteWigo := new(AdvancedRemoteWigoConfig)
 				AdvancedRemoteWigo.Hostname = hostname
 				AdvancedRemoteWigo.Port = port
 
@@ -314,9 +314,9 @@ func (this *Wigo) InitOrReloadLogger() ( err error ){
 		}
 	}
 
-	f, err := os.OpenFile(LocalWigo.GetConfig().LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	f, err := os.OpenFile(LocalWigo.GetConfig().General.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().LogFile, err)
+		fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().General.LogFile, err)
 		return err
 	} else {
 		LocalWigo.logfilehandle = f

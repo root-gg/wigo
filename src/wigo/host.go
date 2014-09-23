@@ -48,7 +48,7 @@ func NewLocalHost() ( this *Host ){
 	this.parentWigo		= GetLocalWigo()
 
 	// Set group
-	this.Group			= GetLocalWigo().GetConfig().Group
+	this.Group			= GetLocalWigo().GetConfig().OpenTSDB.Group
 
 	return
 }
