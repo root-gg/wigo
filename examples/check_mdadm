@@ -51,9 +51,16 @@ foreach my $line ( @mdstatLines )
         {
             if( $Device =~ /^(\w+)\[\d+\](\((\w)\))?$/ )
             {
-                if( $3 && $3 eq 'S' )
+                if( $3 )
                 {
-                   push @{ $return->{'Detail'}->{ $currentDevice }->{'DevicesSpare'} } , $Device;
+                    if( $3 eq 'S')
+                    {
+                        push @{ $return->{'Detail'}->{ $currentDevice }->{'DevicesSpare'} } , $Device;
+                    }
+                    elsif( $3 eq 'F')
+                    {
+                        push @{ $return->{'Detail'}->{ $currentDevice }->{'DevicesFaulty'} } , $Device;
+                    }
                 }
                 else
                 {
@@ -66,17 +73,18 @@ foreach my $line ( @mdstatLines )
 	{
 		$mdFaultyDevices++;
 		$return->{'Status'}                                             = 350;
-		$return->{'Detail'}->{ $currentDevice }->{'State'} 		= "resync";
 		$return->{'Detail'}->{ $currentDevice }->{'ResyncPercentage'} 	= $2;
-		$return->{'Detail'}->{ $currentDevice }->{'ResyncFinishIn'}	= $3;
-		$return->{'Detail'}->{ $currentDevice }->{'ResyncSpeed'}	= $4;
+		$return->{'Detail'}->{ $currentDevice }->{'ResyncFinishIn'}	    = $3;
+		$return->{'Detail'}->{ $currentDevice }->{'ResyncSpeed'}	    = $4;
 
         if( $1 eq 'recovery')
         {
+            $return->{'Detail'}->{ $currentDevice }->{'State'} = 'recovery';
 		    $return->{'Message'} .= $currentDevice . " is recovering ( $2 ).";
         }
         else
         {
+            $return->{'Detail'}->{ $currentDevice }->{'State'} = 'resync';
             $return->{'Message'} .= $currentDevice . " is resyncing ( $2 ).";
         }
 	}
