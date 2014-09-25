@@ -81,7 +81,7 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 		} else if !newWigo.IsAlive && oldWigo.IsAlive {
 			// It's a DOWN, check if new status is > to MinLevelToSend
 			weSend = true
-		} else if newWigo.GlobalStatus != oldWigo.GlobalStatus && (newWigo.GlobalStatus >= MinLevelToSend || oldWigo.GlobalStatus >= MinLevelToSend {
+		} else if newWigo.GlobalStatus != oldWigo.GlobalStatus && (newWigo.GlobalStatus >= minLevelToSend || oldWigo.GlobalStatus >= minLevelToSend) {
 			weSend = true
         }
 
