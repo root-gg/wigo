@@ -5,6 +5,13 @@ import (
 	"fmt"
 	"log"
 	"time"
+    "bytes"
+    "crypto/tls"
+    "net"
+    "net/http"
+    "net/mail"
+    "net/smtp"
+    "net/url"
 )
 
 type Notification struct {
@@ -66,6 +73,7 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	// Send ?
 	if GetLocalWigo().GetConfig().Notifications.OnWigoChange {
 		weSend := false
+        minLevelToSend := GetLocalWigo().GetConfig().Notifications.MinLevelToSend
 
 		if newWigo.IsAlive && !oldWigo.IsAlive {
 			// It's an UP
@@ -73,7 +81,9 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 		} else if !newWigo.IsAlive && oldWigo.IsAlive {
 			// It's a DOWN, check if new status is > to MinLevelToSend
 			weSend = true
-		}
+		} else if newWigo.GlobalStatus != oldWigo.GlobalStatus && (newWigo.GlobalStatus >= MinLevelToSend || oldWigo.GlobalStatus >= MinLevelToSend {
+			weSend = true
+        }
 
 		if weSend {
 			Channels.ChanCallbacks <- this
@@ -164,4 +174,104 @@ func (this *NotificationProbe) GetSummary() (s string) {
 
 func (this *Notification) GetMessage() string {
 	return this.Message
+}
+
+func SendMail(summary string, message string) {
+
+    log.Printf("We're gonna launch mail notif...")
+
+    recipients := GetLocalWigo().GetConfig().Notifications.EmailRecipients
+    server := GetLocalWigo().GetConfig().Notifications.EmailSmtpServer
+    from := mail.Address{
+        GetLocalWigo().GetConfig().Notifications.EmailFromName,
+        GetLocalWigo().GetConfig().Notifications.EmailFromAddress,
+    }
+
+    for i := range recipients {
+
+        to := mail.Address{"", recipients[i]}
+
+        go func() {
+            // setup a map for the headers
+            header := make(map[string]string)
+            header["From"] = from.String()
+            header["To"] = to.String()
+            header["Subject"] = message
+
+            // setup the message
+            message := ""
+            for k, v := range header {
+                message += fmt.Sprintf("%s: %s\r\n", k, v)
+            }
+            message += "\r\n"
+            message += summary
+
+            // Connect to the remote SMTP server.
+            c, err := smtp.Dial(server)
+            if err != nil {
+                log.Printf("Fail to dial connect to smtp server %s : %s", server, err)
+                return
+            }
+
+            // Set the sender and recipient.
+            c.Mail(from.Address)
+            c.Rcpt(to.Address)
+
+            // Send the email body.
+            wc, err := c.Data()
+            if err != nil {
+                log.Printf("Fail to send DATA to smtp server : %s", err)
+                return
+            }
+
+            buf := bytes.NewBufferString(message)
+            if _, err = buf.WriteTo(wc); err != nil {
+                log.Printf("Fail to send notification to %s : %s", to.String(), err)
+                return
+            }
+
+            log.Printf(" - Sent to email address %s", to.String())
+
+            wc.Close()
+        }()
+    }
+
+}
+
+func CallbackHttp(json string) (e error) {
+
+    log.Printf("We're gonna launch http notif...")
+
+    httpUrl := GetLocalWigo().GetConfig().Notifications.HttpUrl
+
+    // Create http client with timeout
+    c := http.Client{
+        Transport: &http.Transport{
+            TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+            Dial: func(netw, addr string) (net.Conn, error) {
+                deadline := time.Now().Add(2 * time.Second)
+                c, err := net.DialTimeout(netw, addr, time.Second*2)
+                if err != nil {
+                    return nil, err
+                }
+                c.SetDeadline(deadline)
+                return c, nil
+            },
+        },
+    }
+
+    // Make post values
+    postValues := url.Values{}
+    postValues.Add("Notification", string(json))
+
+    // Make request
+    _, reqErr := c.PostForm(httpUrl, postValues)
+    if reqErr != nil {
+        log.Printf("Error sending callback to url %s : %s", httpUrl, reqErr)
+        return reqErr
+    } else {
+        log.Printf(" - Sent to http url : %s", httpUrl)
+    }
+
+    return  nil
 }

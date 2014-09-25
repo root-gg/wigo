@@ -58,10 +58,10 @@ func NewConfig() (this *Config) {
 	this.Notifications.OnHostChange = false
 	this.Notifications.OnProbeChange = false
 
-	this.Notifications.HttpEnabled = false
+	this.Notifications.HttpEnabled = 0
 	this.Notifications.HttpUrl = ""
 
-	this.Notifications.EmailEnabled = false
+	this.Notifications.EmailEnabled = 0
 	this.Notifications.EmailSmtpServer = ""
 	this.Notifications.EmailFromAddress = ""
 	this.Notifications.EmailFromName = ""
@@ -125,10 +125,10 @@ type NotificationConfig struct {
 	OnHostChange  bool
 	OnProbeChange bool
 
-	HttpEnabled bool
+	HttpEnabled int
 	HttpUrl     string
 
-	EmailEnabled     bool
+	EmailEnabled     int
 	EmailSmtpServer  string
 	EmailRecipients  []string
 	EmailFromName    string
