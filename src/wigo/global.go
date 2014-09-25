@@ -8,9 +8,9 @@ import (
 	"os"
 	"sync"
 
-	"code.google.com/p/go-uuid/uuid"
 	"container/list"
 	"github.com/bodji/gopentsdb"
+	"github.com/nu7hatch/gouuid"
 	"github.com/fatih/color"
 	"strings"
 )
@@ -35,6 +35,7 @@ type Wigo struct {
 	logfilehandle  *os.File
 	gopentsdb      *gopentsdb.OpenTsdb
 	disabledProbes *list.List
+    uuidObj        *uuid.UUID
 }
 
 func InitWigo() (err error) {
@@ -42,11 +43,19 @@ func InitWigo() (err error) {
 	if LocalWigo == nil {
 		LocalWigo = new(Wigo)
 
-		LocalWigo.Uuid = uuid.New()
 		LocalWigo.IsAlive = true
 		LocalWigo.Version = "##VERSION##"
 		LocalWigo.GlobalStatus = 100
 		LocalWigo.GlobalMessage = "OK"
+
+
+        // Create UUID
+		LocalWigo.uuidObj, err = uuid.NewV4()
+        if err != nil {
+            log.Printf("Failed to create uuid : %s", err)
+        } else {
+            LocalWigo.Uuid = LocalWigo.uuidObj.String()
+        }
 
 		// Load config
 		LocalWigo.config = NewConfig()
