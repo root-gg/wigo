@@ -1,0 +1,83 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use JSON::XS;
+my $coder   = JSON::XS->new->pretty;
+my $result  = 
+{
+    Status  => 398,
+    Message => "",
+    Detail  => {},
+};
+
+
+# Test if debian
+if( ! `which apt-get` )
+{
+    exit 13;
+}
+
+# Update
+my $errorOnUpdate;
+my $fnret = `LANGUAGE=C apt-get update 2>&1`;
+chomp($fnret);
+
+foreach my $line ( split("\n",$fnret) )
+{
+    if( $line =~ /^E:\s(.*)/ )
+    {
+        $errorOnUpdate = 1;
+        push @{ $result->{'Detail'}->{'Apt-Get-Update'}->{'Errors'} } , $1;
+    }
+    elsif( $line =~ /^W:\s(.*)/ )
+    {
+        $errorOnUpdate = 1;
+        push @{ $result->{'Detail'}->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
+    }
+}
+
+
+# Upgrade
+#
+# Even if update fail, we want to test if there is no package to update anyway
+
+my $packagesToUpdate = [];
+$fnret = `LANGUAGE=C apt-get upgrade -s 2>&1`;
+chomp($fnret);
+
+foreach my $line ( split("\n",$fnret) )
+{
+    if( $line =~ /^Inst\s([^\s]+)\s\[([^\s]+)\].*Security/ )
+    {
+        push @{ $packagesToUpdate }, $1;
+    }
+}
+
+
+# Compute status and return
+if( $errorOnUpdate || scalar( @{ $packagesToUpdate } ) )
+{
+    if( $errorOnUpdate )
+    {
+        $result->{'Status'}   = 250;
+        $result->{'Message'}  = "An error happened when doing apt-get update. ";
+    }
+    if( scalar( @{ $packagesToUpdate } ) )
+    {
+        $result->{'Status'}   = 300 + scalar( @{ $packagesToUpdate } );
+        $result->{'Message'} .= scalar( @{ $packagesToUpdate } ). " security package(s) to update : ";
+        $result->{'Message'} .= join(", ",@{ $packagesToUpdate });
+    }
+}
+else
+{
+    $result->{'Status'}   = 100;
+    $result->{'Message'}  = "No security packages availables";     
+}
+
+
+# Print
+print $coder->encode( $result );
+
