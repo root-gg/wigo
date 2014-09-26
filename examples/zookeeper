@@ -1,0 +1,203 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Data::Dumper;
+use IO::Socket::INET;
+
+# Init Json
+use JSON::XS;
+my $coder = JSON::XS->new->pretty;
+
+my $return = {
+    Version     => "0.10",
+    
+    Status      => 100,
+    Message     => "",
+
+    Detail      => {},
+    Metrics     => [],
+};
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'instances' => [
+        'localhost:2181',
+	],
+    'details' => [
+        'zk_version',
+        'zk_server_state'
+    ],
+    'metrics' => [
+        'zk_avg_latency',
+        'zk_max_latency',
+        'zk_min_latency',
+        'zk_packets_received',
+        'zk_packets_sent',
+        'zk_num_alive_connections',
+        'zk_outstanding_requests',
+        'zk_znode_count',
+        'zk_watch_count',
+        'zk_ephemerals_count',
+        'zk_approximate_data_size',
+        'zk_open_file_descriptor_count',
+        'zk_max_file_descriptor_count',
+        'zk_followers',
+        'zk_synced_followers',
+        'zk_pending_syncs',
+    ],
+};
+
+###
+# OVERRIDE CONFIG
+###
+
+if ( -r '/etc/wigo/conf.d/zookeeper.conf' )
+{
+    if ( ! open JSON_CONFIG, '<', '/etc/wigo/conf.d/zookeeper.conf' )
+    {
+        $return->{'Status'}     = 500;
+        $return->{'Message'}    = "Error while opening json config file for read : " . $!;
+        print $coder->encode($return);
+        exit 13;
+    }
+
+    my $json = join '', (<JSON_CONFIG>);
+    close JSON_CONFIG;
+    
+    eval {
+        $conf = decode_json( $json );
+    };
+
+    if ( $@ )
+    {
+        $return->{'Status'}     = 500;
+        $return->{'Message'}    = "Error while decoding json config: " . $@;
+        print $coder->encode($return);
+        exit 13;
+    }
+}
+
+if ( ! scalar @{$conf->{'instances'}} )
+{
+    exit 13;
+}
+
+###
+# GET STATUS
+###
+
+for my $instance ( @{$conf->{'instances'}} )
+{
+    my $socket;
+    eval {
+        local $SIG{ALRM} = sub { die "connect timeout\n" }; # NB: \n required
+        alarm 1;
+        
+        $socket = new IO::Socket::INET(
+            'PeerAddr'  => $instance,
+            'Proto'     => 'tcp',
+        ) or die("$!\n");
+
+        alarm 0;
+    };
+
+    if ( $@ )
+    {
+        chomp $@;
+        $return->{'Status'} = 300;
+        $return->{'Message'} .= "$instance : $@ ";
+        next;
+    }
+    
+    my $response;
+    eval {
+        local $SIG{ALRM} = sub { die "ruok timeout\n" }; # NB: \n required
+        alarm 1;
+        
+        $socket->send("ruok\n");
+        $socket->recv($response, 1024);
+
+        alarm 0;
+    };
+    
+    if ( $@ )
+    {
+        chomp $@;
+        $return->{'Status'} = 300;
+        $return->{'Message'} .= "$instance : $@ ";
+        next;
+    }
+
+    $return->{'Message'} .= "$instance : $response ";
+
+    if ( $response !~ /^imok/ )
+    {
+        $return->{'Status'} = 300;
+    }
+
+    $socket->close();
+    
+    eval {
+        local $SIG{ALRM} = sub { die "mntr connect timeout\n" }; # NB: \n required
+        alarm 1;
+
+        $socket = new IO::Socket::INET(
+            'PeerAddr'  => $instance,
+            'Proto'     => 'tcp',
+        ) or die("$!\n");
+
+        alarm 0;
+    };
+
+    if ( $@ )
+    {
+        chomp $@;
+        $return->{'Status'} = 300;
+        $return->{'Message'} .= " $@ ";
+        next;
+    } 
+
+    eval {
+        local $SIG{ALRM} = sub { die "mntr timeout\n" }; # NB: \n required
+        alarm 1;
+
+        $socket->send("mntr\n");
+        $socket->recv($response, 1024);
+
+        alarm 0;
+    };
+    
+    if ( $@ )
+    {
+        chomp $@;
+        $return->{'Status'} = 300;
+        $return->{'Message'} .= "$instance : $@ ";
+        next;
+    }
+  
+    $socket->close();
+
+    for my $line ( split "\n", $response )
+    {
+        if ( my ( $key, $value ) = $line =~ /(\S+)\s+(.*)/ )
+        {
+            if ( grep { $key eq $_ } @{$conf->{'metrics'}} )
+            {
+                push @{$return->{'Metrics'}}, { 'Tags' => { 'instance' => "$instance", 'metric' => $key }, 'Value' => $value };
+            }
+            
+            if ( grep { $key eq $_ } @{$conf->{'details'}} )
+            {
+                $return->{'Detail'}->{$instance}->{$key} = $value;
+            }
+        }
+    }
+}
+
+print $coder->encode( $return );
+exit 0;
