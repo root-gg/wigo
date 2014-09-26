@@ -31,7 +31,6 @@ apt-get install wigo
 ##### Configuration
 Edit /etc/wigo.conf
 
-
 ##### Default probes 
 
 The directory name is the interval of check in seconds
@@ -109,5 +108,19 @@ $ ./hardware_load_average
 ```
 
 
+Building from sources
+---------------------
 
+```
+go get github.com/BurntSushi/toml
+go get github.com/bodji/gopentsdb  
+go get github.com/codegangsta/martini
+go get github.com/fatih/color
+go get github.com/howeyc/fsnotify
+go get github.com/nu7hatch/gouuid
+go get github.com/docopt/docopt-go
 
+export GOPATH="$GOPATH:..../wigo/src"
+go build src/wigo.go
+go build src/wigocli.go
+```
