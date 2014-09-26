@@ -60,11 +60,6 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	} else if !oldWigo.IsAlive && newWigo.IsAlive {
 		// DOWN -> UP
 		this.Message = fmt.Sprintf("Wigo %s UP", newWigo.GetHostname())
-
-	} else if newWigo.GlobalStatus != oldWigo.GlobalStatus {
-		// CHANGED STATUS
-		this.Message = fmt.Sprintf("Wigo %s status switched from %d to %d", newWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
-
 	}
 
 	// Log
