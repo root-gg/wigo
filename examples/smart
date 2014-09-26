@@ -38,7 +38,7 @@ my $conf = {
         "Seek_Error_Rate"           => {},
         "Power_On_Hours"            => {},
         "Spin_Retry_Count"          => {},
-        "Temperature_Celsius"       => { "warn" => 45, "crit" => 50 },
+        "Temperature_Celsius"       => { "warn" => 50, "crit" => 60 },
         "Current_Pending_Sector"    => {},
         "Offline_Uncorrectable"     => {},
     }
