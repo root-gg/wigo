@@ -13,7 +13,7 @@ Main features
 
 Version
 ----
-0.42
+0.51
 
 
 Installation
@@ -38,21 +38,39 @@ The directory name is the interval of check in seconds
 
 ```sh
 /usr/local/wigo/probes
-├── 10
 ├── 120
 ├── 300
+│   ├── apt-security -> ../../probes-examples/apt-security
+│   └── smart -> ../../probes-examples/smart
 └── 60
+    ├── check_mdadm -> ../../probes-examples/check_mdadm
+    ├── check_processes
     ├── hardware_disks -> ../../probes-examples/hardware_disks
     ├── hardware_load_average -> ../../probes-examples/hardware_load_average
-    └── hardware_memory -> ../../probes-examples/hardware_memory
-
+    ├── hardware_memory -> ../../probes-examples/hardware_memory
+    ├── ifstat -> ../../probes-examples/ifstat
+    └── supervisord
 
 ```
 
 ##### Get status
 
 ```sh
-telnet 0 4000
+# wigocli
+Wigo v0.51.5 running on backbone.root.gg 
+Local Status    : 100
+Global Status   : 250
+
+Remote Wigos : 
+
+    1.2.3.4:4000 ( ns2 ) - Wigo v0.51.5: 
+        apt-security              : 100  No security packages availables
+        hardware_disks            : 250  Highest occupation percentage is 93% in partition /dev/md0
+        hardware_load_average     : 100  0.09 0.04 0.05
+        hardware_memory           : 100  Current memory usage is 19.32%
+        ifstat                    : 100  tap0 0.00/0.01 mbps , eth1 0.00/0.00 mbps , eth0 0.01/0.01 mbps , 
+        smart                     : 100  /dev/sdc : PASSED /dev/sdb : PASSED 
+
 ```
 
 
