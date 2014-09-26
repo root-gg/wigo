@@ -15,10 +15,11 @@ import (
 )
 
 type Notification struct {
-	Type    string
-	Message string
-	Date    string
-	Summary string
+	Type    	string
+	Hostname 	string
+	Message 	string
+	Date    	string
+	Summary 	string
 }
 
 type INotification interface {
@@ -49,6 +50,7 @@ func NewNotification() (this *Notification) {
 func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) {
 	this = new(NotificationWigo)
 	this.Notification = NewNotification()
+	this.Hostname = oldWigo.GetHostname()
 	this.Type = "Wigo"
 	this.OldWigo = oldWigo
 	this.NewWigo = newWigo
@@ -96,6 +98,7 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *NotificationProbe) {
 	this = new(NotificationProbe)
 	this.Notification = NewNotification()
+	this.Hostname = oldProbe.GetHost().Name
 	this.Type = "Probe"
 	this.OldProbe = oldProbe
 	this.NewProbe = newProbe
