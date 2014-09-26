@@ -87,7 +87,22 @@ foreach my $Redis ( @{ $redisToCheck } )
                 my $value = $2;
                 push @{ $return->{'Metrics'} }, { 
                     Value   => $value + 0, 
-                    Tags    => { instance => $IpPort, param => $1 } 
+                    Tags    => { instance => $IpPort, param => $1 },
+                };
+            }
+            elsif( $line =~ /^(db\d+):keys=(\d+),expires=(\d+)/ )
+            {
+                my $keys    = $2;
+                my $expires = $3;
+
+                push @{ $return->{'Metrics'} }, {
+                    Value   => $keys + 0,
+                    Tags    => { instance => $IpPort, db => $1, param => "keys" },
+                };
+
+                push @{ $return->{'Metrics'} }, {
+                    Value   => $expires + 0,
+                    Tags    => { instance => $IpPort, db => $1, param => "expires" },
                 };
             }
         }
