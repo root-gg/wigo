@@ -118,11 +118,6 @@ foreach my $disk ( @disks )
 {
     my $smartctl = $conf->{'smartctl'};
     my @smart = split "\n", `$smartctl -x /dev/$disk`;
-    if ( $? )
-    {
-        $details->{$disk} = { 'error' => 'Unable to get smart data' };
-        next;
-    }
 
     foreach my $line ( @smart )
     {
