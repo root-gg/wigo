@@ -3,47 +3,34 @@
 use strict;
 use warnings;
 
-use Data::Dumper;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
 
-# Init Json
-use JSON::XS;
-my $coder = JSON::XS->new->pretty;
+###
+# DEFAULT CONFIG
+###
 
-
-# Excludes
-my $excludedPartitions = ['rootfs','tmpfs','udev','none'];
-
-
-# Warn levels
-my $warnLevel   = 80;
-my $critLevel   = 95;
-
-my $return = {
-    Version     => "0.10",
-    
-    Status      => 100,
-    Message     => "",
-
-    Value       => 0,
-    Detail      => {},
-
-    Metrics     => [],
+my $conf = {
+    'warnLevel'             => 80,
+    'critLevel'             => 95,
+    'excludedPartitions'    => ['rootfs','tmpfs','udev','none'],
 };
 
+init( config => $conf );
 
 my $partitionFound = 0;
 
 my @df = `df -hlP`;
 if($? != 0)
 {
-    $return->{'Status'}     = 500;
-    $return->{'Message'}    = "Error when executing df command: ".$!;
-
-    print $coder->encode($return);
-    exit 0;
+    status  500;
+    message "Error when executing df command: ".$!;
+    output 1;
 }
 
 shift @df;
+my $max = 0;
 foreach my $line ( @df )
 {
     my @splits = split( /\s+/, $line );
@@ -55,55 +42,42 @@ foreach my $line ( @df )
     my $usage       = $splits[4];
     my $usageRaw    = $1 if ( $usage =~ /(\d+)/ ); 
 
-    # Exlude ? 
-    if( grep { $_ eq $partition } @{ $excludedPartitions} )
+    if ( grep { $_ eq $partition } @{ config->{'excludedPartitions'} } )
     {
         next;
     }
 
     $partitionFound++;
 
-    $return->{'Detail'}->{$partition} = {
+    detail->{$partition} = {
         Size        => $size,
         Used        => $occupation,
         Free        => $free,
         Percentage  => $usage,
     };
 
+    add_metric { "Tags" => { "Partition" => $partition }, "Value" => $usageRaw };
 
-    my $Metric = {
-        "Tags" => {
-            "Partition" => $partition,
-        },
-
-        "Value" => $usageRaw + 0,
-    };
-
-    push @{ $return->{'Metrics'} }, $Metric;
-
-
-    if ($usageRaw > $critLevel)
+    if ( $usageRaw > config->{'critLevel'} )
     {
-        $return->{'Status'} = 300;
+        raise 300;
     }
-    elsif ($usageRaw > $warnLevel)
+    elsif ( $usageRaw > config->{'warnLevel'} )
     {
-        $return->{'Status'} = 250;
+        raise 250;
     }
 
-    if ($return->{'Value'} < $usageRaw)
+    if ( $usageRaw > $max )
     {
-        $return->{'Value'}   = $usageRaw;
-        $return->{'Message'} = "Highest occupation percentage is $usage in partition $partition";
+        $max = $usageRaw;
+        message "Highest occupation percentage is $usage in partition $partition";
     }
 }
 
-if (!$partitionFound)
+if ( !$partitionFound )
 {
-    $return->{'Status'}  = 398;
-    $return->{'Value'}   = 0;
-    $return->{'Message'} = 'No partition have been found.';
+    status  100;
+    message 'No partition have been found.';
 }
 
-print $coder->encode( $return );
-
+output 0;

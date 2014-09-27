@@ -3,80 +3,64 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
 
-# Init Json
-use JSON::XS;
-my $coder = JSON::XS->new->pretty;
+###
+# DEFAULT CONFIG
+###
 
-
-# Warn levels
-my $warnLevel       = 75;
-my $critLevel       = 90;
-my $wantedFields    = ['SwapFree','SwapTotal','Cached','MemTotal','MemFree'];
-
-my $return = {
-    Version    => "0.10",
-    
-    Status     => 398,
-    Message    => "No results",
-
-    Metrics    => [],
+my $conf = {
+    'warnLevel'     => 75,
+    'critLevel'     => 90,
+    'wantedFields'  => ['SwapFree','SwapTotal','Cached','MemTotal','MemFree'],
 };
 
+init( config => $conf );
 
-# Exec
-my @meminfo = `cat /proc/meminfo`;
-if($? != 0)
+if ( ! open MEMINFO, '<', '/proc/meminfo' )
 {
-    $return->{'Status'}     = 500;
-    $return->{'Message'}    = "Error while cating /proc/meminfo: ". $!;
+    status  500;
+    message "Error while fetching meminfo : " . $!;
+    output 1;
 }
-else
+my @meminfo = <MEMINFO>;
+close MEMINFO;
+
+my %values = map { chomp; $_ =~ /(.*):\s+(.*) [\w]+/ } @meminfo;
+foreach my $key ( keys %values )
 {
-    my %values = map { chomp; $_ =~ /(.*):\s+(.*) [\w]+/ } @meminfo;
-    foreach my $key ( keys %values )
+    if ( grep { $_ eq $key } @{ config->{'wantedFields'} } )
     {
-        if( grep { $_ eq $key } @{ $wantedFields } )
-        {
-            my $value   = $values{ $key } ? $values{ $key } + 0 : 0;
-            my $Metric  = {
-                Tags    => { type => $key },
-                Value   => $value,
-            };
+        my $value   = $values{ $key } || 0;
+        my $Metric  = {
+            Tags    => { type => $key },
+            Value   => $value,
+        };
 
-            push @{ $return->{'Metrics'} }, $Metric;
-        }
-    }
-
-    my $realFree         = $values{'MemFree'} + $values{'Cached'} + $values{'Buffers'};
-    my $realUsed         = $values{'MemTotal'} - $realFree;
-    my $usePercentage    = sprintf( "%.2f", $realUsed * 100 / $values{'MemTotal'});
-
-    # Add MemUsed
-    push @{ $return->{'Metrics'} }, {
-        Tags    => { type => "MemUsed" },
-        Value   => $realUsed,
-    };
-
-    push @{ $return->{'Metrics'} }, {
-        Tags    => { type => "MemRealFree" },
-        Value   => $realFree,
-    };
-
-
-    $return->{'Status'}  = 100;
-    $return->{'Message'} = "Current memory usage is $usePercentage%";
-
-    if($usePercentage > $critLevel)
-    {
-        $return->{'Status'} = 300;
-    }
-    elsif($usePercentage > $warnLevel)
-    {
-        $return->{'Status'} = 250;
+        add_metric $Metric;
     }
 }
 
+my $realFree         = $values{'MemFree'} + $values{'Cached'} + $values{'Buffers'};
+my $realUsed         = $values{'MemTotal'} - $realFree;
+my $usePercentage    = sprintf( "%.2f", $realUsed * 100 / $values{'MemTotal'});
 
-print $coder->encode( $return );
+value   "$usePercentage%";
+message "Current memory usage is $usePercentage%";
 
+if ( $usePercentage > config->{'critLevel'} )
+{
+    raise 300;
+}
+elsif ( $usePercentage > config->{'warnLevel'} )
+{
+    raise 200;
+}
+
+# Add MemUsed
+add_metric { Tags => { type => "MemUsed" },     Value   => $realUsed };
+add_metric { Tags => { type => "MemRealFree" }, Value   => $realFree };
+
+output 0;
