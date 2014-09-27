@@ -249,8 +249,8 @@ func CallbackHttp(json string) (e error) {
         Transport: &http.Transport{
             TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
             Dial: func(netw, addr string) (net.Conn, error) {
-                deadline := time.Now().Add(2 * time.Second)
-                c, err := net.DialTimeout(netw, addr, time.Second*2)
+                deadline := time.Now().Add(5 * time.Second)
+                c, err := net.DialTimeout(netw, addr, time.Second*5)
                 if err != nil {
                     return nil, err
                 }
