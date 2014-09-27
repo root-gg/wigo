@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"fmt"
 )
 
 type Config struct {
