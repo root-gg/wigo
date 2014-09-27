@@ -5,7 +5,7 @@ use warnings;
 
 use Time::HiRes qw/time/;
 use FindBin;
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
 use Wigo::Probe;
 
 # Test if debian
