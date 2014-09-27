@@ -1,0 +1,154 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+use IO::Socket::UNIX;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = { 
+    'unix_socket'           => '',
+    'include'               => undef,
+    'exclude'               => undef,
+    'hostsDownWarnCount'    => 0,
+    'hostsDownCritCount'    => 1,
+};
+
+init( config => $conf );
+
+if ( ! config->{'unix_socket'} )
+{
+    message "no instance to monitor";
+    exit 13;
+}
+
+
+###
+# GET STATUS
+###
+my $server = connectToSock();
+$server->send("show stat\n");
+
+my $hostsDown           = 0;
+my $hostsDownPerContext = {};
+
+while(<$server>)
+{
+    next if $_ =~ /^#/;
+    my @values      = split(",",$_);
+    my $pxname      = $values[0];
+    my $serverName  = $values[1];
+    my $scur        = $values[4];
+    my $stot        = $values[7];
+    my $status      = $values[17];
+
+    if( $pxname && $serverName && defined $scur && defined $stot )
+    {
+        # Include context ?
+        if ( defined config->{'include'} and ! grep { $pxname =~ /^$_$/ } @{config->{'include'}} )
+        {
+            next;
+        }
+        if ( defined config->{'exclude'} and grep { $pxname =~ /^$_$/ } @{config->{'exclude'}} )
+        {
+            next;
+        }
+
+        # Status
+        if($status)
+        {
+            if( $status eq 'DOWN' )
+            {
+                $hostsDown++;
+                $hostsDownPerContext->{ $pxname }->{ $serverName }++;
+            }
+
+            detail->{'Contexts'}->{ $pxname }->{'Status'}->{ $serverName } = $status;
+        }
+
+        # Detail and metrics
+        if( $serverName !~ /(FRONTEND|BACKEND)/ )
+        {
+            detail->{'Contexts'}->{ $pxname }->{'Connections'}->{ $serverName } = $scur;
+            add_metric { Tags => { type => 'current_connections' ,  context => $pxname , server => $serverName }, Value => $scur };
+            add_metric { Tags => { type => 'total_connections',     context => $pxname , server => $serverName }, Value => $stot };
+        }
+    }
+}
+
+
+###
+# GET HAPROXY INFOS
+###
+my ($version,$uptime,$CurrConns,$node);
+$server = connectToSock();
+$server->send("show info\n");
+
+while(<$server>)
+{
+    if( my ($key,$value) = split(": ",$_) )
+    {
+        if( $key && $value && grep { $key eq $_ } qw/Version Uptime CurrConns node/ )
+        {
+            chomp $value;
+            detail->{'Infos'}->{ $key } = $value;
+        }
+    }
+}
+
+
+
+###
+# FINAL RESULT
+###
+
+if( $hostsDown > 0 )
+{
+    if( $hostsDown >= config->{'hostsDownCritCount'} )
+    {
+        raise 300 + ( $hostsDown < 200 ? $hostsDown : 199 );
+    }
+    elsif( $hostsDown >= config->{'hostsDownWarnCount'} )
+    {
+        raise 200 + ( $hostsDown < 200 ? $hostsDown : 199 );
+    }
+
+    my $downStr = "";
+    foreach my $ctx ( keys %{ $hostsDownPerContext } )
+    {
+        $downStr .= join(",",keys %{$hostsDownPerContext->{$ctx}}) . " ($ctx). ";
+    }
+
+    message "$hostsDown host(s) DOWN : $downStr";
+    output 0;
+}
+else
+{
+    message "HAProxy " . detail->{'Infos'}->{'Version'} . " running on " . detail->{'Infos'}->{'node'} . " with " . detail->{'Infos'}->{'CurrConns'} . " connections since " . detail->{'Infos'}->{'Uptime'};
+    output 0;
+}
+
+
+
+sub connectToSock
+{
+    my $server = IO::Socket::UNIX->new(
+        Type    => SOCK_STREAM(),
+        Peer    => config->{'unix_socket'},
+    );
+    if( !$server )
+    {
+        message "Failed to connect to HAProxy stats socket : $!";
+        raise 300;
+        output 1;
+    }
+
+    return $server;
+}
