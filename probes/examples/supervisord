@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'supervisorctl' => '/usr/bin/supervisorctl',
+    'include' => undef, # list of monitored processus ( undef means all )
+    'exclude' => undef, # list of not monitored processus ( undef means none )
+};
+
+init( config => $conf );
+
+my $supervisorctl = config->{'supervisorctl'};
+unless ( -x $supervisorctl )
+{
+    status  403;
+    message "supervisorctl $supervisorctl is not executable";
+    output  13;
+}
+
+###
+# GET STATUS LIST
+###
+
+my $statuslist = `$supervisorctl status`;
+if ( $? )
+{
+	status 500;
+    message "Error while getting status list";
+	detail $statuslist;
+    output 1;
+}
+
+###
+# PARSE STATUS LIST
+###
+
+my $count = 0;
+for my $line ( split "\n", $statuslist )
+{
+	if ( my ($process,$status,$detail) = $line =~ /^(\S+)\s+(\w+)\s+(.*)$/ )
+	{
+		if ( defined config->{'include'} and ! grep { $process =~ /^$_$/ } @{config->{'include'}} )
+		{
+			next;
+		}
+		
+		if ( defined config->{'exclude'} and grep { $process =~ /^$_$/ } @{config->{'exclude'}} )
+		{
+			next;
+		}
+
+		detail->{$process} = { 'status' => $status, 'detail' => $detail };
+	
+		if ( $status ne 'RUNNING' )
+		{
+			raise 300;
+			result->{'Message'} .= "$process is $status ";
+		}
+		else
+		{
+			$count++;
+		}
+	}
+}
+
+if ( status == 100 )
+{
+	message "All $count processuses are RUNNING";
+}
+else
+{
+	$count and result->{'Message'} .= ", $count other processus are RUNNING";
+}
+
+output 0;

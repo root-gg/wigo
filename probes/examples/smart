@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'smartctl' => '/usr/sbin/smartctl',
+    'infos' => [
+        'Device Model',
+        'Serial Number',
+        'User Capacity',
+        'Sector Size'
+    ],
+    'attributes' => {
+        "Raw_Read_Error_Rate"       => {},
+        "Reallocated_Sector_Ct"     => {},
+        "Seek_Error_Rate"           => {},
+        "Power_On_Hours"            => {},
+        "Spin_Retry_Count"          => {},
+        "Temperature_Celsius"       => { "warn" => 50, "crit" => 60 },
+        "Current_Pending_Sector"    => {},
+        "Offline_Uncorrectable"     => {},
+    }
+};
+
+init( config => $conf );
+
+###
+# TEST SMARTCTL EXISTANCE
+###
+
+my $smartctl = config->{'smartctl'};
+if( ! -x $smartctl )
+{
+    status  500;
+    message "smartctl $smartctl is not executable";
+    output  13;
+}
+
+###
+# GET DIST LIST
+###
+
+if ( ! open PART_LIST, '<', '/proc/partitions' )
+{
+    status  500;
+    message "Error while fetching disk list: " . $!;
+    output  0;
+}
+my @part_list = <PART_LIST>;
+close PART_LIST;
+
+my @disks;
+foreach my $line ( @part_list )
+{
+    if ( $line =~ /.*(sd[a-z])$/ )
+    {
+        push @disks, $1;
+    } 
+}
+
+###
+# SMART TESTS
+###
+
+foreach my $disk ( @disks )
+{
+    my $smartctl = config->{'smartctl'};
+    my @smart = split "\n", `$smartctl -x /dev/$disk`;
+
+    foreach my $line ( @smart )
+    {
+        foreach my $info ( @{config->{'infos'}} )
+        {
+            if ( $line =~ /^$info:\s+(.*)$/ )
+            {
+                detail->{$disk}->{$info} = $1;
+            }
+        }
+
+        foreach my $attr ( keys %{config->{'attributes'}} )
+        {
+            if ( $line =~ /.*$attr\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/ )
+            {
+                add_metric { 'Tags' => { 'disk' => $disk, 'attribute' => $attr }, 'Value' => $1 };
+         
+                if ( config->{'attributes'}->{$attr}->{'warn'} and $1 > config->{'attributes'}->{$attr}->{'warn'} )
+                {
+                    raise 200;
+                }
+             
+                if ( config->{'attributes'}->{$attr}->{'warn'} and $1 > config->{'attributes'}->{$attr}->{'crit'} )
+                {
+                    raise 300;
+                }
+            }
+        }
+
+        if ( $line =~ /self-assessment test result: (\w+)/ )
+        {
+	        result->{'Message'} .= "/dev/$disk : $1 ";
+            detail->{$disk}{'self-assessment test'} = $1;
+            if ( $1 ne 'PASSED')
+            {
+                status 350;
+            }
+        }
+    }
+}
+
+output 0;
+

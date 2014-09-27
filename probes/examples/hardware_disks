@@ -1,0 +1,83 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'warnLevel'             => 80,
+    'critLevel'             => 95,
+    'excludedPartitions'    => ['rootfs','tmpfs','udev','none'],
+};
+
+init( config => $conf );
+
+my $partitionFound = 0;
+
+my @df = `df -hlP`;
+if($? != 0)
+{
+    status  500;
+    message "Error when executing df command: ".$!;
+    output 1;
+}
+
+shift @df;
+my $max = 0;
+foreach my $line ( @df )
+{
+    my @splits = split( /\s+/, $line );
+ 
+    my $partition   = $splits[0];
+    my $size        = $splits[1];
+    my $occupation  = $splits[2];
+    my $free        = $splits[3];
+    my $usage       = $splits[4];
+    my $usageRaw    = $1 if ( $usage =~ /(\d+)/ ); 
+
+    if ( grep { $_ eq $partition } @{ config->{'excludedPartitions'} } )
+    {
+        next;
+    }
+
+    $partitionFound++;
+
+    detail->{$partition} = {
+        Size        => $size,
+        Used        => $occupation,
+        Free        => $free,
+        Percentage  => $usage,
+    };
+
+    add_metric { "Tags" => { "Partition" => $partition }, "Value" => $usageRaw };
+
+    if ( $usageRaw > config->{'critLevel'} )
+    {
+        raise 300;
+    }
+    elsif ( $usageRaw > config->{'warnLevel'} )
+    {
+        raise 250;
+    }
+
+    if ( $usageRaw > $max )
+    {
+        $max = $usageRaw;
+        message "Highest occupation percentage is $usage in partition $partition";
+    }
+}
+
+if ( !$partitionFound )
+{
+    status  100;
+    message 'No partition have been found.';
+}
+
+output 0;

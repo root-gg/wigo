@@ -1,0 +1,100 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'warnLevel'     => 75,
+    'critLevel'     => 90,
+    'wantedFields'  => ['SwapFree','SwapTotal','Cached','MemTotal','MemFree'],
+};
+
+init( config => $conf );
+
+if( ! -e "/proc/mdstat" )
+{
+    message "No mdadm raid";
+    output 13;
+}
+
+if ( ! open MDSTAT, '<', '/proc/mdstat' )
+{
+    status  500;
+    message "Error while fetching mdstat : " . $!;
+    output 1;
+}
+my @mdstat = <MDSTAT>;
+close MDSTAT;
+
+my $mddevices = {};
+my $mdFaultydevices = 0;
+my $currentdevice;
+foreach my $line ( @mdstat )
+{
+	if ( $line =~ /^(md\d+)\s:\s(\w+)\s(\w+)\s(.*)/ )
+	{
+		$currentdevice = $1;
+		detail->{ $currentdevice }->{'State'}  = $2;
+		detail->{ $currentdevice }->{'Type'}   = $3;
+
+        my @devices = split " ", $4;
+        foreach my $device ( @devices )
+        {
+            if ( $device =~ /^(\w+)\[\d+\](\((\w)\))?$/ )
+            {
+                if ( $3 )
+                {
+                    if ( $3 eq 'S' )
+                    {
+                        push @{ detail->{ $currentdevice }->{'devicesSpare'} } , $device;
+                    }
+                    elsif ( $3 eq 'F' )
+                    {
+                        push @{ detail->{ $currentdevice }->{'devicesFaulty'} } , $device;
+                    }
+                }
+                else
+                {
+                    push @{ detail->{ $currentdevice }->{'devices'} } , $device;
+                }
+            } 
+        }
+	}
+	elsif ( $line =~ /(resync|recovery)\s+=\s+([\d\.]+\%).*finish\=([\d+\.]+\w+).*speed\=(\d+.*)/ )
+	{
+		$mdFaultydevices++;
+
+		raise 300;
+
+		detail->{ $currentdevice }->{'ResyncPercentage'} 	= $2;
+	    detail->{ $currentdevice }->{'ResyncFinishIn'}	    = $3;
+		detail->{ $currentdevice }->{'ResyncSpeed'}	        = $4;
+
+        if ( $1 eq 'recovery' )
+        {
+            detail->{ $currentdevice }->{'State'} = 'recovery';
+		    result->{'Message'} .= $currentdevice . " is recovering ( $2 ).";
+        }
+        else
+        {
+            detail->{ $currentdevice }->{'State'} = 'resync';
+            result->{'Message'} .= $currentdevice . " is resyncing ( $2 ).";
+        }
+	}
+}
+
+if ( $mdFaultydevices == 0 )
+{
+	message "All arrays ( ". join( " ", keys %{detail()} ). " ) are OK";
+}
+
+output 0;
+
