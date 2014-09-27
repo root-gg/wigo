@@ -23,7 +23,7 @@ my $version    = "0.10";
 my  $name       = basename($0);
 my  $config     = {};
 my  $args       = [];
-my  $persist    = undef;
+my  $persist    = {};
 
 my  $result     =  {
     Version     => "0.10",
