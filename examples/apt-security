@@ -3,81 +3,96 @@
 use strict;
 use warnings;
 
-use JSON::XS;
-my $coder   = JSON::XS->new->pretty;
-my $result  = 
-{
-    Status  => 398,
-    Message => "",
-    Detail  => {},
-};
-
+use Time::HiRes qw/time/;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
 
 # Test if debian
-if( ! `which apt-get` )
+if ( ! `which apt-get` )
 {
     exit 13;
 }
 
+###
 # Update
+###
+
 my $errorOnUpdate;
 my $fnret = `LANGUAGE=C apt-get update 2>&1`;
-chomp($fnret);
-
-foreach my $line ( split("\n",$fnret) )
+if ( $? == 0)
 {
-    if( $line =~ /^E:\s(.*)/ )
+    chomp($fnret);
+
+    foreach my $line ( split "\n" , $fnret )
     {
-        $errorOnUpdate = 1;
-        push @{ $result->{'Detail'}->{'Apt-Get-Update'}->{'Errors'} } , $1;
+        if ( $line =~ /^E:\s(.*)/ )
+        {
+            $errorOnUpdate = 1;
+            push @{ detail->{'Apt-Get-Update'}->{'Errors'} } , $1;
+        }
+        elsif ( $line =~ /^W:\s(.*)/ )
+        {
+            $errorOnUpdate = 1;
+            push @{ detail->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
+        }
     }
-    elsif( $line =~ /^W:\s(.*)/ )
+
+    ###
+    # Upgrade
+    # Even if update fail, we want to test if there is no package to update anyway
+    ###
+
+    my $packagesToUpdate = {};
+    $fnret = `LANGUAGE=C apt-get upgrade -s 2>&1`;
+    chomp $fnret;
+
+    my $update = 0;
+    my $securityUpdate = 0;
+    foreach my $line ( split "\n" , $fnret )
     {
-        $errorOnUpdate = 1;
-        push @{ $result->{'Detail'}->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
+        if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)\s+\[(\S+)\]/ )
+        {
+            detail->{'Apt-Get-Upgrade'}->{$repo} ||= [];
+            push @{detail->{'Apt-Get-Upgrade'}->{$repo}}, $name;
+            $update++;
+            $securityUpdate++ if $repo =~ /security/i;
+        }
     }
-}
 
-
-# Upgrade
-#
-# Even if update fail, we want to test if there is no package to update anyway
-
-my $packagesToUpdate = [];
-$fnret = `LANGUAGE=C apt-get upgrade -s 2>&1`;
-chomp($fnret);
-
-foreach my $line ( split("\n",$fnret) )
-{
-    if( $line =~ /^Inst\s([^\s]+)\s\[([^\s]+)\].*Security/ )
+    message "No security packages availables";
+    if ( $errorOnUpdate )
     {
-        push @{ $packagesToUpdate }, $1;
+        raise   200;
+        message "An error happened when doing apt-get update. ";
     }
-}
 
+    if ( $update )
+    {
+        raise 101;
+        message "There is $update packages to update. ";
+    }
 
-# Compute status and return
-if( $errorOnUpdate || scalar( @{ $packagesToUpdate } ) )
-{
-    if( $errorOnUpdate )
+    if( $securityUpdate )
     {
-        $result->{'Status'}   = 250;
-        $result->{'Message'}  = "An error happened when doing apt-get update. ";
+        raise 300 + ( $securityUpdate < 200 ? $securityUpdate : 199 );
+        message "There is $securityUpdate security updates to do. ";
     }
-    if( scalar( @{ $packagesToUpdate } ) )
-    {
-        $result->{'Status'}   = 300 + scalar( @{ $packagesToUpdate } );
-        $result->{'Message'} .= scalar( @{ $packagesToUpdate } ). " security package(s) to update : ";
-        $result->{'Message'} .= join(", ",@{ $packagesToUpdate });
-    }
+
+    add_metric { 'Tags' => { 'metric' => 'to_update' },             'Value' => $update };
+    add_metric { 'Tags' => { 'metric' => 'to_update_security' },    'Value' => $securityUpdate };
 }
 else
 {
-    $result->{'Status'}   = 100;
-    $result->{'Message'}  = "No security packages availables";     
+    status 500;
+    message "unable to get update list";
 }
 
+my $packagesInstalled = `dpkg -l | wc -l`;
+if ( $? == 0 )
+{
+    chomp $packagesInstalled;
+    add_metric { 'Tags' => { 'metric' => 'installed' },         'Value' => $packagesInstalled };
+}
 
-# Print
-print $coder->encode( $result );
-
+output 0;

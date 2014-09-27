@@ -107,6 +107,16 @@ $ ./hardware_load_average
 }
 ```
 
+Status codes :
+--------------
+
+```
+    100         OK
+    101 to 199  INFO
+    200 to 299  WARN
+    300 to 499  CRIT
+    500+        ERROR
+```
 
 Building from sources
 ---------------------

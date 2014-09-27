@@ -3,22 +3,11 @@
 use strict;
 use warnings;
 
-use Data::Dumper;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
+
 use IO::Socket::INET;
-
-# Init Json
-use JSON::XS;
-my $coder = JSON::XS->new->pretty;
-
-my $return = {
-    Version     => "0.10",
-    
-    Status      => 100,
-    Message     => "",
-
-    Detail      => {},
-    Metrics     => [],
-};
 
 ###
 # DEFAULT CONFIG
@@ -52,38 +41,11 @@ my $conf = {
     ],
 };
 
-###
-# OVERRIDE CONFIG
-###
+init( config => $conf );
 
-if ( -r '/etc/wigo/conf.d/zookeeper.conf' )
+if ( ! scalar @{config->{'instances'}} )
 {
-    if ( ! open JSON_CONFIG, '<', '/etc/wigo/conf.d/zookeeper.conf' )
-    {
-        $return->{'Status'}     = 500;
-        $return->{'Message'}    = "Error while opening json config file for read : " . $!;
-        print $coder->encode($return);
-        exit 13;
-    }
-
-    my $json = join '', (<JSON_CONFIG>);
-    close JSON_CONFIG;
-    
-    eval {
-        $conf = decode_json( $json );
-    };
-
-    if ( $@ )
-    {
-        $return->{'Status'}     = 500;
-        $return->{'Message'}    = "Error while decoding json config: " . $@;
-        print $coder->encode($return);
-        exit 13;
-    }
-}
-
-if ( ! scalar @{$conf->{'instances'}} )
-{
+    message "no instance to monitor";
     exit 13;
 }
 
@@ -91,7 +53,7 @@ if ( ! scalar @{$conf->{'instances'}} )
 # GET STATUS
 ###
 
-for my $instance ( @{$conf->{'instances'}} )
+for my $instance ( @{config->{'instances'}} )
 {
     my $socket;
     eval {
@@ -109,8 +71,8 @@ for my $instance ( @{$conf->{'instances'}} )
     if ( $@ )
     {
         chomp $@;
-        $return->{'Status'} = 300;
-        $return->{'Message'} .= "$instance : $@ ";
+        raise 300;
+        message "$instance : $@ ";
         next;
     }
     
@@ -128,16 +90,16 @@ for my $instance ( @{$conf->{'instances'}} )
     if ( $@ )
     {
         chomp $@;
-        $return->{'Status'} = 300;
-        $return->{'Message'} .= "$instance : $@ ";
+        raise 300;
+        result->{'Message'} .= "$instance : $@ ";
         next;
     }
 
-    $return->{'Message'} .= "$instance : $response ";
+    result->{'Message'} .= "$instance : $response ";
 
     if ( $response !~ /^imok/ )
     {
-        $return->{'Status'} = 300;
+        raise 300;
     }
 
     $socket->close();
@@ -157,8 +119,8 @@ for my $instance ( @{$conf->{'instances'}} )
     if ( $@ )
     {
         chomp $@;
-        $return->{'Status'} = 300;
-        $return->{'Message'} .= " $@ ";
+        raise 300;
+        result->{'Message'} .= " $@ ";
         next;
     } 
 
@@ -175,8 +137,8 @@ for my $instance ( @{$conf->{'instances'}} )
     if ( $@ )
     {
         chomp $@;
-        $return->{'Status'} = 300;
-        $return->{'Message'} .= "$instance : $@ ";
+        raise 300;
+        result->{'Message'} .= "$instance : $@ ";
         next;
     }
   
@@ -186,18 +148,17 @@ for my $instance ( @{$conf->{'instances'}} )
     {
         if ( my ( $key, $value ) = $line =~ /(\S+)\s+(.*)/ )
         {
-            if ( grep { $key eq $_ } @{$conf->{'metrics'}} )
+            if ( grep { $key eq $_ } @{config->{'metrics'}} )
             {
-                push @{$return->{'Metrics'}}, { 'Tags' => { 'instance' => "$instance", 'metric' => $key }, 'Value' => $value };
+                add_metric { 'Tags' => { 'instance' => "$instance", 'metric' => $key }, 'Value' => $value };
             }
             
-            if ( grep { $key eq $_ } @{$conf->{'details'}} )
+            if ( grep { $key eq $_ } @{config->{'details'}} )
             {
-                $return->{'Detail'}->{$instance}->{$key} = $value;
+                detail->{$instance}->{$key} = $value;
             }
         }
     }
 }
 
-print $coder->encode( $return );
-exit 0;
+output 0;

@@ -3,86 +3,80 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
 
-# Init Json
-use JSON::XS;
-my $coder = JSON::XS->new->pretty;
+###
+# DEFAULT CONFIG
+###
 
+my $conf = {
+    'toCheck'           => 1,
+    'warnPercentage'    => 75,
+    'critPercentage'    => 150
+};
+
+init( config => $conf );
 
 # Number of cores
 my $cores = `grep '^processor' /proc/cpuinfo | sort -u | wc -l`;
 chomp $cores;
+$cores ||= 1;
 
-# Warn levels if cores information isn't available
-my $warnLevel       = 1;
-my $critLevel       = 2;
-
-# Warn levels in percentage, depending on number of cores
-my $warnPercentage  = 75;
-my $critPercentage  = 150;
-
-my $return = {
-    Version    => "0.11",
-    
-    Status     => 398,
-    Message    => "No results",
-
-    Detail     => "",
-};
-
-
-# Exec
-my $fnret = `cat /proc/loadavg`;
-chomp($fnret);
-
-if($? != 0)
+if ( ! open LOADAVG, '<', '/proc/loadavg' )
 {
-    $return->{'Status'}     = 500;
-    $return->{'Message'}    = $fnret . " - " . $!;
+    status  500;
+    message "Error while fetching loadavg : " . $!;
+    output 1;
+}
+my $loadavg = <LOADAVG>;
+close LOADAVG;
+chomp $loadavg;
+
+if ( $loadavg =~ /^([\d\.]+)\s([\d\.]+)\s([\d\.]+)/ )
+{
+    my $rawValue5 = $1;
+    my $rawValue10 = $2;
+    my $rawValue15 = $3;
+
+    message "$rawValue5 $rawValue10 $rawValue15";
+
+    metrics [
+        { Tags => { "load" => "load5" },  Value => $rawValue5 },
+        { Tags => { "load" => "load10" }, Value => $rawValue10 },
+        { Tags => { "load" => "load15" }, Value => $rawValue15 },
+    ];
+
+    my $toCheck;
+    if ( config->{'toCheck'} == 2 or config->{'toCheck'} == 10 )
+    {
+        $toCheck = $rawValue10;
+    }
+    elsif ( config->{'toCheck'} == 3 or config->{'toCheck'} == 15 )
+    {
+        $toCheck = $rawValue15;
+    }
+    else
+    {
+        $toCheck = $rawValue5;
+    }
+
+    my $percentage = $toCheck * 100 / $cores;
+    if ( $percentage > config->{'critPercentage'} )
+    {
+        raise 300;
+    }
+    elsif ( $percentage > config->{'warnPercentage'} )
+    {
+        raise 200;
+    }
 }
 else
 {
-    if($fnret =~ /^([\d\.]+)\s([\d\.]+)\s([\d\.]+)/)
-    {
-        my $rawValue5 = $1;
-        my $rawValue10 = $2;
-        my $rawValue15 = $3;
-
-        $return->{'Status'}     = 100;
-        $return->{'Message'}    = "$rawValue5 $rawValue10 $rawValue15";
-
-        $return->{'Metrics'}    = [
-            { Tags => { "load" => "load5" }, Value => $rawValue5 + 0 },
-            { Tags => { "load" => "load10" }, Value => $rawValue10 + 0 },
-            { Tags => { "load" => "load15" }, Value => $rawValue15 + 0 },
-        ];
-
-        if ($cores =~ /^\d+$/)
-        {
-            my $percentage = $rawValue5 * 100 / $cores;
-
-            if ($percentage > $critPercentage)
-            {
-                $return->{'Status'} = 300;
-            }
-            elsif ($percentage > $warnPercentage)
-            {
-                $return->{'Status'} = 250; 
-            }
-        }
-        else
-        {
-            if($rawValue5 > $warnLevel)
-            {
-                $return->{'Status'} = 250;
-            }
-            if($rawValue5 > $critLevel)
-            {
-                $return->{'Status'} = 300;
-            }
-        }
-    }
+    status 500;
+    message "Can't parse loadavg : " . $loadavg;
+    output 1;
 }
 
-print $coder->encode( $return );
-
+output 0;

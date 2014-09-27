@@ -4,29 +4,15 @@ use strict;
 use warnings;
 
 use Time::HiRes qw/time/;
-use Data::Dumper;
-
-# Init Json
-use JSON::XS;
-my $coder = JSON::XS->new->pretty;
-
-my $return = {
-    Version     => "0.10",
-    
-    Status      => 100,
-    Message     => "",
-
-    Detail      => {},
-
-    Metrics     => {},
-};
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
 
 ###
 # DEFAULT CONFIG
 ###
 
 my $conf = {
-    'last_stats'    => '/tmp/ifstats_last',
     'match'         => 'eth\d+|em\d+_\d+/\d+|em\d+_\d+|em\d+|p\d+p\d+_\d+/\d+|p\d+p\d+_\d+|p\d+p\d+|tap\d+',
     'fields'        => {
         'bytes'         => { },
@@ -36,67 +22,8 @@ my $conf = {
     }
 };
 
-###
-# OVERRIDE CONFIG
-###
-
-if ( -r '/etc/wigo/conf.d/ifstat.conf' )
-{
-    if ( ! open JSON_CONFIG, '<', '/etc/wigo/conf.d/ifstat.conf' )
-    {
-        $return->{'Status'}     = 500;
-        $return->{'Message'}    = "Error while opening json config file for read : " . $!;
-        print $coder->encode($return);
-        exit 13;
-    }
-
-    my $json = join '', (<JSON_CONFIG>);
-    close JSON_CONFIG;
-
-    eval {
-        $conf = decode_json( $json );
-    };
-
-    if ( $@ )
-    {
-        $return->{'Status'}     = 500;
-        $return->{'Message'}    = "Error while decoding json config: " . $@;
-        print $coder->encode($return);
-        exit 13;
-    }
-}
-
-my $match = '\s+(' . $conf->{'match'} . '):(.*)';
-
-###
-# FETCHING LAST STATS
-###
-
-my $last;
-my $last_time;
-if ( -r $conf->{'last_stats'} )
-{
-    if ( open LAST_STATS, '<', $conf->{'last_stats'} )
-    {
-        my @lines  = <LAST_STATS>;
-        close LAST_STATS;
-        
-        chomp @lines;
-        $last_time = shift @lines;
-        my $json = join '', @lines;
-
-        eval {
-            $last = decode_json( $json );
-        };
-
-        if ( $@ )
-        {
-        print "FAIL : " . $@;
-            $last = undef;
-        }
-    }
-}
-
+init( config => $conf );
+my $match = '\s+(' . config->{'match'} . '):(.*)';
 
 ###
 # FETCHING STATS
@@ -105,11 +32,9 @@ if ( -r $conf->{'last_stats'} )
 my $now = time;
 if( ! open NEW_STATS, '<', '/proc/net/dev' )
 {
-    $return->{'Status'}     = 500;
-    $return->{'Message'}    = "Error while fetching iface stats: " . $!;
-
-    print $coder->encode($return);
-    exit 0;
+    status  500;
+    message "Error while fetching iface stats: " . $!;
+    output 1;
 }
 my @lines = <NEW_STATS>;
 close NEW_STATS;
@@ -118,8 +43,11 @@ close NEW_STATS;
 # PARSING STATS
 ###
 
+my $new = {
+    'last_time' => $now,
+};
+
 my @metrics;
-my $new = {};
 foreach my $line ( @lines )
 {
     if ( $line =~ /$match/o )
@@ -129,7 +57,7 @@ foreach my $line ( @lines )
         shift @stats;
 
         my @fields = ( 
-            qw/ bytes packets errs drop fifo frame compressed multicast/,
+            qw/bytes packets errs drop fifo frame compressed multicast/,
             qw/bytes packets errs drop fifo colls carrier compressed/
         );
 
@@ -140,28 +68,27 @@ foreach my $line ( @lines )
             
             $new->{$iface}->{$direction}->{$fields[$i]} = $stats[$i];
 
-            next unless grep { $fields[$i] eq $_ } keys %{$conf->{'fields'}};
-            push @metrics, { 'Tags' => { 'iface' => $iface, 'direction' => $direction,  'field' => $fields[$i] }, 'Value' => $stats[$i] + 0 };
+            next unless grep { $fields[$i] eq $_ } keys %{config->{'fields'}};
+            add_metric { 'Tags' => { 'iface' => $iface, 'direction' => $direction,  'field' => $fields[$i] }, 'Value' => $stats[$i] };
             
-            next unless defined $last->{$iface}->{$direction}->{$fields[$i]};
-            my $value = ( $stats[$i] - $last->{$iface}->{$direction}->{$fields[$i]} ) / ( $now - $last_time );
+            next unless defined persist->{$iface}->{$direction}->{$fields[$i]};
+            my $value = ( $stats[$i] - persist->{$iface}->{$direction}->{$fields[$i]} ) / ( $now - ( persist->{'last_time'} || 0 ) );
             $values->{$direction}->{$fields[$i]} = $value;
 
-
-            if ( $conf->{'fields'}->{$fields[$i]}->{'warn'} and $value > $conf->{'fields'}->{$fields[$i]}->{'warn'} )
+            if ( config->{'fields'}->{$fields[$i]}->{'warn'} and $value > config->{'fields'}->{$fields[$i]}->{'warn'} )
             {
-                $return->{'Status'} = 250 if $return->{'Status'} < 250;
+                raise 200;
             }
 
-            if ( $conf->{'fields'}->{$fields[$i]}->{'crit'} and $value > $conf->{'fields'}->{$fields[$i]}->{'crit'} )
+            if ( config->{'fields'}->{$fields[$i]}->{'crit'} and $value > config->{'fields'}->{$fields[$i]}->{'crit'} )
             {
-                $return->{'Status'} = 300 if $return->{'Status'} < 300;
+                raise 300;
             }
         }
 
         if ( defined $values->{'in'}->{'bytes'} and defined $values->{'out'}->{'bytes'} )
         {
-            $return->{'Message'} .= sprintf ( 
+            result->{'Message'} .= sprintf ( 
                 "%s %.2f/%.2f mbps , ", 
                 ( $iface, $values->{'in'}->{'bytes'} * 8 / 1024 / 1024 , $values->{'out'}->{'bytes'} * 8 / 1024 / 1024 )
             );
@@ -169,26 +96,5 @@ foreach my $line ( @lines )
     }
 }
 
-###
-# STORING STATS
-###
-
-if ( open NEW_STATS, '>', $conf->{'last_stats'} )
-{
-    eval {
-        print NEW_STATS "$now\n"; 
-        print NEW_STATS $coder->encode($new);
-    };
-    close NEW_STATS;
-
-    if ( $@ )
-    {
-        print "FAIL " . $@;
-    }
-}
-
-
-#$return->{'Detail'} = $details;
-$return->{'Metrics'} = \@metrics;
-
-print $coder->encode( $return );
+persist $new;
+output 0;

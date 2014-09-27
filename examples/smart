@@ -3,22 +3,9 @@
 use strict;
 use warnings;
 
-use Data::Dumper;
-
-# Init Json
-use JSON::XS;
-my $coder = JSON::XS->new->pretty;
-
-my $return = {
-    Version     => "0.10",
-    
-    Status      => 100,
-    Message     => "",
-
-    Detail      => {},
-
-    Metrics     => {},
-};
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
 
 ###
 # DEFAULT CONFIG
@@ -44,44 +31,18 @@ my $conf = {
     }
 };
 
+init( config => $conf );
 
 ###
 # TEST SMARTCTL EXISTANCE
 ###
-if( ! -e $conf->{'smartctl'} )
+
+my $smartctl = config->{'smartctl'};
+if( ! -x $smartctl )
 {
-    exit 13;
-}
-
-
-###
-# OVERRIDE CONFIG
-###
-
-if ( -r '/etc/wigo/conf.d/smart.conf' )
-{
-    if ( ! open JSON_CONFIG, '<', '/etc/wigo/conf.d/smart.conf' )
-    {
-        $return->{'Status'}     = 500;
-                $return->{'Message'}    = "Error while opening json config file for read : " . $!;
-                print $coder->encode($return);
-        exit 13;
-    }
-
-    my $json = join '', (<JSON_CONFIG>);
-    close JSON_CONFIG;
-    
-    eval {
-        $conf = decode_json( $json );
-    };
-
-    if ( $@ )
-    {
-        $return->{'Status'}     = 500;
-            $return->{'Message'}    = "Error while decoding json config: " . $@;
-            print $coder->encode($return);
-        exit 13;
-    }
+    status  500;
+    message "smartctl $smartctl is not executable";
+    output  13;
 }
 
 ###
@@ -90,11 +51,9 @@ if ( -r '/etc/wigo/conf.d/smart.conf' )
 
 if ( ! open PART_LIST, '<', '/proc/partitions' )
 {
-    $return->{'Status'}     = 500;
-    $return->{'Message'}    = "Error while fetching disk list: " . $!;
-
-    print $coder->encode($return);
-    exit 0;
+    status  500;
+    message "Error while fetching disk list: " . $!;
+    output  0;
 }
 my @part_list = <PART_LIST>;
 close PART_LIST;
@@ -112,55 +71,50 @@ foreach my $line ( @part_list )
 # SMART TESTS
 ###
 
-my $details = {};
-my @metrics;
 foreach my $disk ( @disks )
 {
-    my $smartctl = $conf->{'smartctl'};
+    my $smartctl = config->{'smartctl'};
     my @smart = split "\n", `$smartctl -x /dev/$disk`;
 
     foreach my $line ( @smart )
     {
-        foreach my $info ( @{$conf->{'infos'}} )
+        foreach my $info ( @{config->{'infos'}} )
         {
             if ( $line =~ /^$info:\s+(.*)$/ )
             {
-                $details->{$disk}->{$info} = $1;
+                detail->{$disk}->{$info} = $1;
             }
         }
 
-        foreach my $attr ( keys %{$conf->{'attributes'}} )
+        foreach my $attr ( keys %{config->{'attributes'}} )
         {
             if ( $line =~ /.*$attr\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/ )
             {
-                push @metrics, { 'Tags' => { 'disk' => $disk, 'attribute' => $attr }, 'Value' => $1 + 0};
+                add_metric { 'Tags' => { 'disk' => $disk, 'attribute' => $attr }, 'Value' => $1 };
          
-                if ( $conf->{'attributes'}->{$attr}->{'warn'} and $1 > $conf->{'attributes'}->{$attr}->{'warn'} )
+                if ( config->{'attributes'}->{$attr}->{'warn'} and $1 > config->{'attributes'}->{$attr}->{'warn'} )
                 {
-                    $return->{'Status'} = 250 if $return->{'Status'} < 250;
+                    raise 200;
                 }
              
-                if ( $conf->{'attributes'}->{$attr}->{'warn'} and $1 > $conf->{'attributes'}->{$attr}->{'crit'} )
+                if ( config->{'attributes'}->{$attr}->{'warn'} and $1 > config->{'attributes'}->{$attr}->{'crit'} )
                 {
-                    $return->{'Status'} = 300 if $return->{'Status'} < 300;
+                    raise 300;
                 }
             }
         }
 
         if ( $line =~ /self-assessment test result: (\w+)/ )
         {
-	    $return->{'Message'} .= "/dev/$disk : $1 ";
-            $details->{$disk}{'self-assessment test'} = $1;
+	        result->{'Message'} .= "/dev/$disk : $1 ";
+            detail->{$disk}{'self-assessment test'} = $1;
             if ( $1 ne 'PASSED')
             {
-                $return->{'Status'} = 350;
+                status 350;
             }
         }
     }
 }
 
-$return->{'Detail'}     = $details;
-$return->{'Metrics'}    = \@metrics;
-
-print $coder->encode( $return );
+output 0;
 

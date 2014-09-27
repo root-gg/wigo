@@ -3,56 +3,49 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Wigo::Probe;
 
-# Init Json
-use JSON::XS;
-my $coder = JSON::XS->new->pretty;
+###
+# DEFAULT CONFIG
+###
 
-my $processNamesToCheck = [
-    "/usr/sbin/sshd", 
-];
-
-my $return = {
-    Version    => "0.10",
-    
-    Status     => 100,
-    Message    => "",
-
-    Value      => "",
-    Detail     => "",
+my $conf = {
+    'processToCheck' => [
+        '/usr/sbin/sshd'
+    ],
 };
 
+init( config => $conf );
+Wigo::Probe::save_config("check_processes.conf");
 
 # Exec
 my @inactiveProcesses;
 
-for my $processName ( @{ $processNamesToCheck } )
+for my $processName ( @{ config->{'processList'} } )
 {
     my $fnret = `ps ax | grep -v grep | grep "$processName"`;
 
-    if($? != 0)
+    if ( $? )
     {
         push @inactiveProcesses, $processName; 
     }
 }
 
-my $countInactiveProcesses = scalar( @inactiveProcesses );
-if( $countInactiveProcesses )
+my $countInactiveProcesses = scalar @inactiveProcesses;
+if ( $countInactiveProcesses )
 {
-    $return->{'Status'}     = 200 + $countInactiveProcesses;
-    $return->{'Message'}    = $countInactiveProcesses . " process not running : " . join(",",@inactiveProcesses);
-    $return->{'Value'}      = $countInactiveProcesses + 0;
+    status  300 + $countInactiveProcesses;
+    message $countInactiveProcesses . " process not running : " . join( "," , @inactiveProcesses );
 }
-
 else
 {
-    $return->{'Status'}     = 100;
-    $return->{'Message'}    = "All process configured in probe are running";
-    $return->{'Detail'}     = join(" ", @{ $processNamesToCheck });
-    $return->{'Value'}      = 0;
-
+    status  100;
+    message "All process configured in probe are running";
 }
 
+detail->{'not_running'} = \@inactiveProcesses;
+detail->{'running'}     = [ grep { my $p = $_ ; ! grep { $p eq $_ } @inactiveProcesses } @{config->{'processList'}} ];
 
-print $coder->encode( $return );
-
+output 0;
