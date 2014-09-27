@@ -5,12 +5,13 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"fmt"
 )
 
 type Config struct {
 
 	// General params
-	General *GeneralConfig
+	Global *GeneralConfig
 
 	// OpenTSDB params
 	OpenTSDB *OpenTSDBConfig
@@ -27,17 +28,17 @@ func NewConfig() (this *Config) {
 
 	// General params
 	this = new(Config)
-	this.General = new(GeneralConfig)
+	this.Global = new(GeneralConfig)
 	this.OpenTSDB = new(OpenTSDBConfig)
 	this.RemoteWigos = new(RemoteWigoConfig)
 	this.Notifications = new(NotificationConfig)
 
-	this.General.ListenPort = 4000
-	this.General.ListenAddress = "0.0.0.0"
-	this.General.ProbesDirectory = "/usr/local/wigo/probes"
-	this.General.LogFile = "/var/log/wigo.log"
-	this.General.ConfigFile = "/etc/wigo/wigo.conf"
-	this.General.Group = ""
+	this.Global.ListenPort = 4000
+	this.Global.ListenAddress = "0.0.0.0"
+	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
+	this.Global.LogFile = "/var/log/wigo.log"
+	this.Global.ConfigFile = "/etc/wigo/wigo.conf"
+	this.Global.Group = ""
 
 	// OpenTSDB
 	this.OpenTSDB.Enabled = false
@@ -68,8 +69,8 @@ func NewConfig() (this *Config) {
 	this.Notifications.EmailRecipients = nil
 
 	// Override with config file
-	if _, err := toml.DecodeFile(this.General.ConfigFile, &this); err != nil {
-		log.Printf("Failed to load configuration file %s : %s\n", this.General.ConfigFile, err)
+	if _, err := toml.DecodeFile(this.Global.ConfigFile, &this); err != nil {
+		log.Printf("Failed to load configuration file %s : %s\n", this.Global.ConfigFile, err)
 	}
 
 	// Compatiblity with old RemoteWigos lists
@@ -86,7 +87,7 @@ func NewConfig() (this *Config) {
 			}
 
 			if port == 0 {
-				port = this.General.ListenPort
+				port = this.Global.ListenPort
 			}
 
 			// Create new RemoteWigoConfig

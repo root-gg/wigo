@@ -32,7 +32,7 @@ func ListProbesInDirectory(directory string) (probesList *list.List, error error
 func ListProbesDirectories() ([]string, error) {
 
 	// List checks directory
-	files, err := ioutil.ReadDir(GetLocalWigo().GetConfig().General.ProbesDirectory)
+	files, err := ioutil.ReadDir(GetLocalWigo().GetConfig().Global.ProbesDirectory)
 	if err != nil {
 		return nil, err
 	}

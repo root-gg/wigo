@@ -73,7 +73,7 @@ func InitWigo() (err error) {
 		LocalWigo.InitOrReloadLogger()
 
 		// Test probes directory
-		_, err = os.Stat(LocalWigo.GetConfig().General.ProbesDirectory)
+		_, err = os.Stat(LocalWigo.GetConfig().Global.ProbesDirectory)
 		if err != nil {
 			return err
 		}
@@ -286,9 +286,9 @@ func (this *Wigo) InitOrReloadLogger() (err error) {
 		}
 	}
 
-	f, err := os.OpenFile(LocalWigo.GetConfig().General.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	f, err := os.OpenFile(LocalWigo.GetConfig().Global.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().General.LogFile, err)
+		fmt.Printf("Fail to open logfile %s : %s\n", LocalWigo.GetConfig().Global.LogFile, err)
 		return err
 	} else {
 		LocalWigo.logfilehandle = f

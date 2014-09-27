@@ -47,7 +47,7 @@ func NewLocalHost() (this *Host) {
 	this.parentWigo = GetLocalWigo()
 
 	// Set group
-	this.Group = GetLocalWigo().GetConfig().General.Group
+	this.Group = GetLocalWigo().GetConfig().Global.Group
 
 	return
 }

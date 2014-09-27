@@ -72,7 +72,7 @@ func threadWatch(ci chan wigo.Event) {
 
 	// Send
 	for _, dir := range probeDirectories {
-		ci <- wigo.Event{wigo.ADDDIRECTORY, wigo.GetLocalWigo().GetConfig().General.ProbesDirectory + "/" + dir}
+		ci <- wigo.Event{wigo.ADDDIRECTORY, wigo.GetLocalWigo().GetConfig().Global.ProbesDirectory + "/" + dir}
 	}
 
 	// Init inotify
@@ -83,7 +83,7 @@ func threadWatch(ci chan wigo.Event) {
 	}
 
 	// Create a watcher on checks directory
-	err = watcherNew.Watch(wigo.GetLocalWigo().GetConfig().General.ProbesDirectory)
+	err = watcherNew.Watch(wigo.GetLocalWigo().GetConfig().Global.ProbesDirectory)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -428,7 +428,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 	if Hostname.Port != 0 {
 		host = Hostname.Hostname + ":" + strconv.Itoa(Hostname.Port)
 	} else {
-		host = Hostname.Hostname + ":" + strconv.Itoa(wigo.GetLocalWigo().GetConfig().General.ListenPort)
+		host = Hostname.Hostname + ":" + strconv.Itoa(wigo.GetLocalWigo().GetConfig().Global.ListenPort)
 	}
 
 	for {
@@ -493,8 +493,8 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 
 func threadHttp() {
 
-	apiAddress := wigo.GetLocalWigo().GetConfig().General.ListenAddress
-	apiPort := wigo.GetLocalWigo().GetConfig().General.ListenPort
+	apiAddress := wigo.GetLocalWigo().GetConfig().Global.ListenAddress
+	apiPort := wigo.GetLocalWigo().GetConfig().Global.ListenPort
 
 	m := martini.Classic()
 	m.Get("/", func() (int, string) {
