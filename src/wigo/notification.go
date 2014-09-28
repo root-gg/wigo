@@ -55,32 +55,22 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	this.OldWigo = oldWigo
 	this.NewWigo = newWigo
 
-	if oldWigo.IsAlive && !newWigo.IsAlive {
-		// UP -> DOWN
-		this.Message = fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage)
-
-	} else if !oldWigo.IsAlive && newWigo.IsAlive {
-		// DOWN -> UP
-		this.Message = fmt.Sprintf("Wigo %s UP", newWigo.GetHostname())
-	}
-
 	// Log
 	log.Printf("New Wigo Notification : %s", this.Message)
 
 	// Send ?
 	if GetLocalWigo().GetConfig().Notifications.OnWigoChange {
 		weSend := false
-        minLevelToSend := GetLocalWigo().GetConfig().Notifications.MinLevelToSend
 
 		if newWigo.IsAlive && !oldWigo.IsAlive {
 			// It's an UP
-			weSend = true
+			this.Message 	= fmt.Sprintf("Wigo %s UP", newWigo.GetHostname())
+			weSend 			= true
 		} else if !newWigo.IsAlive && oldWigo.IsAlive {
 			// It's a DOWN, check if new status is > to MinLevelToSend
-			weSend = true
-		} else if newWigo.GlobalStatus != oldWigo.GlobalStatus && (newWigo.GlobalStatus >= minLevelToSend || oldWigo.GlobalStatus >= minLevelToSend) {
-			weSend = true
-        }
+			this.Message 	= fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage)
+			weSend 			= true
+		}
 
 		if weSend {
 			Channels.ChanCallbacks <- this
