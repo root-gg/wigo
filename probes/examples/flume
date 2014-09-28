@@ -88,6 +88,7 @@ for my $agent ( keys %{ config->{'agents'} } )
             if ( $type eq 'CHANNEL' and config->{'channelCapacityThreshold'} and $data->{$item}->{'ChannelFillPercentage'} > config->{'channelCapacityThreshold'} )
             {
                 push @error, $agent . "_" . $item;
+                detail->{$agent}->{'status'} = "CHANNEL CAPACITY WARNING";
             }
             
             for my $metric ( keys $data->{$item} )
