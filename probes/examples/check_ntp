@@ -1,0 +1,82 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+use Time::HiRes qw/time/;
+use Net::NTP;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'ntp_server'    => "pool.ntp.org",
+    'port'          => 123,
+    'warning'       => 10,
+    'critical'      => 300,
+};
+
+init( config => $conf );
+
+my %h;
+my $c1 = time;
+# Net::NTP has no timeout.
+eval
+{
+    local $SIG{"ALRM"} = sub { die "ntp timeout\n"; };
+    alarm 5 ;
+    %h = get_ntp_response( config->{'ntp_server'}, config->{'port'} );
+    alarm 0 ;
+};
+
+if( $@ )
+{
+    status 500;
+    message sprintf( "NTP server %s:%s is unreachable : %s", config->{'ntp_server'}, config->{'port'} || 123 ,  $@ );
+    output 1;
+}
+
+my $c2 = time;
+my $responseTime = sprintf "%.3f", ( $c2 - $c1 ) * 1000;
+
+my $s1 = $h{'Receive Timestamp'};
+my $s2 = $h{'Transmit Timestamp'};
+
+# Trip Time
+my $tt = ( ( $c2 - $c1 ) - ( $s2 - $s1 ) ) / 2;
+
+# Real time
+my $rt = $s2 + $tt ;
+
+# Delta
+my $delta = $c2 - $rt ;
+my $absdelta = abs( $delta ) ;
+$delta = sprintf "%.3f", $delta;
+
+if( $absdelta > config->{'critical'} )
+{
+    status  300;
+    message sprintf( "Server clock is not correctly set ( drift is %s seconds )", $delta );
+}
+elsif( $absdelta > config->{'warning'} )
+{
+    status 200;
+    message sprintf( "Server clock is not correctly set ( drift is %s seconds )", $delta );
+}
+else
+{
+    message sprintf( "Server clock is correctly set ( drift is %s seconds )", $delta );
+}
+
+detail->{'drift'}           = $delta . " seconds";
+detail->{'response_time'}   = $responseTime . " ms";
+
+add_metric { "Tags" => { 'metric' => 'drift' }, 'Value' => $delta };
+add_metric { "Tags" => { 'metric' => 'response_time' }, 'Value' => $responseTime };
+
+output 0;

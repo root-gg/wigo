@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+use Time::HiRes qw/time/;
+
+use LWP::UserAgent;
+my $UA = LWP::UserAgent->new;
+$UA->timeout(5);
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'urls' => {
+        'google' => 'https://google.fr',
+    },
+};
+
+init( config => $conf );
+
+if ( ! scalar ( keys %{config->{'urls'}} ) )
+{
+    message "No url to check";
+    output 13;
+}
+
+my @down;
+for my $key ( keys %{ config->{'urls'} } )
+{
+    my $t1 = time;
+    my $response = $UA->get( config->{'urls'}->{$key} );
+    my $responseTime = int ( ( time - $t1 ) * 1000 );
+
+    if ( $response->is_success )
+    {
+        add_metric { "Tags" => { 'url' => $key, 'metric' => 'response_time' }, 'Value' => $responseTime };
+    }
+    else
+    {
+        push @down, $key;
+    }
+
+    detail->{$key}->{'response_time'}   = $responseTime . " ms";
+    detail->{$key}->{'url'}             = config->{'urls'}->{$key};
+    detail->{$key}->{'status'}          = $response->status_line;
+}
+
+if ( @down )
+{
+    raise   300 + ( scalar @down < 200 ? scalar @down : 199 );
+
+    message scalar(@down) . " on " . scalar(keys %{ config->{'urls'} }) . " sites are down : " . join ( "," , @down  );
+}
+else
+{
+    message "All " . scalar(keys %{ config->{'urls'} }) . " monitored sites are up";
+}
+
+output 0;

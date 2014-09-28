@@ -1,6 +1,5 @@
 src/bin
 wigocli
-probes
 *.log
 
 

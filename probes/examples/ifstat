@@ -3,10 +3,11 @@
 use strict;
 use warnings;
 
-use Time::HiRes qw/time/;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use Wigo::Probe;
+
+use Time::HiRes qw/time/;
 
 ###
 # DEFAULT CONFIG
@@ -46,6 +47,8 @@ close NEW_STATS;
 my $new = {
     'last_time' => $now,
 };
+
+persist or persist({});
 
 my @metrics;
 foreach my $line ( @lines )
