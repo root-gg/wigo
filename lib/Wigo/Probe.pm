@@ -15,7 +15,7 @@ our @EXPORT = qw/init config args result version status value message metrics ad
 # VARS
 ###
 
-my $CONFIG_PATH     = "/etc/wigo/conf.d";
+my $CONFIG_PATH     = ".";
 my $PERSIST_PATH    = "/tmp";
 
 my $version    = "0.10";
@@ -23,7 +23,7 @@ my $version    = "0.10";
 my  $name       = basename($0);
 my  $config     = {};
 my  $args       = [];
-my  $persist    = {};
+my  $persist    = undef;
 
 my  $result     =  {
     Version     => "0.10",

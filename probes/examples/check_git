@@ -1,0 +1,160 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'git'           => '/usr/bin/git',
+    'repositories' => {
+     #   'name'  => {
+     #       'path'      => '/path/to/git/repository',
+     #       'branch'    => 'branch',
+     #       'remote'    => 'origin',
+     #       'user'      => 'user',
+     #   },
+    }
+};
+
+init( config => $conf );
+
+if ( ! scalar ( keys %{config->{'repositories'}} ) )
+{
+    message "No git repositorty to check";
+    output 13;
+}
+
+my $git = config->{'git'};
+if( ! -x $git )
+{
+    status  500;
+    message "git $git is not executable";
+    output  13;
+}
+
+my @error;
+my @unclean;
+for my $key ( keys %{ config->{'repositories'} } )
+{
+    my $rep = config->{'repositories'}->{$key};
+    detail->{$key}->{'probe'} = $rep;
+
+    unless ( -d $rep->{'path'} and -d $rep->{'path'} . "/.git" )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "No git repository found at " . $rep->{'path'};
+        next;
+    }
+
+    if ( ! chdir $rep->{'path'} )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Failed to chdir to " . $rep->{'path'};
+        next;
+    }
+
+    if ( ! chdir $rep->{'path'} )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Failed to chdir to " . $rep->{'path'};
+        next;
+    }
+
+    my $user = $rep->{'user'};
+    if ( ! $user )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Missing user";
+        next;
+    }
+
+    my $uid = getpwnam($user);
+    if ( ! defined $uid )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Failed to get uid for user " . $rep->{'user'};
+        next;
+    }
+
+    $> = $uid;
+    if ( $! )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Failed to setuid to user " . $rep->{'user'};
+        next;
+    }
+
+    my $branch = $rep->{'branch'} || 'master';
+    my $currentBranch = `git rev-parse --abbrev-ref HEAD 2>&1`;
+    chomp $currentBranch;
+    if ( $? )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Failed to get current branch name";
+        detail->{$key}->{'error_detail'} = $currentBranch;
+        next;
+    }
+
+    if ( $currentBranch ne $branch )
+    {
+        push @unclean, $key;
+        detail->{$key}->{'error'} = "current branch is not $branch ( $currentBranch )";
+        next;
+    }
+
+    my $remote = $rep->{'remote'} || 'origin';
+    my $fetch = `git fetch $remote 2>&1`;
+    if ( $? )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Failed to fetch remote";
+        detail->{$key}->{'error_detail'} = $fetch;
+        next;
+    }
+
+    my $diff = `git diff $remote/$branch --stat 2>&1`;
+    if ( $? )
+    {
+        push @error, $key;
+        detail->{$key}->{'error'} = "Failed to get diff";
+        detail->{$key}->{'error_detail'} = $diff;
+        next;
+    }
+
+    if ( $diff )
+    {
+        push @unclean, $key;
+        detail->{$key}->{'diff'} = $diff;
+        next;
+    }
+}
+
+my @messages;
+if ( @error )
+{
+    raise   300 + ( scalar @error < 200 ? scalar @error : 199 );
+    push    @messages, scalar @error . " error ( " . join( "," , @error ) . " )";
+}
+
+if ( @unclean )
+{
+    raise   200 + ( scalar @unclean < 100 ? scalar @unclean : 99 );
+    push    @messages, scalar @unclean . " unclean ( " . join( "," , @unclean ) . " )";
+}
+
+my $clean = scalar( keys %{config->{'repositories'}} ) - scalar(@error) - scalar(@unclean);
+if ( $clean )
+{
+    push    @messages, $clean . " clean";
+}
+
+message join( ", " , @messages );
+
+output 0;

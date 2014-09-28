@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+use Time::HiRes qw/time/;
+use Net::Ping;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'services' => {
+    #    'localhost_icmp' => {
+    #        'proto'     => 'icmp',
+    #        'host'      => '127.0.0.1',
+    #    },
+    #    'localhost_ssh' => {
+    #        'proto'     => 'tcp',
+    #        'host'      => '127.0.0.1',
+    #        'port'      => 22,
+    #    },
+    },
+};
+
+init( config => $conf );
+
+if ( ! scalar keys %{config->{'services'}} )
+{
+    message "No service to check";
+    output 13;
+}
+
+my @down;
+for my $key ( keys %{ config->{'services'} } )
+{
+    my $p = Net::Ping->new( config->{'services'}->{$key}->{'proto'} );
+    $p->hires(1);
+    $p->port_number( config->{'services'}->{$key}->{'port'} )  if config->{'services'}->{$key}->{'port'};
+    $p->bind( config->{'services'}->{$key}->{'src'} )   if config->{'services'}->{$key}->{'src'};
+
+    my ( $status, $responseTime ) = $p->ping(config->{'services'}->{$key}->{'host'}, config->{'services'}->{$key}->{'timeout'});
+    if ( $status )
+    {
+        $status = "UP";
+        $responseTime = sprintf "%.2f", ( $responseTime * 1000 );
+        add_metric { "Tags" => { 'service' => $key, 'metric' => 'response_time' }, 'Value' => $responseTime };
+        detail->{$key}->{'response_time'}   = $responseTime . " ms";
+    }
+    else
+    {
+        push @down, $key;
+        $status = defined $status ? "DOWN" : "ERROR";
+    }
+
+    detail->{$key}->{'status'}          = $status;
+    detail->{$key}->{'probe'}           = config->{'services'}->{$key};
+}
+
+if ( @down )
+{
+    raise   300 + ( scalar @down < 200 ? scalar @down : 199 );
+    message scalar(@down) . " on " . scalar(keys %{ config->{'services'} }) . " services are down : " . join ( "," , @down  );
+}
+else
+{
+    message "All " . scalar(keys %{ config->{'services'} }) . " monitored services are up";
+}
+
+output 0;
