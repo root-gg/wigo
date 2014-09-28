@@ -438,21 +438,21 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		host = Hostname.Hostname + ":" + strconv.Itoa(wigo.GetLocalWigo().GetConfig().Global.ListenPort)
 	}
 
+	// Create vars
+	var resp *http.Response
+	var body []byte
+	var err error
+
+	// Create http client
+	client := http.Client{Timeout: time.Duration(time.Second)}
+
+	// Try
+	tries := wigo.GetLocalWigo().GetConfig().RemoteWigos.CheckTries
+	if Hostname.CheckTries != 0 {
+		tries = Hostname.CheckTries
+	}
+
 	for {
-
-		// Create vars
-		var resp *http.Response
-		var body []byte
-		var err error
-
-		// Create http client
-		client := http.Client{Timeout: time.Duration(time.Second)}
-
-		// Try
-		tries := wigo.GetLocalWigo().GetConfig().RemoteWigos.CheckTries
-		if Hostname.CheckTries != 0 {
-			tries = Hostname.CheckTries
-		}
 
 		for i := 1; i <= tries; i++ {
 			resp, err = client.Get("http://" + host)
