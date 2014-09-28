@@ -101,8 +101,7 @@ Options
 		} else {
 			fmt.Printf("Remote wigo %s not found\n", wigoHost)
 		}
-	}
-	else
+	} else {
 		fmt.Printf(wigoObj.GenerateSummary(showOnlyErrors))
 	}
 }
