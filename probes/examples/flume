@@ -1,0 +1,129 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+use Time::HiRes qw/time/;
+
+use LWP::UserAgent;
+my $UA = LWP::UserAgent->new;
+$UA->timeout(5);
+
+use JSON::XS;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'agents' => {
+        'flume' => 'http://127.0.0.1:12345/metrics',
+    },
+    'channelCapacityThreshold' => 90,
+    'metrics'   => [
+        # SOURCE
+        'EventAcceptedCount',
+        'EventReceivedCount',
+         
+        # CHANNEL
+        'ChannelFillPercentage',
+        'ChannelSize',
+        'EventPutAttemptCount',
+        'EventPutSuccessCount',
+        'EventTakeAttemptCount',
+        'EventTakeSuccessCount',
+        
+        # SINK
+        'EventDrainAttemptCount',
+        'EventDrainSuccessCount',
+        'BatchCompleteCount',
+        'BatchEmptyCount',
+        'BatchUnderflowCount',
+    ],
+};
+
+init( config => $conf );
+
+if ( ! scalar ( keys %{config->{'agents'}} ) )
+{
+    message "No flume instance to check";
+    output 13;
+}
+
+my @down;
+my @error;
+for my $agent ( keys %{ config->{'agents'} } )
+{
+    my $t1 = time;
+    my $response = $UA->get( config->{'agents'}->{$agent} );
+    my $responseTime = int ( ( time - $t1 ) * 1000 );
+
+    detail->{$agent}->{'response_time'}   = $responseTime . " ms";
+    detail->{$agent}->{'url'}             = config->{'agents'}->{$agent};
+
+    detail->{$agent}->{'status'} = "OK";
+    if ( $response->is_success )
+    {
+        my $data;
+        eval
+        {
+            $data = decode_json($response->decoded_content);
+        };
+        
+        if ( $@ )
+        {
+            push @down, $agent;
+            detail->{$agent}->{'status'} = "Can't decode json response : $@";
+            next;
+        }
+        
+        for my $item ( keys %$data )
+        {
+            my $type = $data->{$item}->{'Type'};
+
+            if ( $type eq 'CHANNEL' and config->{'channelCapacityThreshold'} and $data->{$item}->{'ChannelFillPercentage'} > config->{'channelCapacityThreshold'} )
+            {
+                push @error, $agent . "_" . $item;
+            }
+            
+            for my $metric ( keys $data->{$item} )
+            {
+                detail->{$agent}->{$type}->{$item}->{$metric} = $data->{$item}->{$metric};
+                next unless grep { $metric eq $_ } @{ config->{'metrics'} };
+                add_metric { "Tags" => { 'agent' => $agent, 'item' => $item, 'metric' => $metric }, 'Value' => $data->{$item}->{$metric} };
+            }
+        }
+    }
+    else
+    {
+        push @down, $agent;
+        detail->{$agent}->{'status'} = $response->status_line;
+    }
+}
+
+my @messages;
+if ( @error )
+{
+    raise   300 + ( scalar @error < 100 ? scalar @error : 99 );
+    push    @messages, scalar @error . " errors ( " . join( "," , @error ) . " )";
+}
+
+if ( @down )
+{
+    raise   300 + ( scalar @down < 200 ? scalar @down : 199 );
+    push    @messages, scalar @down . " DOWN ( " . join( "," , @down ) . " )";
+}
+
+my $up = scalar( keys %{config->{'agents'}} ) - scalar(@down);
+if ( $up )
+{
+    push    @messages, $up . " OK";
+}
+
+message join( ", " , @messages );
+
+output 0;
