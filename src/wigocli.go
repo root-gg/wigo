@@ -9,7 +9,9 @@ import (
 	"wigo"
 )
 
-var command string = ""
+var command string 		= ""
+var probe string 		= ""
+var wigoHost string 	= "localhost"
 var showOnlyErrors bool = true
 
 func main() {
@@ -20,6 +22,9 @@ func main() {
 Usage:
 	wigocli
 	wigocli <command>
+	wigocli probe <probe>
+	wigocli remote <wigo>
+	wigocli remote <wigo> probe <probe>
 
 Commands:
 	detail
@@ -30,7 +35,7 @@ Options
 `
 
 	// Parse args
-	arguments, _ := docopt.Parse(usage, nil, true, "wigocli v0.1", false)
+	arguments, _ := docopt.Parse(usage, nil, true, "wigocli v0.2", false)
 
 	for key, value := range arguments {
 
@@ -45,6 +50,10 @@ Options
 					fmt.Printf("Unknown command %s\n", command)
 					os.Exit(1)
 				}
+			} else if key == "<probe>" {
+				probe = value.(string)
+			} else if key == "<wigo>" {
+				wigoHost = value.(string)
 			}
 		}
 	}
@@ -60,9 +69,32 @@ Options
 	// Instanciate object from json
 	wigoObj, err := wigo.NewWigoFromJson(body, 0)
 	if err != nil {
-		fmt.Printf("Failed to parse return from host : %s", err)
+		fmt.Printf("Failed to parse return from host : %s\n", err)
 	}
 
 	// Print summary
-	fmt.Printf(wigoObj.GenerateSummary(showOnlyErrors))
+	if probe != "" {
+		if wigoHost == "localhost" {
+			// Find probe
+			if p, ok := wigoObj.GetLocalHost().Probes[probe] ; ok {
+				fmt.Printf(p.Summary())
+			} else {
+				fmt.Printf("Probe %s not found in local wigo\n", probe)
+			}
+		} else {
+			// Find wigo
+			if w, ok := wigoObj.RemoteWigos[wigoHost] ; ok {
+				// Find probe
+				if p, ok := w.GetLocalHost().Probes[probe] ; ok {
+					fmt.Printf(p.Summary())
+				} else {
+					fmt.Printf("Probe %s not found on remote wigo %s\n", probe, wigoHost)
+				}
+			} else {
+				fmt.Printf("Remote wigo %s not found\n", wigoHost)
+			}
+		}
+	} else {
+		fmt.Printf(wigoObj.GenerateSummary(showOnlyErrors))
+	}
 }

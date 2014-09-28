@@ -6,6 +6,8 @@ import (
 	"log"
 	"strings"
 	"time"
+	"strconv"
+	"github.com/fatih/color"
 )
 
 const dateLayout = "2006-01-02T15:04:05.999999 (MST)"
@@ -114,4 +116,36 @@ func (this *ProbeResult) GraphMetrics() {
 	}
 
 	return
+}
+
+
+func (this *ProbeResult) Summary() string {
+
+	red := color.New(color.FgRed).SprintfFunc()
+	yellow := color.New(color.FgYellow).SprintfFunc()
+	green := color.New(color.FgGreen).SprintfFunc()
+
+	// Name
+	summary := "Probe " + this.Name + " : \n\n"
+
+	// Print status
+	summary += " Status 	: "
+	if this.Status >= 300 {
+		summary += red(strconv.Itoa(this.Status))+"\n"
+	} else if this.Status >= 200 {
+		summary += yellow(strconv.Itoa(this.Status))+"\n"
+	} else {
+		summary += green(strconv.Itoa(this.Status))+"\n"
+	}
+
+	// Message
+	summary += " Message 	: " + this.Message 	+ "\n\n"
+
+	// Detail
+	if this.Detail != nil {
+		summary += " Detail : \n"
+		summary += ToJson(this.Detail) + "\n\n"
+	}
+
+	return summary
 }

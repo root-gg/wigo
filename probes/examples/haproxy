@@ -117,7 +117,7 @@ if( $hostsDown > 0 )
     }
     elsif( $hostsDown >= config->{'hostsDownWarnCount'} )
     {
-        raise 200 + ( $hostsDown < 200 ? $hostsDown : 199 );
+        raise 200 + ( $hostsDown < 200 ? $hostsDown : 99 );
     }
 
     my $downStr = "";

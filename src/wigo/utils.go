@@ -55,3 +55,8 @@ func Dump(data interface{}) {
 	json, _ := json.MarshalIndent(data, "", "   ")
 	fmt.Printf("%s\n", string(json))
 }
+
+func ToJson(data interface{}) string {
+	json, _ := json.MarshalIndent(data, "", "   ")
+	return string(json)
+}
