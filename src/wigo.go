@@ -471,9 +471,9 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 
 			// Create wigo in error
 			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
-			errorWigo.SetHostname(host)
+			errorWigo.SetHostname(Hostname.Hostname)
 
-			wigo.GetLocalWigo().AddOrUpdateRemoteWigo(host, errorWigo)
+			wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, errorWigo)
 
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
 			continue
@@ -488,10 +488,10 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		}
 
 		// Set hostname with config file name
-		wigoObj.SetHostname(host)
+		wigoObj.SetHostname(Hostname.Hostname)
 
 		// Send it to main
-		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(host, wigoObj)
+		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, wigoObj)
 
 		// Sleep
 		time.Sleep(time.Second * time.Duration(secondsToSleep))
