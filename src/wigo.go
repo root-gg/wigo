@@ -21,7 +21,14 @@ import (
 	"wigo"
 )
 
+import _ "net/http/pprof"
+
 func main() {
+
+	// Debug heap
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	// Init Wigo
 	err := wigo.InitWigo()

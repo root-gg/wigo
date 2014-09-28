@@ -94,7 +94,15 @@ Options
 				fmt.Printf("Remote wigo %s not found\n", wigoHost)
 			}
 		}
-	} else {
+	} else if wigoHost != "" && wigoHost != "localhost" {
+		// Find remote
+		if w, ok := wigoObj.RemoteWigos[wigoHost] ; ok {
+			fmt.Printf(w.GenerateSummary(showOnlyErrors))
+		} else {
+			fmt.Printf("Remote wigo %s not found\n", wigoHost)
+		}
+	}
+	else
 		fmt.Printf(wigoObj.GenerateSummary(showOnlyErrors))
 	}
 }
