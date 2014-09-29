@@ -385,6 +385,9 @@ func execProbe(probePath string, timeOut int) {
 				// Disabling it
 				wigo.GetLocalWigo().DisableProbe(probeName)
 
+				// Remove result if present
+				wigo.GetLocalWigo().GetLocalHost().DeleteProbeByName(probeName)
+
 				return
 			}
 
