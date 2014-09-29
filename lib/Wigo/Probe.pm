@@ -9,7 +9,7 @@ use File::Basename;
 
 require Exporter;
 our @ISA = qw/Exporter/;
-our @EXPORT = qw/init config args result version status value message metrics add_metric detail raise persist output/;
+our @EXPORT = qw/init config args result version status value message metrics add_metric detail raise persist output debug/;
 
 ###
 # VARS
@@ -51,6 +51,17 @@ my $json = JSON::XS->new;
 if ( exists $opts->{'debug'} )
 {
     $json = JSON::XS->new->pretty;
+}
+
+###
+# DEBUG
+###
+
+sub debug {
+    if ( exists $opts->{'debug'} )
+    {
+        print shift;
+    }
 }
 
 ###

@@ -1,0 +1,171 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe;
+
+use List::Util qw/sum/;
+use Time::HiRes qw/time/;
+
+use POSIX;
+my $tick = POSIX::sysconf( &POSIX::_SC_CLK_TCK ) || 100;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    #'include' => [ 'sda' ], # list of monitored disk/partition ( undef means all )
+    #'exclude' => [ 'dm-' ], # list of not monitored disk/partition ( undef means none )
+};
+
+init( config => $conf );
+
+###
+# FETCH IO STATS
+###
+
+my $now = time;
+if( ! open IOSTATS, '<', '/proc/diskstats' )
+{
+    status  500;
+    message "Error while fetching iface stats: " . $!;
+    output 1;
+}
+my @iostats = <IOSTATS>;
+close IOSTATS;
+chomp @iostats;
+
+###
+# FETCH CPU STAT
+###
+
+if( ! open CPUSTATS, '<', '/proc/stat' )
+{
+    status  500;
+    message "Error while fetching cpustats : " . $!;
+    output 1;
+}
+
+my @cpustats = <CPUSTATS>;
+close CPUSTATS;
+
+chomp @cpustats;
+my @total = split(/\s+/,shift @cpustats);
+shift @total;
+my $nbcpu = scalar grep { /^cpu\d+/ } @cpustats;
+my $ms = 1000 * sum(@total) / $nbcpu / $tick;
+
+###
+# PERSIST DATA BETWEEN RUNS
+###
+
+my $new = {
+    'ms'   => $ms,
+};
+
+persist or persist({});
+my $delta_ms    = $ms   - persist->{'ms'}   if persist->{'ms'};
+
+###
+# PARSE AND COMPUTE
+###
+
+sub persec {
+    my $value = shift;
+    return 1000 * $value / $delta_ms if $delta_ms;
+}
+
+my @metrics;
+foreach my $line ( @iostats )
+{
+    my @stats = split /\s+/, $line;
+    my $device = $stats[3];
+    splice(@stats,0,4);
+
+    # TODO : Handle 4k drives properly
+    my $sector_size = 512;
+    my $factor      = $sector_size / 1024;
+
+    # Include / exclude
+    next if ( defined config->{'include'} and ! grep { $device =~ /^$_/ } @{config->{'include'}} );
+    next if ( defined config->{'exclude'} and grep { $device =~ /^$_/ } @{config->{'exclude'}} );
+
+    # Skip disks that haven't done a single read.
+    next if $stats[0] == 0;
+
+    # Is this a disk or a partition ?
+    my $type = ( int($stats[1]) % 16 == 0 and int($stats[0]) > 1 ) ? "disk" : "part";
+
+    my $last = persist->{$device};
+
+    if ( scalar @stats == 11 )
+    {
+        for my $i ( 0..10 )
+        {
+            $new->{$device}->{$i} = $stats[$i];
+        }
+
+        if ( $delta_ms and $last )
+        {
+            my $delta_rios      = $stats[0]  - $last->{0};
+            my $delta_rmerges   = $stats[1]  - $last->{1};
+            my $delta_rsectors  = $stats[2]  - $last->{2};
+            my $delta_rticks    = $stats[3]  - $last->{3};
+            my $delta_wios      = $stats[4]  - $last->{4};
+            my $delta_wmerges   = $stats[5]  - $last->{5};
+            my $delta_wsectors  = $stats[6]  - $last->{6};
+            my $delta_wticks    = $stats[7]  - $last->{7};
+            my $delta_ticks     = $stats[9]  - $last->{9};
+            my $delta_aveq      = $stats[10] - $last->{10};
+
+            my $n_ios       = $delta_rios   + $delta_wios;
+            my $n_ticks     = $delta_rticks + $delta_wticks;
+            my $n_kbytes    = ( $delta_rsectors + $delta_wsectors ) * $factor;
+
+            my $queue   = $delta_aveq / $delta_ms;
+            my $size    = $n_ios ? $n_kbytes    / $n_ios : 0;
+            my $wait    = $n_ios ? $n_ticks     / $n_ios : 0;
+            my $svct    = $n_ios ? $delta_ticks / $n_ios : 0;
+            my $busy    = 100.0 * $delta_ticks / $delta_ms;
+            $busy = 100 if $busy > 100;
+
+            detail->{$device}->{'read_req'}         = sprintf "%.2f req/s",     persec ( $delta_rios );
+            detail->{$device}->{'read_merged_req'}  = sprintf "%.2f req/s",     persec ( $delta_rmerges );
+            detail->{$device}->{'read_kbytes'}      = sprintf "%.2f kB/s",      persec ( $delta_rsectors * $factor );
+            detail->{$device}->{'write_req'}        = sprintf "%.2f req/s",     persec ( $delta_wios );
+            detail->{$device}->{'write_merged_req'} = sprintf "%.2f req/s",     persec ( $delta_wmerges );
+            detail->{$device}->{'write_kbytes'}     = sprintf "%.2f kB/s",      persec ( $delta_wsectors * $factor );
+
+            detail->{$device}->{'avg_req_size'}     = sprintf "%.2f kB",        $size;
+            detail->{$device}->{'avg_queue_size'}   = sprintf "%.2f",           $queue;
+            detail->{$device}->{'avg_wait_time'}    = sprintf "%.2f ms",        $wait;
+            detail->{$device}->{'avg_service_time'} = sprintf "%.2f ms",        $svct;
+            detail->{$device}->{'util_percent'}     = sprintf "%.2f %%",        $busy;
+
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'read_req' },           'Value' => persec ( $delta_rios )    };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'read_merged_req' },    'Value' => persec ( $delta_rmerges ) };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'read_kbytes' },        'Value' => persec ( $delta_rsectors * $factor ) };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'write_req' },          'Value' => persec ( $delta_wios ) };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'write_merged_req' },   'Value' => persec ( $delta_wmerges ) };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'write_kbytes' },       'Value' => persec ( $delta_wsectors * $factor ) };
+
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'avg_req_size' },       'Value' => $size };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'avg_queue_size' },     'Value' => $queue };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'avg_wait_time' },      'Value' => $wait };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'avg_service_time' },   'Value' => $svct };
+            add_metric { 'Tags' => { 'device' => $device, 'type' => $type,  'metric' => 'util_percent' },       'Value' => $busy };
+        }
+    }
+    else
+    {
+        # TODO : handle partitions for kernel older than 2.6.25
+        detail->{$device}->{'error'} = 'Invalid iostat length ( kernel version < 2.6.25 ? )';
+    }
+}
+
+persist $new;
+output 0;

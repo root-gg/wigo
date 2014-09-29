@@ -31,14 +31,14 @@ my $match = '\s+(' . config->{'match'} . '):(.*)';
 ###
 
 my $now = time;
-if( ! open NEW_STATS, '<', '/proc/net/dev' )
+if( ! open IFSTATS, '<', '/proc/net/dev' )
 {
     status  500;
     message "Error while fetching iface stats: " . $!;
     output 1;
 }
-my @lines = <NEW_STATS>;
-close NEW_STATS;
+my @lines = <IFSTATS>;
+close IFSTATS;
 
 ###
 # PARSING STATS
@@ -50,6 +50,11 @@ my $new = {
 
 persist or persist({});
 
+my @fields = (
+    qw/bytes packets errs drop fifo frame compressed multicast/,
+    qw/bytes packets errs drop fifo colls carrier compressed/
+);
+
 my @metrics;
 foreach my $line ( @lines )
 {
@@ -58,11 +63,6 @@ foreach my $line ( @lines )
         my $iface = $1;
         my @stats = split /\s+/, $2;
         shift @stats;
-
-        my @fields = ( 
-            qw/bytes packets errs drop fifo frame compressed multicast/,
-            qw/bytes packets errs drop fifo colls carrier compressed/
-        );
 
         my $values = {};
         for my $i ( 0..15 )
