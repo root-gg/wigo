@@ -30,7 +30,7 @@ my $conf = {
         'fan'  => '(\d+) RPM',                                          # 811 RPM
     },                                                                  #
     'metrics' => {                                                      # the key match the sensor's name
-        'Core \d+'  => { type => 'temp', 'warn' => 30, 'crit' => 55 },  # upper warn / crit threshold
+        'Core \d+'  => { type => 'temp', 'warn' => 80, 'crit' => 100 }, # upper warn / crit threshold
         'Vbat',     => { type => 'volt', 'low_warn' => 2.5 },           # lower warn / crit threshold
         'fan\d+',   => { type => 'fan',  'not_zero' => 1 },             # exclude zero values
         'temp\d+',  => { type => 'temp', 'positive' => 1 },             # exclude negative values
