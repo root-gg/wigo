@@ -403,6 +403,10 @@ func execProbe(probePath string, timeOut int) {
 			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
 
 			log.Printf(" - Probe %s in directory %s responded with status : %d\n", probeResult.Name, probeDirectory, probeResult.Status)
+
+			if probeResult.Status > 100 {
+				log.Printf(" 	--> %s\n", probeResult.Message)
+			}
 			return
 		}
 
