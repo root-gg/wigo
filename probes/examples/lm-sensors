@@ -37,11 +37,10 @@ my $conf = {
 };
 
 init( config => $conf );
-Wigo::Probe::save_config("lm-sensors.conf");
 
 unless ( config->{'metrics'} and ref config->{'metrics'} eq 'HASH' and scalar keys %{config->{'metrics'}} )
 {
-    message "Nothing to monitor";
+    message 'Nothing to monitor';
     output  13;
 }
 
@@ -61,12 +60,20 @@ if( ! -x $sensors )
 # GET STATUS LIST
 ###
 
-my $output = `$sensors`;
+my $output = `$sensors 2>&1`;
 if ( $? )
 {
-	status 500;
-    message "Error while getting sensor values";
-    output 1;
+    if ( $output =~ /No sensors found/ )
+    {
+        message 'No sensors found';
+        output 13;
+    }
+    else
+    {
+	    status 500;
+        message 'Error while getting sensor values';
+        output 1;
+    }
 }
 
 ###
@@ -103,7 +110,7 @@ for my $line ( split "\n", $output )
                     else
                     {
                         detail->{$type}->{$name} = $value;
-                        add_metric { 'Tags' => { 'sensor' => $name, 'type' => $type }, 'Value' => sprintf "%.2f", $rawvalue };
+                        add_metric { 'Tags' => { 'sensor' => $name, 'type' => $type }, 'Value' => sprintf '%.2f', $rawvalue };
 
                         if ( config->{'metrics'}->{$match}->{'crit'} and $rawvalue >= config->{'metrics'}->{$match}->{'crit'} )
                         {
@@ -135,30 +142,36 @@ for my $line ( split "\n", $output )
     }
 }
 
+if ( ! scalar @core and ! scalar keys %{detail()} )
+{
+    message 'Nothing to monitor';
+    output 13;
+}
+
 if ( scalar @core )
 {
     my $cpu_temp = max @core;
 
     if ( $cpu_temp )
     {
-        message sprintf "CPU : %.2f°C", $cpu_temp;
-        detail->{'temp'}->{'cpu'} = sprintf "+%.2f°C", $cpu_temp;
-        add_metric { 'Tags' => { 'sensor' => 'cpu', 'type' => 'temp' }, 'Value' => sprintf "%.2f", $cpu_temp };
+        message sprintf 'CPU : %.2f°C', $cpu_temp;
+        detail->{'temp'}->{'cpu'} = sprintf '+%.2f°C', $cpu_temp;
+        add_metric { 'Tags' => { 'sensor' => 'cpu', 'type' => 'temp' }, 'Value' => sprintf '%.2f', $cpu_temp };
 
         if ( config->{'metrics'}->{'Core \d+'}->{'crit'} and $cpu_temp >= config->{'metrics'}->{'Core \d+'}->{'crit'} )
         {
             raise 300;
-            push @messages, sprintf "CRITICAL CPU : +%.2f°C", $cpu_temp;
+            push @messages, sprintf 'CRITICAL CPU : +%.2f°C', $cpu_temp;
         }
 
         elsif ( config->{'metrics'}->{'Core \d+'}->{'warn'} and $cpu_temp >= config->{'metrics'}->{'Core \d+'}->{'warn'} )
         {
             raise 200;
-            push @messages, sprintf "WARNING CPU : +%.2f°C", $cpu_temp;
+            push @messages, sprintf 'WARNING CPU : +%.2f°C', $cpu_temp;
         }
     }
 }
 
-message join " , ", @messages if scalar @messages;
+message join ' , ' , @messages if scalar @messages;
 
 output 0;
