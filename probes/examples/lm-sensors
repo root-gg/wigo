@@ -52,9 +52,9 @@ unless ( config->{'metrics'} and ref config->{'metrics'} eq 'HASH' and scalar ke
 my $sensors = config->{'sensors'};
 if( ! -x $sensors )
 {
-#    status  500;
-#    message "sensors $sensors is not executable";
-#    output  13;
+    status  500;
+    message "sensors $sensors is not executable";
+    output  13;
 }
 
 ###
