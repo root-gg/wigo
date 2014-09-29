@@ -68,6 +68,8 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 			// It's a DOWN, check if new status is > to MinLevelToSend
 			this.Message 	= fmt.Sprintf("Wigo %s DOWN : %s", newWigo.GetHostname(), newWigo.GlobalMessage)
 			weSend 			= true
+		} else if newWigo.GlobalStatus != oldWigo.GlobalStatus {
+			this.Message 	= fmt.Sprintf("Wigo %s status changed from %d to %d", oldWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
 		}
 
 		if weSend {
