@@ -25,7 +25,7 @@ my $conf = {
 init( config => $conf );
 
 ###
-# FETCHING IO STATS
+# FETCH IO STATS
 ###
 
 my $now = time;
@@ -40,7 +40,7 @@ close IOSTATS;
 chomp @iostats;
 
 ###
-# FETCHING CPU STAT
+# FETCH CPU STAT
 ###
 
 if( ! open CPUSTATS, '<', '/proc/stat' )
@@ -64,12 +64,10 @@ my $ms = 1000 * sum(@total) / $nbcpu / $tick;
 ###
 
 my $new = {
-    'time' => $now,
     'ms'   => $ms,
 };
 
 persist or persist({});
-my $delta_time  = $now  - persist->{'time'} if persist->{'time'};
 my $delta_ms    = $ms   - persist->{'ms'}   if persist->{'ms'};
 
 ###
