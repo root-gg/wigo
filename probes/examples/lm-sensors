@@ -1,0 +1,178 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+use List::Util qw/max/;
+
+###
+# DEFAULT CONFIG
+###
+
+###
+# How to use :
+# 1 : install lm-sensors
+# 2 : run sensors-detect
+# 3 : add modules to /etc/modules
+# 4 : /etc/init.d/kmod start
+###
+
+my $conf = {
+    #'sensors' => '/usr/bin/sensors',                                   # lm-sensor binary
+    'sensors' => 'cat /tmp/s',
+    'types' => {                                                        # how to match / extract the value
+        'temp' => '([-\+]?\d+\.\d+)\xc2\xb0C',                          # +100.0°C
+        'volt' => '([-\+]?\d+.\d+) V',                                  # +3.28 V
+        'fan'  => '(\d+) RPM',                                          # 811 RPM
+    },                                                                  #
+    'metrics' => {                                                      # the key match the sensor's name
+        'Core \d+'  => { type => 'temp', 'warn' => 80, 'crit' => 100 }, # upper warn / crit threshold
+        'Vbat',     => { type => 'volt', 'low_warn' => 2.5 },           # lower warn / crit threshold
+        'fan\d+',   => { type => 'fan',  'not_zero' => 1 },             # exclude zero values
+        'temp\d+',  => { type => 'temp', 'positive' => 1 },             # exclude negative values
+    },
+};
+
+init( config => $conf );
+
+unless ( config->{'metrics'} and ref config->{'metrics'} eq 'HASH' and scalar keys %{config->{'metrics'}} )
+{
+    message 'Nothing to monitor';
+    output  13;
+}
+
+###
+# TEST LM-SENSORS EXISTANCE
+###
+
+my $sensors = config->{'sensors'};
+if( ! -x $sensors )
+{
+#    status  500;
+#    message "sensors $sensors is not executable";
+#    output  13;
+}
+
+###
+# GET STATUS LIST
+###
+
+my $output = `$sensors 2>&1`;
+if ( $? )
+{
+    if ( $output =~ /No sensors found/ )
+    {
+        message 'No sensors found';
+        output 13;
+    }
+    else
+    {
+	    status 500;
+        message 'Error while getting sensor values';
+        output 1;
+    }
+}
+
+###
+# PARSE STATUS LIST
+###
+
+my @core;
+my @messages;
+for my $line ( split "\n", $output )
+{
+	if ( my ($name,$str) = $line =~ /^(.*):\s+(.*)$/ )
+	{
+		next if ( ! grep { $name =~ /^$_$/ } keys %{config->{'metrics'}} );
+	    for my $match ( keys %{config->{'metrics'}} )
+	    {
+	        if ( $name =~ /^$match$/ )
+	        {
+	            my $type = config->{'metrics'}->{$match}->{'type'};
+	            last unless $type;
+                my $re = config->{'types'}->{$type};
+                last unless $re;
+
+                if ( my ($value,$rawvalue) = $str =~ /^($re).*$/ )
+                {
+                    last if $rawvalue !~ /[-\+]?\d+(\.\d+)?/;
+                    last if ( $rawvalue == 0 and config->{'metrics'}->{$match}->{'not_zero'} );
+                    last if ( $rawvalue <= 0 and config->{'metrics'}->{$match}->{'positive'} );
+
+                    if ( $name =~ /^Core \d+$/ )
+                    {
+                        # Let's get the max value for this one;
+                        push @core, $rawvalue;
+                    }
+                    else
+                    {
+                        detail->{$type}->{$name} = $value;
+                        add_metric { 'Tags' => { 'sensor' => $name, 'type' => $type }, 'Value' => sprintf '%.2f', $rawvalue };
+
+                        if ( config->{'metrics'}->{$match}->{'crit'} and $rawvalue >= config->{'metrics'}->{$match}->{'crit'} )
+                        {
+                            push @messages, "WARNING $name : $value";
+                            raise 300;
+                        }
+
+                        elsif ( config->{'metrics'}->{$match}->{'warn'} and $rawvalue >= config->{'metrics'}->{$match}->{'warn'} )
+                        {
+                            push @messages, "CRITICAL $name : $value";
+                            raise 200;
+                        }
+
+                        elsif ( config->{'metrics'}->{$match}->{'low_crit'} and $rawvalue <= config->{'metrics'}->{$match}->{'low_crit'} )
+                        {
+                            push @messages, "CRITICAL $name : $value";
+                            raise 300;
+                        }
+
+                        elsif ( config->{'metrics'}->{$match}->{'low_warn'} and $rawvalue <= config->{'metrics'}->{$match}->{'low_warn'} )
+                        {
+                            push @messages, "WARNING $name : $value";
+                            raise 200;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+if ( ! scalar @core and ! scalar keys %{detail()} )
+{
+    message 'Nothing to monitor';
+    output 13;
+}
+
+if ( scalar @core )
+{
+    my $cpu_temp = max @core;
+
+    if ( $cpu_temp )
+    {
+        message sprintf 'CPU : %.2f°C', $cpu_temp;
+        detail->{'temp'}->{'cpu'} = sprintf '+%.2f°C', $cpu_temp;
+        add_metric { 'Tags' => { 'sensor' => 'cpu', 'type' => 'temp' }, 'Value' => sprintf '%.2f', $cpu_temp };
+
+        if ( config->{'metrics'}->{'Core \d+'}->{'crit'} and $cpu_temp >= config->{'metrics'}->{'Core \d+'}->{'crit'} )
+        {
+            raise 300;
+            push @messages, sprintf 'CRITICAL CPU : +%.2f°C', $cpu_temp;
+        }
+
+        elsif ( config->{'metrics'}->{'Core \d+'}->{'warn'} and $cpu_temp >= config->{'metrics'}->{'Core \d+'}->{'warn'} )
+        {
+            raise 200;
+            push @messages, sprintf 'WARNING CPU : +%.2f°C', $cpu_temp;
+        }
+    }
+}
+
+message join ' , ' , @messages if scalar @messages;
+
+output 0;

@@ -14,78 +14,89 @@ if ( ! `which apt-get` )
     exit 13;
 }
 
+my $now = time;
+my $new = {
+    'last_update' => $now,
+};
+
+persist or persist({});
+my $delta_update = $now - persist->{'last_update'} if persist->{'last_update'};
+
 ###
 # Update
 ###
 
-my $errorOnUpdate;
-my $fnret = `LANGUAGE=C apt-get update 2>&1`;
-if ( $? == 0)
+if ( !$delta_update or $delta_update > 30 * 60 )
 {
-    chomp($fnret);
-
-    foreach my $line ( split "\n" , $fnret )
+    my $errorOnUpdate;
+    my $fnret = `LANGUAGE=C apt-get update 2>&1`;
+    if ( $? == 0)
     {
-        if ( $line =~ /^E:\s(.*)/ )
+        chomp($fnret);
+
+        foreach my $line ( split "\n" , $fnret )
         {
-            $errorOnUpdate = 1;
-            push @{ detail->{'Apt-Get-Update'}->{'Errors'} } , $1;
+            if ( $line =~ /^E:\s(.*)/ )
+            {
+                $errorOnUpdate = 1;
+                push @{ detail->{'Apt-Get-Update'}->{'Errors'} } , $1;
+            }
+            elsif ( $line =~ /^W:\s(.*)/ )
+            {
+                $errorOnUpdate = 1;
+                push @{ detail->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
+            }
         }
-        elsif ( $line =~ /^W:\s(.*)/ )
+
+        ###
+        # Upgrade
+        # Even if update fail, we want to test if there is no package to update anyway
+        ###
+
+        my $packagesToUpdate = {};
+        $fnret = `LANGUAGE=C apt-get upgrade -s 2>&1`;
+        chomp $fnret;
+
+        my $update = 0;
+        my $securityUpdate = 0;
+        foreach my $line ( split "\n" , $fnret )
         {
-            $errorOnUpdate = 1;
-            push @{ detail->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
+            if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)\s+\[(\S+)\]/ )
+            {
+                detail->{'Apt-Get-Upgrade'}->{$repo} ||= [];
+                push @{detail->{'Apt-Get-Upgrade'}->{$repo}}, $name;
+                $update++;
+                $securityUpdate++ if $repo =~ /security/i;
+            }
         }
-    }
 
-    ###
-    # Upgrade
-    # Even if update fail, we want to test if there is no package to update anyway
-    ###
-
-    my $packagesToUpdate = {};
-    $fnret = `LANGUAGE=C apt-get upgrade -s 2>&1`;
-    chomp $fnret;
-
-    my $update = 0;
-    my $securityUpdate = 0;
-    foreach my $line ( split "\n" , $fnret )
-    {
-        if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)\s+\[(\S+)\]/ )
+        message "No security packages availables";
+        if ( $errorOnUpdate )
         {
-            detail->{'Apt-Get-Upgrade'}->{$repo} ||= [];
-            push @{detail->{'Apt-Get-Upgrade'}->{$repo}}, $name;
-            $update++;
-            $securityUpdate++ if $repo =~ /security/i;
+            raise   200;
+            message "An error happened when doing apt-get update. ";
         }
-    }
 
-    message "No security packages availables";
-    if ( $errorOnUpdate )
+        if ( $update )
+        {
+            raise 101;
+            message "There is $update packages to update. ";
+        }
+
+        if( $securityUpdate )
+        {
+            raise 300 + ( $securityUpdate < 200 ? $securityUpdate : 199 );
+            message "There is $securityUpdate security updates to do. ";
+        }
+
+        add_metric { 'Tags' => { 'metric' => 'to_update' },             'Value' => $update };
+        add_metric { 'Tags' => { 'metric' => 'to_update_security' },    'Value' => $securityUpdate };
+    }
+    else
     {
-        raise   200;
-        message "An error happened when doing apt-get update. ";
+        status 500;
+        message "unable to get update list";
     }
-
-    if ( $update )
-    {
-        raise 101;
-        message "There is $update packages to update. ";
-    }
-
-    if( $securityUpdate )
-    {
-        raise 300 + ( $securityUpdate < 200 ? $securityUpdate : 199 );
-        message "There is $securityUpdate security updates to do. ";
-    }
-
-    add_metric { 'Tags' => { 'metric' => 'to_update' },             'Value' => $update };
-    add_metric { 'Tags' => { 'metric' => 'to_update_security' },    'Value' => $securityUpdate };
-}
-else
-{
-    status 500;
-    message "unable to get update list";
 }
 
 my $packagesInstalled = `dpkg -l | wc -l`;
@@ -95,4 +106,5 @@ if ( $? == 0 )
     add_metric { 'Tags' => { 'metric' => 'installed' },         'Value' => $packagesInstalled };
 }
 
+persist $new;
 output 0;
