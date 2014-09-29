@@ -5,7 +5,7 @@ use warnings;
 
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use Wigo::Probe;
+use Wigo::Probe qw/:all/;
 
 ###
 # DEFAULT CONFIG
@@ -19,16 +19,16 @@ my $conf = {
         'User Capacity',
         'Sector Size'
     ],
-    'attributes' => {
-        "Raw_Read_Error_Rate"       => {},
-        "Reallocated_Sector_Ct"     => {},
-        "Seek_Error_Rate"           => {},
-        "Power_On_Hours"            => {},
-        "Spin_Retry_Count"          => {},
-        "Temperature_Celsius"       => { "warn" => 50, "crit" => 60 },
-        "Current_Pending_Sector"    => {},
-        "Offline_Uncorrectable"     => {},
-    }
+    'attributes' => [
+        'Raw_Read_Error_Rate',
+        'Reallocated_Sector_Ct',
+        'Seek_Error_Rate',
+        'Power_On_Hours',
+        'Spin_Retry_Count',
+        'Temperature_Celsius',
+        'Current_Pending_Sector',
+        'Offline_Uncorrectable',
+    ]
 };
 
 init( config => $conf );
@@ -71,6 +71,7 @@ foreach my $line ( @part_list )
 # SMART TESTS
 ###
 
+my @messages;
 foreach my $disk ( @disks )
 {
     my $smartctl = config->{'smartctl'};
@@ -78,43 +79,39 @@ foreach my $disk ( @disks )
 
     foreach my $line ( @smart )
     {
-        foreach my $info ( @{config->{'infos'}} )
+        if ( config->{'infos'} and ref config->{'infos'} eq 'ARRAY' )
         {
-            if ( $line =~ /^$info:\s+(.*)$/ )
+            foreach my $info ( @{config->{'infos'}} )
             {
-                detail->{$disk}->{$info} = $1;
+                if ( $line =~ /^$info:\s+(.*)$/ )
+                {
+                    detail->{$disk}->{$info} = $1;
+                }
             }
         }
 
-        foreach my $attr ( keys %{config->{'attributes'}} )
+        if ( config->{'attributes'} and ref config->{'attributes'} eq 'ARRAY' )
         {
-            if ( $line =~ /.*$attr\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/ )
+            foreach my $attr ( @{config->{'attributes'}} )
             {
-                add_metric { 'Tags' => { 'disk' => $disk, 'attribute' => $attr }, 'Value' => $1 };
-         
-                if ( config->{'attributes'}->{$attr}->{'warn'} and $1 > config->{'attributes'}->{$attr}->{'warn'} )
+                if ( $line =~ /.*$attr\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/ )
                 {
-                    raise 200;
-                }
-             
-                if ( config->{'attributes'}->{$attr}->{'warn'} and $1 > config->{'attributes'}->{$attr}->{'crit'} )
-                {
-                    raise 300;
+                    add_metric { 'Tags' => { 'disk' => $disk, 'attribute' => $attr }, 'Value' => $1 };
                 }
             }
         }
 
         if ( $line =~ /self-assessment test result: (\w+)/ )
         {
-	        result->{'Message'} .= "/dev/$disk : $1 ";
+	        push @messages, "/dev/$disk : $1";
             detail->{$disk}{'self-assessment test'} = $1;
             if ( $1 ne 'PASSED')
             {
-                status 350;
+                status 300;
             }
         }
     }
 }
 
+message join( " , " , @messages ) if scalar @messages;
 output 0;
-

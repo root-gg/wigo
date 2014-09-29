@@ -9,7 +9,8 @@ use File::Basename;
 
 require Exporter;
 our @ISA = qw/Exporter/;
-our @EXPORT = qw/init config args result version status value message metrics add_metric detail raise persist output debug/;
+our @EXPORT_OK = qw/init config args result version status value message metrics add_metric detail raise persist output debug/;
+our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
 ###
 # VARS

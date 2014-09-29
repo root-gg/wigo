@@ -5,7 +5,7 @@ use warnings;
 
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use Wigo::Probe;
+use Wigo::Probe qw/:all/;
 
 ###
 # DEFAULT CONFIG
@@ -44,27 +44,21 @@ if ( $? )
 # PARSE STATUS LIST
 ###
 
+my @messages;
 my $count = 0;
 for my $line ( split "\n", $statuslist )
 {
 	if ( my ($process,$status,$detail) = $line =~ /^(\S+)\s+(\w+)\s+(.*)$/ )
 	{
-		if ( defined config->{'include'} and ! grep { $process =~ /^$_$/ } @{config->{'include'}} )
-		{
-			next;
-		}
-		
-		if ( defined config->{'exclude'} and grep { $process =~ /^$_$/ } @{config->{'exclude'}} )
-		{
-			next;
-		}
+		next if ( defined config->{'include'} and ! grep { $process =~ /^$_$/ } @{config->{'include'}} );
+		next if ( defined config->{'exclude'} and grep { $process =~ /^$_$/ } @{config->{'exclude'}} );
 
 		detail->{$process} = { 'status' => $status, 'detail' => $detail };
 	
 		if ( $status ne 'RUNNING' )
 		{
 			raise 300;
-			result->{'Message'} .= "$process is $status ";
+			push @messages, "$process is $status";
 		}
 		else
 		{
@@ -73,13 +67,14 @@ for my $line ( split "\n", $statuslist )
 	}
 }
 
-if ( status == 100 )
+if ( scalar @messages )
 {
-	message "All $count processuses are RUNNING";
+	message join(" , ", @messages);
+	result->{'message'} .= " , $count other processus are RUNNING" if $count;
 }
 else
 {
-	$count and result->{'Message'} .= ", $count other processus are RUNNING";
+    message "All $count processuses are RUNNING";
 }
 
 output 0;

@@ -5,7 +5,7 @@ use warnings;
 
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use Wigo::Probe;
+use Wigo::Probe qw/:all/;
 
 use IO::Socket::INET;
 
@@ -45,7 +45,7 @@ init( config => $conf );
 
 if ( ! scalar @{config->{'instances'}} )
 {
-    message "no instance to monitor";
+    message "Nothing to monitor";
     exit 13;
 }
 
@@ -53,6 +53,7 @@ if ( ! scalar @{config->{'instances'}} )
 # GET STATUS
 ###
 
+my @messages;
 for my $instance ( @{config->{'instances'}} )
 {
     my $socket;
@@ -72,7 +73,7 @@ for my $instance ( @{config->{'instances'}} )
     {
         chomp $@;
         raise 300;
-        message "$instance : $@ ";
+        push @messages, "$instance : $@";
         next;
     }
     
@@ -91,11 +92,11 @@ for my $instance ( @{config->{'instances'}} )
     {
         chomp $@;
         raise 300;
-        result->{'Message'} .= "$instance : $@ ";
+        push @messages, "$instance : $@";
         next;
     }
 
-    result->{'Message'} .= "$instance : $response ";
+    push @messages, "$instance : $response";
 
     if ( $response !~ /^imok/ )
     {
@@ -120,7 +121,7 @@ for my $instance ( @{config->{'instances'}} )
     {
         chomp $@;
         raise 300;
-        result->{'Message'} .= " $@ ";
+        push @messages, "$@";
         next;
     } 
 
@@ -138,7 +139,7 @@ for my $instance ( @{config->{'instances'}} )
     {
         chomp $@;
         raise 300;
-        result->{'Message'} .= "$instance : $@ ";
+        push @messages, "$instance : $@";
         next;
     }
   
@@ -160,5 +161,7 @@ for my $instance ( @{config->{'instances'}} )
         }
     }
 }
+
+message join( " , " , @messages ) if scalar @messages;
 
 output 0;
