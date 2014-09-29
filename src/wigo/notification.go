@@ -54,6 +54,7 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	this.Type = "Wigo"
 	this.OldWigo = oldWigo
 	this.NewWigo = newWigo
+    this.Message = ""
 
 	// Send ?
 	if GetLocalWigo().GetConfig().Notifications.OnWigoChange {
