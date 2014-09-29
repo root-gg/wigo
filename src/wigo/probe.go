@@ -139,7 +139,8 @@ func (this *ProbeResult) Summary() string {
 	}
 
 	// Message
-	summary += " Message 	: " + this.Message 	+ "\n\n"
+	summary += " Message 		: " + this.Message 	+ "\n"
+	summary += " Last execution	: " + this.ProbeDate + "\n\n"
 
 	// Detail
 	if this.Detail != nil {
