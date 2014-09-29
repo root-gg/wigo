@@ -388,7 +388,7 @@ func (this *Wigo) GenerateSummary(showOnlyErrors bool) (summary string) {
 		summary += "\n"
 	}
 
-	if this.GlobalStatus > 100 && len(this.RemoteWigos) > 0 {
+	if this.GlobalStatus >= 200 && len(this.RemoteWigos) > 0 {
 		summary += "Remote Wigos : \n\n"
 	}
 
@@ -404,7 +404,7 @@ func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, ver
 
 	for remoteWigo := range this.RemoteWigos {
 
-		if showOnlyErrors && this.RemoteWigos[remoteWigo].GlobalStatus == 100 {
+		if showOnlyErrors && this.RemoteWigos[remoteWigo].GlobalStatus < 200 {
 			continue
 		}
 
