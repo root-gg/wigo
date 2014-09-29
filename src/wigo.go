@@ -456,11 +456,11 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 
 		for i := 1; i <= tries; i++ {
 			resp, err = client.Get("http://" + host)
-			defer resp.Body.Close()
 			if err != nil {
 				time.Sleep(time.Second)
 			} else {
 				body, _ = ioutil.ReadAll(resp.Body)
+                resp.Body.Close()
 				break
 			}
 		}
