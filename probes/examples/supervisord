@@ -36,7 +36,6 @@ if ( $? )
 {
 	status 500;
     message "Error while getting status list";
-	detail $statuslist;
     output 1;
 }
 
