@@ -25,20 +25,33 @@ init( config => $conf );
 
 my %h;
 my $c1 = time;
-# Net::NTP has no timeout.
-eval
-{
-    local $SIG{"ALRM"} = sub { die "ntp timeout\n"; };
-    alarm 5 ;
-    %h = get_ntp_response( config->{'ntp_server'}, config->{'port'} );
-    alarm 0 ;
-};
 
-if( $@ )
+for( my $try = 1; $try <= 3; $try++ )
 {
-    status 500;
-    message sprintf( "NTP server %s:%s is unreachable : %s", config->{'ntp_server'}, config->{'port'} || 123 ,  $@ );
-    output 1;
+    # Net::NTP has no timeout.
+    eval
+    {
+        local $SIG{"ALRM"} = sub { die "ntp timeout\n"; };
+        alarm 5 ;
+        %h = get_ntp_response( config->{'ntp_server'}, config->{'port'} );
+        alarm 0 ;
+    };
+
+    if( $@ )
+    {
+        if( $try == 3 )
+        {
+            status 500;
+            detail->{'nbTries'} = $try;
+            message sprintf( "NTP server %s:%s is unreachable : %s", config->{'ntp_server'}, config->{'port'} || 123 ,  $@ );
+            output 1;
+        }
+    }
+    else
+    {
+        detail->{'nbTries'} = $try;
+        last;
+    }
 }
 
 my $c2 = time;
@@ -75,6 +88,7 @@ else
 
 detail->{'drift'}           = $delta . " seconds";
 detail->{'response_time'}   = $responseTime . " ms";
+detail->{'ntp_server'}      = config->{'ntp_server'};
 
 add_metric { "Tags" => { 'metric' => 'drift' }, 'Value' => $delta };
 add_metric { "Tags" => { 'metric' => 'response_time' }, 'Value' => $responseTime };
