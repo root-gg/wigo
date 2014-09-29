@@ -39,11 +39,11 @@ my $mdFaultydevices = 0;
 my $currentdevice;
 foreach my $line ( @mdstat )
 {
-	if ( $line =~ /^(md\d+)\s:\s(\w+)\s(\w+)\s(.*)/ )
-	{
-		$currentdevice = $1;
-		detail->{ $currentdevice }->{'State'}  = $2;
-		detail->{ $currentdevice }->{'Type'}   = $3;
+    if ( $line =~ /^(md\d+)\s:\s(\w+)\s(\w+)\s(.*)/ )
+    {
+        $currentdevice = $1;
+        detail->{ $currentdevice }->{'State'}  = $2;
+        detail->{ $currentdevice }->{'Type'}   = $3;
 
         my @devices = split " ", $4;
         foreach my $device ( @devices )
@@ -67,33 +67,43 @@ foreach my $line ( @mdstat )
                 }
             } 
         }
-	}
-	elsif ( $line =~ /(resync|recovery)\s+=\s+([\d\.]+\%).*finish\=([\d+\.]+\w+).*speed\=(\d+.*)/ )
-	{
-		$mdFaultydevices++;
+    }
+    elsif ( $line =~ /(resync|recovery)\s+=\s+([\d\.]+\%).*finish\=([\d+\.]+\w+).*speed\=(\d+.*)/ )
+    {
+        $mdFaultydevices++;
 
-		raise 300;
+        raise 300;
 
-		detail->{ $currentdevice }->{'ResyncPercentage'} 	= $2;
-	    detail->{ $currentdevice }->{'ResyncFinishIn'}	    = $3;
-		detail->{ $currentdevice }->{'ResyncSpeed'}	        = $4;
+        detail->{ $currentdevice }->{'ResyncPercentage'}    = $2;
+        detail->{ $currentdevice }->{'ResyncFinishIn'}      = $3;
+        detail->{ $currentdevice }->{'ResyncSpeed'}         = $4;
 
         if ( $1 eq 'recovery' )
         {
             detail->{ $currentdevice }->{'State'} = 'recovery';
-		    result->{'Message'} .= $currentdevice . " is recovering ( $2 ).";
+            result->{'Message'} .= $currentdevice . " is recovering ( $2 ). ";
         }
         else
         {
             detail->{ $currentdevice }->{'State'} = 'resync';
-            result->{'Message'} .= $currentdevice . " is resyncing ( $2 ).";
+            result->{'Message'} .= $currentdevice . " is resyncing ( $2 ). ";
         }
-	}
+    }
+    elsif ( $line =~ /\[([U_]+)\]/ )
+    {
+        my @countFaultyDevices = ($1 =~ /_/g);
+        if( scalar(@countFaultyDevices) )
+        {
+            $mdFaultydevices++;
+            raise 300 + scalar(@countFaultyDevices);
+            result->{'Message'} .= "Critical : " . scalar(@countFaultyDevices) . " faulty devices on array $currentdevice. ";
+        }
+    }
 }
 
 if ( $mdFaultydevices == 0 )
 {
-	message "All arrays ( ". join( " ", keys %{detail()} ). " ) are OK";
+    message "All arrays ( ". join( " ", keys %{detail()} ). " ) are OK";
 }
 
 output 0;
