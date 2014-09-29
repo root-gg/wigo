@@ -55,9 +55,6 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	this.OldWigo = oldWigo
 	this.NewWigo = newWigo
 
-	// Log
-	log.Printf("New Wigo Notification : %s", this.Message)
-
 	// Send ?
 	if GetLocalWigo().GetConfig().Notifications.OnWigoChange {
 		weSend := false
@@ -76,6 +73,9 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 			Channels.ChanCallbacks <- this
 		}
 	}
+
+	// Log
+	log.Printf("New Wigo Notification : %s", this.Message)
 
 	return
 }
