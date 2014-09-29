@@ -14,13 +14,8 @@ use Time::HiRes qw/time/;
 ###
 
 my $conf = {
-    'match'         => 'eth\d+|em\d+_\d+/\d+|em\d+_\d+|em\d+|p\d+p\d+_\d+/\d+|p\d+p\d+_\d+|p\d+p\d+|tap\d+',
-    'fields'        => {
-        'bytes'         => { },
-        'packets'       => { },
-        'errs'          => { 'warn' => 1 },
-        'drop'          => { 'warn' => 1 },
-    }
+    'match'    => 'tap\d+|eth\d+|em\d+_\d+/\d+|em\d+_\d+|em\d+|p\d+p\d+_\d+/\d+|p\d+p\d+_\d+|p\d+p\d+|tap\d+',
+    'fields'   => [ 'bytes', 'packets', 'errs', 'drop' ], # undef means all
 };
 
 init( config => $conf );
@@ -45,16 +40,18 @@ close IFSTATS;
 ###
 
 my $new = {
-    'last_time' => $now,
+    'time' => $now,
 };
 
 persist or persist({});
+my $delta_time = $now - persist->{'time'} if persist->{'time'};
 
 my @fields = (
     qw/bytes packets errs drop fifo frame compressed multicast/,
     qw/bytes packets errs drop fifo colls carrier compressed/
 );
 
+my $values = {};
 my @metrics;
 foreach my $line ( @lines )
 {
@@ -64,40 +61,64 @@ foreach my $line ( @lines )
         my @stats = split /\s+/, $2;
         shift @stats;
 
-        my $values = {};
         for my $i ( 0..15 )
         {
+            next if ( config->{'fields'} and ! grep { $fields[$i] eq $_ } @{config->{'fields'}} );
+            
             my $direction = $i < 8 ? 'in' : 'out';
             
-            $new->{$iface}->{$direction}->{$fields[$i]} = $stats[$i];
-
-            next unless grep { $fields[$i] eq $_ } keys %{config->{'fields'}};
-            add_metric { 'Tags' => { 'iface' => $iface, 'direction' => $direction,  'field' => $fields[$i] }, 'Value' => $stats[$i] };
+            $new->{$iface}->{$i} = $stats[$i];
+            my $last = persist->{$iface};
             
-            next unless defined persist->{$iface}->{$direction}->{$fields[$i]};
-            my $value = ( $stats[$i] - persist->{$iface}->{$direction}->{$fields[$i]} ) / ( $now - ( persist->{'last_time'} || 0 ) );
-            $values->{$direction}->{$fields[$i]} = $value;
+            next unless $delta_time and $last;
+            my $delta = ( $stats[$i] - $last->{$i} ) / $delta_time;
 
-            if ( config->{'fields'}->{$fields[$i]}->{'warn'} and $value > config->{'fields'}->{$fields[$i]}->{'warn'} )
+            # counter reset
+            next if $delta < 0;
+
+            if ( $fields[$i] eq "bytes" )
             {
-                raise 200;
+                $delta = $delta * 8;
+                $values->{$iface}->{$direction}->{'bytes'} = $delta;
+                detail->{$iface}->{$direction}->{$fields[$i]} = sprintf "%.3f Mbps", $delta / 1024 / 1024;
+            }
+            else
+            {
+                detail->{$iface}->{$direction}->{$fields[$i]} = sprintf "%.3f/s", $delta;
             }
 
-            if ( config->{'fields'}->{$fields[$i]}->{'crit'} and $value > config->{'fields'}->{$fields[$i]}->{'crit'} )
-            {
-                raise 300;
-            }
+            add_metric { 'Tags' => { 'iface' => $iface, 'direction' => $direction,  'metric' => $fields[$i] }, 'Value' => $delta };
         }
-
-        if ( defined $values->{'in'}->{'bytes'} and defined $values->{'out'}->{'bytes'} )
-        {
-            result->{'Message'} .= sprintf ( 
-                "%s %.2f/%.2f mbps , ", 
-                ( $iface, $values->{'in'}->{'bytes'} * 8 / 1024 / 1024 , $values->{'out'}->{'bytes'} * 8 / 1024 / 1024 )
-            );
-        } 
     }
 }
+
+###
+# GENERATE MESSAGE STRING
+###
+
+sub sort_iface
+{
+    my $total_a = 0;
+    my $total_b = 0;
+
+    $total_a += $values->{$a}->{'in'}->{'bytes'} if $values->{$a}->{'in'}->{'bytes'};
+    $total_a += $values->{$a}->{'out'}->{'bytes'} if $values->{$a}->{'out'}->{'bytes'};
+
+    $total_b += $values->{$b}->{'in'}->{'bytes'} if $values->{$b}->{'in'}->{'bytes'};
+    $total_b += $values->{$b}->{'out'}->{'bytes'} if $values->{$b}->{'out'}->{'bytes'};
+
+    return $total_b <=> $total_a;
+}
+my @sorted =  sort { sort_iface } keys %$values;
+
+my @messages;
+for my $iface ( splice(@sorted,0,2) )
+{
+    my $in  = $values->{$iface}->{'in'}->{'bytes'} / 1024 / 1024;
+    my $out = $values->{$iface}->{'out'}->{'bytes'} / 1024 / 1024;
+    push @messages, sprintf "%s : in %.2fMbps out %.2fMbps", ( $iface, $in, $out );
+}
+message join " , ", @messages if scalar @messages;
 
 persist $new;
 output 0;
