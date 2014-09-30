@@ -1,0 +1,139 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+use IO::Socket;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = { 
+    'redisToCheck'          => [
+        "127.0.0.1:6379",
+    ],
+    'include'               => [
+        "used_memory",
+        "mem_fragmentation_ratio",
+        "total_connections_received",
+        "total_commands_processed",
+        "pubsub_channels",
+        "connected_clients",
+    ],
+    'exclude'               => undef,
+};
+
+init( config => $conf );
+
+Wigo::Probe::save_config("redis.conf");
+
+if ( ! config->{'redisToCheck'} or ref(config->{'redisToCheck'}) ne 'ARRAY' or scalar @{ config->{'redisToCheck'} } == 0 )
+{
+    message "no instance to monitor";
+    exit 13;
+}
+
+# Checks
+my $down = 0;
+my @messages;
+foreach my $Redis ( @{config->{'redisToCheck'}} )
+{
+    my $buf;
+    my ($Ip,$Port)  = split(":",$Redis);
+    if(!$Port)
+    {
+        $Port = 6379;
+    }
+
+    my $Sock = IO::Socket::INET->new(
+        PeerAddr  => $Ip,
+        PeerPort  => $Port,
+        Proto     => 'tcp'
+    );
+    if(!$Sock)
+    {
+        $down++;
+        detail->{ $Redis }->{'Status'}    = "NOK";
+        detail->{ $Redis }->{'Message'}   = $!;
+        push @messages, "Instance $Redis not ok : $!";
+        next;
+    }
+
+    # Send command
+    $Sock->send("INFO\r\n");
+
+    # Read response
+    eval
+    {
+        local $SIG{ALRM} = sub { die "alarm\n" };
+        alarm 1;
+        $Sock->recv( $buf , 10000 );
+        $Sock->close();
+        alarm 0;
+    };
+
+    if ($@)
+    {
+        die unless $@ eq "alarm\n";
+        $down++;
+        detail->{ $Redis }->{'Status'} = "Timeouted";
+        push @messages, "Instance $Redis not ok : connection timeout";
+        next;
+    }
+    else
+    {
+        detail->{ $Redis }->{'Status'} = "OK";
+    }
+
+    
+    # Parse
+    foreach my $line ( split("\n", $buf) )
+    {
+        if( my ( $metric, $value ) = $line =~ /^([^\:]+)\:([^\:\r]+)/ )
+        {
+            if( $metric eq 'redis_version' )
+            {
+                detail->{ $Redis }->{'Version'} = $value;
+                next;
+            }
+
+            if( $metric eq 'used_memory' )
+            {
+                 detail->{ $Redis }->{'Memory'} = sprintf "%.2f MB" , $value / 1024 / 1024;
+                 next;
+            }
+
+            next if ( defined config->{'include'} and ! grep { $metric =~ /^$_$/ } @{config->{'include'}} );
+            next if ( defined config->{'exclude'} and grep { $metric =~ /^$_$/ } @{config->{'exclude'}} );
+
+            add_metric { 'Tags' => { 'instance' => $Redis, 'metric' => $metric }, 'Value' => $value };
+        }
+
+        elsif( $line =~ /^(db\d+):keys=(\d+),expires=(\d+)/ )
+        {
+            my $keys    = $2;
+            my $expires = $3;
+
+            add_metric { 'Tags' => { 'instance' => $Redis, 'db' => $1, 'metric' => 'keys' }, 'Value' => $keys };
+            add_metric { 'Tags' => { 'instance' => $Redis, 'db' => $1, 'metric' => 'expires' }, 'Value' => $expires };
+            next;
+        }
+    }
+}
+
+if ( $down )
+{
+    raise 300 + $down;
+    message join ' , ' , @messages;
+}
+else
+{
+    raise 100;
+    message "All redis instances are running";
+}
+
+output 0;

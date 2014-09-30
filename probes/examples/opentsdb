@@ -1,0 +1,143 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+use Time::HiRes qw/time/;
+
+use LWP::UserAgent;
+my $UA = LWP::UserAgent->new;
+$UA->timeout(5);
+
+use JSON::XS;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'tsds' => {                             #
+        'test' => {                         # tsd instance name
+            host => '127.0.0.1:4242',       #
+            'stats' => 1,                   # collect metrics
+            #'put' => 1,                    # do a put / get test
+            #'version' => 1                 # use the v1 http api
+        }
+    },
+    #'include' => [ 'tsd.hbase.*' ],        # include metrics
+    #'exclude' => [ '.*latency.*' ],        # exclude metrics
+};
+
+init( config => $conf );
+
+if ( ! scalar ( keys %{config->{'tsds'}} ) )
+{
+    message "No tsd instance to monitor";
+    output 13;
+}
+
+my @messages;
+for my $name ( keys %{ config->{'tsds'} } )
+{
+    my $tsd = config->{'tsds'}->{$name};
+
+    if ( defined $tsd->{'version'} and $tsd->{'version'} == 1 )
+    {
+        # TODO
+    }
+    else
+    {
+        my $response = $UA->get( "http://$tsd->{'host'}/api/version" );
+
+        detail->{$name}->{'host'} = $tsd->{'host'};
+
+        detail->{$name}->{'status'} = "UP";
+        if ( $response->is_success )
+        {
+            my $data;
+            eval
+            {
+                $data = decode_json($response->decoded_content);
+            };
+
+            if ( $@ or !$data or ! ref $data eq 'HASH' )
+            {
+                raise 300;
+                push @messages, "$name ERROR";
+                detail->{$name}->{'status'} = "Can't decode json response : $@";
+                next;
+            }
+
+            detail->{$name}->{'version'} = $data->{'version'};
+        }
+        else
+        {
+            raise 300;
+            push @messages, "$name DOWN";
+            detail->{$name}->{'status'} = $response->status_line;
+            next;
+        }
+
+        if ( $tsd->{'stats'} )
+        {
+            my $response = $UA->get( "http://$tsd->{'host'}/api/stats" );
+
+            detail->{$name}->{'host'} = $tsd->{'host'};
+
+            detail->{$name}->{'status'} = "UP";
+            if ( $response->is_success )
+            {
+                my $data;
+                eval
+                {
+                    $data = decode_json($response->decoded_content);
+                };
+
+                if ( $@ or !$data or ref $data ne 'ARRAY' )
+                {
+                    raise 300;
+                    push @messages, "$name ERROR";
+                    detail->{$name}->{'status'} = "Can't decode json response : $@";
+                    next;
+                }
+
+                for my $value ( @$data )
+                {
+                    next if ( defined config->{'include'} and ! grep { $value->{'metric'} =~ /^$_$/ } @{config->{'include'}} );
+                    next if ( defined config->{'exclude'} and grep { $value->{'metric'} =~ /^$_$/ } @{config->{'exclude'}} );
+
+                    delete $value->{'tags'}->{'host'};
+                    $value->{'tags'}->{'metric'} = $value->{'metric'};
+                    add_metric { 'Tags' => $value->{'tags'} , 'Value' => $value->{'value'} };
+                }
+            }
+            else
+            {
+                raise 300;
+                push @messages, "$name DOWN";
+                detail->{$name}->{'status'} = $response->status_line;
+                next;
+            }
+        }
+
+        if ( $tsd->{'put'} )
+        {
+            # TODO
+        }
+    }
+}
+
+if ( scalar @messages )
+{
+    message join ' , ' , @messages;
+}
+else
+{
+    message scalar( keys( %{ config->{'tsds'} } ) ) . " tsd instance running";
+}
+
+output 0;
