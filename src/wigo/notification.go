@@ -107,9 +107,14 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 	} else if oldProbe != nil && newProbe != nil {
 		if newProbe.Status != oldProbe.Status {
 			this.Hostname = newProbe.GetHost().Name
-			this.Message  = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, oldProbe.GetHost().GetParentWigo().GetHostname())
 
-			this.Summary += fmt.Sprintf("Probe %s on host %s : \n\n", oldProbe.Name, oldProbe.GetHost().GetParentWigo().GetHostname())
+			if oldProbe.GetHost() != nil && oldProbe.GetHost().GetParentWigo() != nil {
+				this.Hostname = oldProbe.GetHost().GetParentWigo().GetHostname()
+			}
+
+			this.Message  = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, this.Hostname)
+
+			this.Summary += fmt.Sprintf("Probe %s on host %s : \n\n", oldProbe.Name, this.Hostname)
 			this.Summary += fmt.Sprintf("\tOld Status : %d\n", oldProbe.Status)
 			this.Summary += fmt.Sprintf("\tNew Status : %d\n\n", newProbe.Status)
 			this.Summary += fmt.Sprintf("Message :\n\n\t%s\n\n", newProbe.Message)
