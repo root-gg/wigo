@@ -26,7 +26,7 @@ init( config => $conf );
 my %h;
 my $c1 = time;
 
-persist or persist->{'countFailed'} = 0;
+persist or persist({ 'countFailed' => 0 });
 
 for( my $try = 1; $try <= 3; $try++ )
 {
@@ -61,6 +61,7 @@ for( my $try = 1; $try <= 3; $try++ )
     }
     else
     {
+        persist->{'countFailed'} = 0;
         detail->{'nbTries'} = $try;
         last;
     }
