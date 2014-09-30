@@ -26,6 +26,8 @@ init( config => $conf );
 my %h;
 my $c1 = time;
 
+persist or persist->{'countFailed'} = 0;
+
 for( my $try = 1; $try <= 3; $try++ )
 {
     # Net::NTP has no timeout.
@@ -41,7 +43,17 @@ for( my $try = 1; $try <= 3; $try++ )
     {
         if( $try == 3 )
         {
-            status 500;
+            persist->{'countFailed'}++;
+
+            if( persist->{'countFailed'} >= 3 )
+            {
+                status 500;
+            }
+            else
+            {
+                status 100 + persist->{'countFailed'};
+            }
+
             detail->{'nbTries'} = $try;
             message sprintf( "NTP server %s:%s is unreachable : %s", config->{'ntp_server'}, config->{'port'} || 123 ,  $@ );
             output 1;
