@@ -80,9 +80,6 @@ func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) 
 	// Log
 	log.Printf("New Wigo Notification : %s", this.Message)
 
-	// Add Log
-	LocalWigo.AddLog(newWigo, INFO, this.Message)
-
 	return
 }
 
@@ -126,7 +123,7 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 			this.HostProbesInError = newProbe.parentHost.GetErrorsProbesList()
 
 			// Add Log
-			LocalWigo.AddLog(newProbe, INFO, newProbe.Message)
+			LocalWigo.AddLog(newProbe, INFO, fmt.Sprintf("Probe status switched from %d to %d : %s", oldProbe.Status, newProbe.Status, newProbe.Message))
 		}
 	}
 

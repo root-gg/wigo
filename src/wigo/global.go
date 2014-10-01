@@ -347,7 +347,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 
 		newLog.Probe = v.Name
 		newLog.Level = NOTICE
-		newLog.Host  = v.GetHost().Name
+		newLog.Host  = v.GetHost().GetParentWigo().GetHostname()
 		newLog.Group = v.GetHost().Group
 
 		// Level
@@ -357,7 +357,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			newLog.Level = WARNING
 		} else if v.Status >= 300 && v.Status < 500 {
 			newLog.Level = CRITICAL
-		} else if v.Status > 500 {
+		} else if v.Status >= 500 {
 			newLog.Level = ERROR
 		}
 
@@ -391,7 +391,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 
 	case *Wigo :
 
-		newLog.Host  = v.GetLocalHost().Name
+		newLog.Host  = v.GetLocalHost().GetParentWigo().GetHostname()
 		newLog.Group = v.GetLocalHost().Group
 		newLog.Level = NOTICE
 
@@ -402,7 +402,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			newLog.Level = WARNING
 		} else if v.GlobalStatus >= 300 && v.GlobalStatus < 500 {
 			newLog.Level = CRITICAL
-		} else if v.GlobalStatus > 500 {
+		} else if v.GlobalStatus >= 500 {
 			newLog.Level = ERROR
 		}
 
@@ -439,6 +439,74 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 	}
 
 	return nil
+}
+
+func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*Log {
+
+
+	// No params => all logs
+	if probe == "" && hostname == "" && group == "" {
+		return this.logs
+	}
+
+
+	// Params
+	logs := make([]*Log,0)
+	counts := make(map[uint64]uint8)
+	var paramsCount uint8 = 0
+
+	if group != "" {
+		paramsCount++
+		if LocalWigo.logsGroupIndex[group] != nil {
+			for _,v:= range LocalWigo.logsGroupIndex[group] {
+				if _,ok := counts[v] ; !ok {
+					counts[v] = 0
+				}
+
+				if counts[v] == paramsCount - 1 {
+					logs = append(logs, this.logs[v - this.logsOffset])
+				} else {
+					counts[v] = counts[v]+1
+				}
+			}
+		}
+	}
+
+	if hostname != "" {
+		paramsCount++
+		if LocalWigo.logsWigoIndex[hostname] != nil {
+			for _,v := range LocalWigo.logsWigoIndex[hostname] {
+				if _,ok := counts[v] ; !ok {
+					counts[v] = 0
+				}
+
+				if counts[v] == paramsCount - 1 {
+					logs = append(logs, this.logs[v - this.logsOffset])
+				} else {
+					counts[v] = counts[v]+1
+				}
+			}
+		}
+	}
+
+	if probe != "" {
+		paramsCount++
+		if LocalWigo.logsProbeIndex[probe] != nil {
+			for _,v := range LocalWigo.logsProbeIndex[probe] {
+				if _,ok := counts[v] ; !ok {
+					counts[v] = 0
+				}
+
+				if counts[v] == paramsCount - 1 {
+					logs = append(logs, this.logs[v - this.logsOffset])
+				} else {
+					counts[v] = counts[v]+1
+				}
+			}
+		}
+	}
+
+	return logs
 }
 
 

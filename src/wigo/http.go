@@ -113,3 +113,72 @@ func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
 
 	return 200, strconv.Itoa(remoteWigo.LocalHost.Probes[probe].Status)
 }
+
+func HttpRemotesProbesLogsHandler(params martini.Params) (int, string) {
+
+	hostname := params["hostname"]
+	probe := params["probe"]
+
+	if hostname == "" {
+		return 404, "No wigo name set in url"
+	}
+	if probe == "" {
+		return 404, "No probe name set in url"
+	}
+
+	// Get logs
+	logs := LocalWigo.SearchLogs(probe,hostname,"")
+
+	// Json
+	json, err := json.MarshalIndent(logs, "", "    ")
+	if err != nil {
+		return 500, ""
+	} else {
+		return 200, string(json)
+	}
+
+	return 200, ""
+}
+
+
+func HttpRemotesLogsHandler(params martini.Params) (int, string) {
+
+	hostname := params["hostname"]
+
+	if hostname == "" {
+		return 404, "No wigo name set in url"
+	}
+
+	// Get remote wigo
+	remoteWigo := GetLocalWigo().FindRemoteWigoByHostname(hostname)
+	if remoteWigo == nil {
+		return 404, "Remote wigo " + hostname + " not found"
+	}
+
+	// Get logs
+	logs := LocalWigo.SearchLogs("",hostname,"")
+
+	// Json
+	json, err := json.MarshalIndent(logs, "", "    ")
+	if err != nil {
+		return 500, ""
+	}
+
+	return 200, string(json)
+}
+
+
+
+func HttpLogsHandler(params martini.Params) (int, string) {
+
+	// Get logs
+	logs := LocalWigo.SearchLogs("","","")
+
+	// Json
+	json, err := json.MarshalIndent(logs, "", "    ")
+	if err != nil {
+		return 500, ""
+	}
+
+	return 200, string(json)
+}
