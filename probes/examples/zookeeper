@@ -15,7 +15,7 @@ use IO::Socket::INET;
 
 my $conf = {
     'instances' => [
-        'localhost:2181',
+       # 'localhost:2181',
 	],
     'details' => [
         'zk_version',
