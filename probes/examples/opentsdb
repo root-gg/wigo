@@ -22,10 +22,10 @@ use JSON::XS;
 my $conf = {
     'tsds' => {                             #
         'test' => {                         # tsd instance name
-            host => '127.0.0.1:4242',       #
-            'stats' => 1,                   # collect metrics
-            #'put' => 1,                    # do a put / get test
-            #'version' => 1                 # use the v1 http api
+            'host' => '127.0.0.1:4242',     #
+        #    'stats' => 1,                  # collect metrics
+        #    'put' => 1,                    # do a put / get test
+        #    'version' => 1                 # use the v1 http api
         }
     },
     #'include' => [ 'tsd.hbase.*' ],        # include metrics
@@ -47,7 +47,57 @@ for my $name ( keys %{ config->{'tsds'} } )
 
     if ( defined $tsd->{'version'} and $tsd->{'version'} == 1 )
     {
-        # TODO
+        my $response = $UA->get( "http://$tsd->{'host'}/version" );
+
+        detail->{$name}->{'host'} = $tsd->{'host'};
+
+        detail->{$name}->{'status'} = "UP";
+        if ( $response->is_success )
+        {
+            detail->{$name}->{'version'} = $response->decoded_content;
+        }
+        else
+        {
+            raise 300;
+            push @messages, "$name DOWN";
+            detail->{$name}->{'status'} = $response->status_line;
+            next;
+        }
+
+        if ( $tsd->{'stats'} )
+        {
+            my $response = $UA->get( "http://$tsd->{'host'}/stats" );
+
+            if ( $response->is_success )
+            {
+
+                foreach my $line ( split "\n", $response->decoded_content )
+                {
+                    if ( my ($metric,$timestamp,$value,$tags) = $line =~ /^(\S+)\s+(\d+)\s+(\S+)\s+(.*)$/ )
+                    {
+                        next if ( defined config->{'include'} and ! grep { $metric =~ /^$_$/ } @{config->{'include'}} );
+                        next if ( defined config->{'exclude'} and grep { $metric =~ /^$_$/ } @{config->{'exclude'}} );
+
+                        $tags = { map { split "=" } split /\s+/, $tags };
+                        delete $tags->{'host'};
+                        $tags->{'metric'} = $metric;
+                        add_metric { 'Tags' => $tags , 'Value' => $value };
+                    }
+                }
+            }
+            else
+            {
+                raise 300;
+                push @messages, "$name DOWN";
+                detail->{$name}->{'status'} = $response->status_line;
+                next;
+            }
+        }
+
+        if ( $tsd->{'put'} )
+        {
+            # TODO
+        }
     }
     else
     {
@@ -86,9 +136,6 @@ for my $name ( keys %{ config->{'tsds'} } )
         {
             my $response = $UA->get( "http://$tsd->{'host'}/api/stats" );
 
-            detail->{$name}->{'host'} = $tsd->{'host'};
-
-            detail->{$name}->{'status'} = "UP";
             if ( $response->is_success )
             {
                 my $data;
