@@ -14,7 +14,7 @@ use IO::Socket;
 
 my $conf = { 
     'redisToCheck'          => [
-        # "127.0.0.1:6379",
+        #"127.0.0.1:6379",
     ],
     'include'               => [
         "used_memory",
@@ -28,6 +28,8 @@ my $conf = {
 };
 
 init( config => $conf );
+
+Wigo::Probe::save_config("redis.conf");
 
 if ( ! config->{'redisToCheck'} or ref(config->{'redisToCheck'}) ne 'ARRAY' or scalar @{ config->{'redisToCheck'} } == 0 )
 {
