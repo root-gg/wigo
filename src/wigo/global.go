@@ -342,20 +342,22 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 	index := uint64( len(this.logs) - 1 ) + this.logsOffset
 
 	// Type assertion on ressource
-	if probe, ok := ressource.(*ProbeResult); ok {
-		newLog.Probe = probe.Name
+	switch v := ressource.(type) {
+	case *ProbeResult :
+
+		newLog.Probe = v.Name
 		newLog.Level = NOTICE
-		newLog.Host  = probe.GetHost().Name
-		newLog.Group = probe.GetHost().Group
+		newLog.Host  = v.GetHost().Name
+		newLog.Group = v.GetHost().Group
 
 		// Level
-		if probe.Status > 100 && probe.Status < 200 {
+		if v.Status > 100 && v.Status < 200 {
 			newLog.Level = INFO
-		} else if probe.Status >= 200 && probe.Status < 300 {
+		} else if v.Status >= 200 && v.Status < 300 {
 			newLog.Level = WARNING
-		} else if probe.Status >= 300 && probe.Status < 500 {
+		} else if v.Status >= 300 && v.Status < 500 {
 			newLog.Level = CRITICAL
-		} else if probe.Status > 500 {
+		} else if v.Status > 500 {
 			newLog.Level = ERROR
 		}
 
@@ -387,19 +389,20 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 		}
 
 
-	} else if wigo, ok := ressource.(*Wigo); ok {
-		newLog.Host  = wigo.GetLocalHost().Name
-		newLog.Group = wigo.GetLocalHost().Group
+	case *Wigo :
+
+		newLog.Host  = v.GetLocalHost().Name
+		newLog.Group = v.GetLocalHost().Group
 		newLog.Level = NOTICE
 
 		// Level
-		if wigo.GlobalStatus > 100 && wigo.GlobalStatus < 200 {
+		if v.GlobalStatus > 100 && v.GlobalStatus < 200 {
 			newLog.Level = INFO
-		} else if wigo.GlobalStatus >= 200 && wigo.GlobalStatus < 300 {
+		} else if v.GlobalStatus >= 200 && v.GlobalStatus < 300 {
 			newLog.Level = WARNING
-		} else if wigo.GlobalStatus >= 300 && wigo.GlobalStatus < 500 {
+		} else if v.GlobalStatus >= 300 && v.GlobalStatus < 500 {
 			newLog.Level = CRITICAL
-		} else if wigo.GlobalStatus > 500 {
+		} else if v.GlobalStatus > 500 {
 			newLog.Level = ERROR
 		}
 
@@ -421,8 +424,9 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
 		}
 
-	} else if group, ok := ressource.(string); ok {
-		newLog.Group = group
+	case string :
+
+		newLog.Group = v
 
 		// Log group
 		if newLog.Group != "" {
