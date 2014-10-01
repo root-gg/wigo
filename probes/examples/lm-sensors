@@ -22,8 +22,7 @@ use List::Util qw/max/;
 ###
 
 my $conf = {
-    #'sensors' => '/usr/bin/sensors',                                   # lm-sensor binary
-    'sensors' => 'cat /tmp/s',
+    'sensors' => '/usr/bin/sensors',                                   # lm-sensor binary
     'types' => {                                                        # how to match / extract the value
         'temp' => '([-\+]?\d+\.\d+)\xc2\xb0C',                          # +100.0°C
         'volt' => '([-\+]?\d+.\d+) V',                                  # +3.28 V
