@@ -36,6 +36,13 @@ type Wigo struct {
 	gopentsdb      *gopentsdb.OpenTsdb
 	disabledProbes *list.List
     uuidObj        *uuid.UUID
+
+	logs		    []*Log
+	logsLock		*sync.RWMutex
+	logsProbeIndex	map[string][]uint64
+	logsWigoIndex	map[string][]uint64
+	logsGroupIndex	map[string][]uint64
+	logsOffset		uint64
 }
 
 func InitWigo() (err error) {
@@ -69,7 +76,15 @@ func InitWigo() (err error) {
 		LocalWigo.locker = new(sync.RWMutex)
 		LocalWigo.disabledProbes = new(list.List)
 
-		// Log
+		// Logs
+		LocalWigo.logs = make([]*Log,0)
+		LocalWigo.logsLock = new(sync.RWMutex)
+		LocalWigo.logsOffset = 0
+		LocalWigo.logsGroupIndex = make(map[string][]uint64)
+		LocalWigo.logsProbeIndex = make(map[string][]uint64)
+		LocalWigo.logsWigoIndex  = make(map[string][]uint64)
+
+		// Log file
 		LocalWigo.InitOrReloadLogger()
 
 		// Test probes directory
@@ -309,6 +324,195 @@ func (this *Wigo) Lock() {
 func (this *Wigo) Unlock() {
 	this.locker.Unlock()
 }
+
+// Logs
+func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) ( err error ){
+
+	// Lock
+	LocalWigo.logsLock.Lock()
+	defer LocalWigo.logsLock.Unlock()
+
+	// Instanciate log
+	newLog := NewLog(level,message)
+
+	// Append
+	this.logs = append(this.logs, newLog)
+
+	// Compute index
+	index := uint64( len(this.logs) - 1 ) + this.logsOffset
+
+	// Type assertion on ressource
+	switch v := ressource.(type) {
+	case *ProbeResult :
+
+		newLog.Probe = v.Name
+		newLog.Level = NOTICE
+		newLog.Host  = v.GetHost().GetParentWigo().GetHostname()
+		newLog.Group = v.GetHost().Group
+
+		// Level
+		if v.Status > 100 && v.Status < 200 {
+			newLog.Level = INFO
+		} else if v.Status >= 200 && v.Status < 300 {
+			newLog.Level = WARNING
+		} else if v.Status >= 300 && v.Status < 500 {
+			newLog.Level = CRITICAL
+		} else if v.Status >= 500 {
+			newLog.Level = ERROR
+		}
+
+		// Log probe
+		if newLog.Probe != "" {
+			if this.logsProbeIndex[newLog.Probe] == nil {
+				this.logsProbeIndex[newLog.Probe] = make([]uint64, 0)
+			}
+
+			this.logsProbeIndex[newLog.Probe] = append(this.logsProbeIndex[newLog.Probe], index)
+		}
+
+		// Log Wigo
+		if newLog.Host != "" {
+			if this.logsWigoIndex[newLog.Host] == nil {
+				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
+			}
+
+			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
+		}
+
+		// Log group
+		if newLog.Group != "" {
+			if this.logsGroupIndex[newLog.Group] == nil {
+				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
+			}
+
+			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
+		}
+
+
+	case *Wigo :
+
+		newLog.Host  = v.GetLocalHost().GetParentWigo().GetHostname()
+		newLog.Group = v.GetLocalHost().Group
+		newLog.Level = NOTICE
+
+		// Level
+		if v.GlobalStatus > 100 && v.GlobalStatus < 200 {
+			newLog.Level = INFO
+		} else if v.GlobalStatus >= 200 && v.GlobalStatus < 300 {
+			newLog.Level = WARNING
+		} else if v.GlobalStatus >= 300 && v.GlobalStatus < 500 {
+			newLog.Level = CRITICAL
+		} else if v.GlobalStatus >= 500 {
+			newLog.Level = ERROR
+		}
+
+		// Log Wigo
+		if newLog.Host != "" {
+			if this.logsWigoIndex[newLog.Host] == nil {
+				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
+			}
+
+			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
+		}
+
+		// Log group
+		if newLog.Group != "" {
+			if this.logsGroupIndex[newLog.Group] == nil {
+				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
+			}
+
+			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
+		}
+
+	case string :
+
+		newLog.Group = v
+
+		// Log group
+		if newLog.Group != "" {
+			if this.logsGroupIndex[newLog.Group] == nil {
+				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
+			}
+
+			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
+		}
+	}
+
+	return nil
+}
+
+func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*Log {
+
+	// No params => all logs
+	if probe == "" && hostname == "" && group == "" {
+		return this.logs
+	}
+
+	// Params
+	logs := make([]*Log,0)
+	counts := make(map[uint64]uint8)
+	var paramsCount uint8 = 0
+
+	// Ugly but avoid map iteration after
+	// TODO : use array in params
+	if probe != "" {
+		paramsCount++
+	}
+	if hostname != "" {
+		paramsCount++
+	}
+	if group != "" {
+		paramsCount++
+	}
+
+	if group != "" {
+		if LocalWigo.logsGroupIndex[group] != nil {
+			for _,v:= range LocalWigo.logsGroupIndex[group] {
+				if _,ok := counts[v] ; !ok {
+					counts[v] = 0
+				}
+
+				counts[v]++
+				if counts[v] == paramsCount {
+					logs = append( logs , this.logs[v - this.logsOffset])
+				}
+			}
+		}
+	}
+
+	if hostname != "" {
+		if LocalWigo.logsWigoIndex[hostname] != nil {
+			for _,v := range LocalWigo.logsWigoIndex[hostname] {
+				if _,ok := counts[v] ; !ok {
+					counts[v] = 0
+				}
+
+				counts[v]++
+				if counts[v] == paramsCount {
+					logs = append( logs , this.logs[v - this.logsOffset])
+				}
+			}
+		}
+	}
+
+	if probe != "" {
+		if LocalWigo.logsProbeIndex[probe] != nil {
+			for _,v := range LocalWigo.logsProbeIndex[probe] {
+				if _,ok := counts[v] ; !ok {
+					counts[v] = 0
+				}
+
+				counts[v]++
+				if counts[v] == paramsCount {
+					logs = append( logs , this.logs[v - this.logsOffset])
+				}
+			}
+		}
+	}
+
+	return logs
+}
+
 
 // Serialize
 func (this *Wigo) ToJsonString() (string, error) {

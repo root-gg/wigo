@@ -121,6 +121,9 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 
 			// List parent host probes in error
 			this.HostProbesInError = newProbe.parentHost.GetErrorsProbesList()
+
+			// Add Log
+			LocalWigo.AddLog(newProbe, INFO, fmt.Sprintf("Probe status switched from %d to %d : %s", oldProbe.Status, newProbe.Status, newProbe.Message))
 		}
 	}
 

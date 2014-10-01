@@ -521,11 +521,14 @@ func threadHttp() {
 
 	m.Get("/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
 	m.Get("/remotes", wigo.HttpRemotesHandler)
+	m.Get("/logs", wigo.HttpLogsHandler)
 	m.Get("/remotes/:hostname", wigo.HttpRemotesHandler)
 	m.Get("/remotes/:hostname/status", wigo.HttpRemotesStatusHandler)
+	m.Get("/remotes/:hostname/logs", wigo.HttpLogsHandler)
 	m.Get("/remotes/:hostname/probes", wigo.HttpRemotesProbesHandler)
 	m.Get("/remotes/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
 	m.Get("/remotes/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
+	m.Get("/remotes/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
 
 	err := http.ListenAndServe(apiAddress+":"+strconv.Itoa(apiPort), m)
 	if err != nil {
