@@ -21,7 +21,7 @@ use JSON::XS;
 
 my $conf = {
     'agents' => {
-        'flume' => 'http://127.0.0.1:12345/metrics',
+        #'flume' => 'http://127.0.0.1:12345/metrics',
     },
     'channelCapacityThreshold' => 90,
     'metrics'   => [

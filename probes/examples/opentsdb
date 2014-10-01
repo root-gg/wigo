@@ -21,12 +21,12 @@ use JSON::XS;
 
 my $conf = {
     'tsds' => {                             #
-        'test' => {                         # tsd instance name
-            'host' => '127.0.0.1:4242',     #
+        #'test' => {                        # tsd instance name
+        #    'host' => '127.0.0.1:4242',    #
         #    'stats' => 1,                  # collect metrics
         #    'put' => 1,                    # do a put / get test
         #    'version' => 1                 # use the v1 http api
-        }
+        #}
     },
     #'include' => [ 'tsd.hbase.*' ],        # include metrics
     #'exclude' => [ '.*latency.*' ],        # exclude metrics
