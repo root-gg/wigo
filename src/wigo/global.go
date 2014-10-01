@@ -443,64 +443,68 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 
 func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*Log {
 
-
 	// No params => all logs
 	if probe == "" && hostname == "" && group == "" {
 		return this.logs
 	}
-
 
 	// Params
 	logs := make([]*Log,0)
 	counts := make(map[uint64]uint8)
 	var paramsCount uint8 = 0
 
+	// Ugly but avoid map iteration after
+	// TODO : use array in params
+	if probe != "" {
+		paramsCount++
+	}
+	if hostname != "" {
+		paramsCount++
+	}
 	if group != "" {
 		paramsCount++
+	}
+
+	if group != "" {
 		if LocalWigo.logsGroupIndex[group] != nil {
 			for _,v:= range LocalWigo.logsGroupIndex[group] {
 				if _,ok := counts[v] ; !ok {
 					counts[v] = 0
 				}
 
-				if counts[v] == paramsCount - 1 {
-					logs = append(logs, this.logs[v - this.logsOffset])
-				} else {
-					counts[v] = counts[v]+1
+				counts[v]++
+				if counts[v] == paramsCount {
+					logs = append( logs , this.logs[v - this.logsOffset])
 				}
 			}
 		}
 	}
 
 	if hostname != "" {
-		paramsCount++
 		if LocalWigo.logsWigoIndex[hostname] != nil {
 			for _,v := range LocalWigo.logsWigoIndex[hostname] {
 				if _,ok := counts[v] ; !ok {
 					counts[v] = 0
 				}
 
-				if counts[v] == paramsCount - 1 {
-					logs = append(logs, this.logs[v - this.logsOffset])
-				} else {
-					counts[v] = counts[v]+1
+				counts[v]++
+				if counts[v] == paramsCount {
+					logs = append( logs , this.logs[v - this.logsOffset])
 				}
 			}
 		}
 	}
 
 	if probe != "" {
-		paramsCount++
 		if LocalWigo.logsProbeIndex[probe] != nil {
 			for _,v := range LocalWigo.logsProbeIndex[probe] {
 				if _,ok := counts[v] ; !ok {
 					counts[v] = 0
 				}
 
-				if counts[v] == paramsCount - 1 {
-					logs = append(logs, this.logs[v - this.logsOffset])
-				} else {
-					counts[v] = counts[v]+1
+				counts[v]++
+				if counts[v] == paramsCount {
+					logs = append( logs , this.logs[v - this.logsOffset])
 				}
 			}
 		}
