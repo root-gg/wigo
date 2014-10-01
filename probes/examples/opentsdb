@@ -47,7 +47,7 @@ for my $name ( keys %{ config->{'tsds'} } )
 
     if ( defined $tsd->{'version'} and $tsd->{'version'} == 1 )
     {
-        my $response = $UA->get( "http://$tsd->{'host'}/version" );
+        my $response = $UA->get( 'http://'.$tsd->{'host'}.'/version' );
 
         detail->{$name}->{'host'} = $tsd->{'host'};
 
@@ -66,7 +66,7 @@ for my $name ( keys %{ config->{'tsds'} } )
 
         if ( $tsd->{'stats'} )
         {
-            my $response = $UA->get( "http://$tsd->{'host'}/stats" );
+            my $response = $UA->get( 'http://'.$tsd->{'host'}.'/stats' );
 
             if ( $response->is_success )
             {
@@ -101,7 +101,7 @@ for my $name ( keys %{ config->{'tsds'} } )
     }
     else
     {
-        my $response = $UA->get( "http://$tsd->{'host'}/api/version" );
+        my $response = $UA->get( 'http://'.$tsd->{'host'}.'/api/version' );
 
         detail->{$name}->{'host'} = $tsd->{'host'};
 
@@ -134,7 +134,7 @@ for my $name ( keys %{ config->{'tsds'} } )
 
         if ( $tsd->{'stats'} )
         {
-            my $response = $UA->get( "http://$tsd->{'host'}/api/stats" );
+            my $response = $UA->get( 'http://'.$tsd->{'host'}.'/api/stats' );
 
             if ( $response->is_success )
             {
