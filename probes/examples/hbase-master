@@ -1,0 +1,130 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+use List::Util qw/sum/;
+
+use LWP::UserAgent;
+my $UA = LWP::UserAgent->new;
+$UA->timeout(5);
+
+use JSON::XS;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'servers' => {
+        'master1' => {
+            'host' => '127.0.0.1:60010',
+        },
+    }
+};
+
+init( config => $conf );
+
+if ( ! scalar ( keys %{config->{'servers'}} ) )
+{
+    message "No HBase master to monitor";
+    output 13;
+}
+
+my @messages;
+for my $name ( keys %{ config->{'servers'} } )
+{
+    my $server = config->{'servers'}->{$name};
+
+    my $response = $UA->get( 'http://'.$server->{'host'}.'/jmx' );
+
+    detail->{$name}->{'host'} = $server->{'host'};
+
+    detail->{$name}->{'status'} = "UP";
+    if ( $response->is_success )
+    {
+        my $data;
+        eval
+        {
+            $data = decode_json($response->decoded_content);
+        };
+
+        if ( $@ or !$data or ! ref $data eq 'HASH' )
+        {
+            raise 300;
+            push @messages, "$name ERROR";
+            detail->{$name}->{'status'} = "Can't decode json response : $@";
+            next;
+        }
+
+        foreach my $bean ( @{$data->{'beans'}} )
+        {
+
+            if ( $bean->{'name'} eq 'java.lang:type=Memory' )
+            {
+                foreach my $type ( keys %{$bean->{'HeapMemoryUsage'}} )
+                {
+                    detail->{$name}->{'memory_used'} = sprintf "%.2f GB", $bean->{'HeapMemoryUsage'}->{'used'} / 1024 / 1024 / 1024;
+                    detail->{$name}->{'memory_max'}  = sprintf "%.2f GB", $bean->{'HeapMemoryUsage'}->{'max'} / 1024 / 1024 / 1024;
+                    add_metric { 'Tags' => { 'server' => $name, 'metric' => 'HeapMemoryUsage', 'type' => $type }, 'Value' => $bean->{'HeapMemoryUsage'}->{$type} };
+                }
+            }
+
+            elsif ( $bean->{'name'} eq 'hadoop:service=Master,name=Master' )
+            {
+                detail->{$name}->{'active'} = $bean->{'IsActiveMaster'};
+
+                detail->{$name}->{'DeadRegionServers'}  = $bean->{'DeadRegionServers'};
+
+                if ( scalar @{$bean->{'DeadRegionServers'}} )
+                {
+                    raise 300;
+                    push @messages, sprintf "%s : %d region server DOWN", ($name,scalar @{$bean->{'DeadRegionServers'}});
+                }
+
+                my $regionsServer = scalar @{$bean->{'RegionServers'}};
+                my $regions = sum map { $_->{'value'}->{'numberOfRegions'} } @{$bean->{'RegionServers'}};
+
+                detail->{$name}->{'regions'} = $regions;
+                detail->{$name}->{'regions_server'} = $regionsServer;
+                detail->{$name}->{'average_load'} = sprintf "%.3f", $bean->{'AverageLoad'};
+
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'regions' }, 'Value' => $regions };
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'regions_server' }, 'Value' => $regionsServer };
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'average_load' }, 'Value' => $bean->{'AverageLoad'} };
+            }
+
+            elsif ( $bean->{'name'} eq 'hadoop:service=Master,name=MasterStatistics' )
+            {
+                detail->{$name}->{'cluster_requests'} = sprintf "%.3f req/s", $bean->{'cluster_requests'};
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'cluster_requests' }, 'Value' => $bean->{'cluster_requests'} };
+            }
+        }
+    }
+    else
+    {
+        raise 300;
+        push @messages, "$name DOWN";
+        detail->{$name}->{'status'} = $response->status_line;
+        next;
+    }
+}
+
+if ( scalar @messages )
+{
+    message join ' , ' , @messages;
+}
+else
+{
+    foreach my $name ( keys %{ detail() } )
+    {
+        push @messages, sprintf("%s : %d region server UP ( %s )", ( $name, detail->{$name}->{'regions_server'} , detail->{$name}->{'cluster_requests'} ));
+    }
+    message join ' , ' , @messages;
+}
+
+output 0;
