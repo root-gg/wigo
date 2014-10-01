@@ -77,7 +77,7 @@ Options
 		if wigoHost == "localhost" {
 			// Find probe
 			if p, ok := wigoObj.GetLocalHost().Probes[probe] ; ok {
-				fmt.Printf(p.Summary())
+				fmt.Println(p.Summary())
 			} else {
 				fmt.Printf("Probe %s not found in local wigo\n", probe)
 			}
@@ -86,7 +86,7 @@ Options
 			if w, ok := wigoObj.RemoteWigos[wigoHost] ; ok {
 				// Find probe
 				if p, ok := w.GetLocalHost().Probes[probe] ; ok {
-					fmt.Printf(p.Summary())
+					fmt.Println(p.Summary())
 				} else {
 					fmt.Printf("Probe %s not found on remote wigo %s\n", probe, wigoHost)
 				}
