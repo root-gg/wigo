@@ -36,6 +36,13 @@ type Wigo struct {
 	gopentsdb      *gopentsdb.OpenTsdb
 	disabledProbes *list.List
     uuidObj        *uuid.UUID
+
+	logs		    []*Log
+	logsLock		*sync.RWMutex
+	logsProbeIndex	map[string][]uint64
+	logsWigoIndex	map[string][]uint64
+	logsGroupIndex	map[string][]uint64
+	logsOffset		uint64
 }
 
 func InitWigo() (err error) {
@@ -69,7 +76,15 @@ func InitWigo() (err error) {
 		LocalWigo.locker = new(sync.RWMutex)
 		LocalWigo.disabledProbes = new(list.List)
 
-		// Log
+		// Logs
+		LocalWigo.logs = make([]*Log,0)
+		LocalWigo.logsLock = new(sync.RWMutex)
+		LocalWigo.logsOffset = 0
+		LocalWigo.logsGroupIndex = make(map[string][]uint64)
+		LocalWigo.logsProbeIndex = make(map[string][]uint64)
+		LocalWigo.logsWigoIndex  = make(map[string][]uint64)
+
+		// Log file
 		LocalWigo.InitOrReloadLogger()
 
 		// Test probes directory
@@ -309,6 +324,119 @@ func (this *Wigo) Lock() {
 func (this *Wigo) Unlock() {
 	this.locker.Unlock()
 }
+
+// Logs
+func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) ( err error ){
+
+	// Lock
+	LocalWigo.logsLock.Lock()
+	defer LocalWigo.logsLock.Unlock()
+
+	// Instanciate log
+	newLog := NewLog(level,message)
+
+	// Append
+	this.logs = append(this.logs, newLog)
+
+	// Compute index
+	index := uint64( len(this.logs) - 1 ) + this.logsOffset
+
+	// Type assertion on ressource
+	if probe, ok := ressource.(*ProbeResult); ok {
+		newLog.Probe = probe.Name
+		newLog.Level = NOTICE
+		newLog.Host  = probe.GetHost().Name
+		newLog.Group = probe.GetHost().Group
+
+		// Level
+		if probe.Status > 100 && probe.Status < 200 {
+			newLog.Level = INFO
+		} else if probe.Status >= 200 && probe.Status < 300 {
+			newLog.Level = WARNING
+		} else if probe.Status >= 300 && probe.Status < 500 {
+			newLog.Level = CRITICAL
+		} else if probe.Status > 500 {
+			newLog.Level = ERROR
+		}
+
+		// Log probe
+		if newLog.Probe != "" {
+			if this.logsProbeIndex[newLog.Probe] == nil {
+				this.logsProbeIndex[newLog.Probe] = make([]uint64, 0)
+			}
+
+			this.logsProbeIndex[newLog.Probe] = append(this.logsProbeIndex[newLog.Probe], index)
+		}
+
+		// Log Wigo
+		if newLog.Host != "" {
+			if this.logsWigoIndex[newLog.Host] == nil {
+				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
+			}
+
+			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
+		}
+
+		// Log group
+		if newLog.Group != "" {
+			if this.logsGroupIndex[newLog.Group] == nil {
+				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
+			}
+
+			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
+		}
+
+
+	} else if wigo, ok := ressource.(*Wigo); ok {
+		newLog.Host  = wigo.GetLocalHost().Name
+		newLog.Group = wigo.GetLocalHost().Group
+		newLog.Level = NOTICE
+
+		// Level
+		if wigo.GlobalStatus > 100 && wigo.GlobalStatus < 200 {
+			newLog.Level = INFO
+		} else if wigo.GlobalStatus >= 200 && wigo.GlobalStatus < 300 {
+			newLog.Level = WARNING
+		} else if wigo.GlobalStatus >= 300 && wigo.GlobalStatus < 500 {
+			newLog.Level = CRITICAL
+		} else if wigo.GlobalStatus > 500 {
+			newLog.Level = ERROR
+		}
+
+		// Log Wigo
+		if newLog.Host != "" {
+			if this.logsWigoIndex[newLog.Host] == nil {
+				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
+			}
+
+			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
+		}
+
+		// Log group
+		if newLog.Group != "" {
+			if this.logsGroupIndex[newLog.Group] == nil {
+				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
+			}
+
+			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
+		}
+
+	} else if group, ok := ressource.(string); ok {
+		newLog.Group = group
+
+		// Log group
+		if newLog.Group != "" {
+			if this.logsGroupIndex[newLog.Group] == nil {
+				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
+			}
+
+			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
+		}
+	}
+
+	return nil
+}
+
 
 // Serialize
 func (this *Wigo) ToJsonString() (string, error) {
