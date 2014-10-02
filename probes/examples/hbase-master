@@ -20,7 +20,7 @@ use JSON::XS;
 ###
 
 my $conf = {
-    'servers' => {
+    'clusters' => {
         #'master1' => {
         #    'host' => '127.0.0.1:60010',
         #},
@@ -29,20 +29,20 @@ my $conf = {
 
 init( config => $conf );
 
-if ( ! scalar ( keys %{config->{'servers'}} ) )
+if ( ! scalar ( keys %{config->{'clusters'}} ) )
 {
     message "No HBase master to monitor";
     output 13;
 }
 
 my @messages;
-for my $name ( keys %{ config->{'servers'} } )
+for my $name ( keys %{ config->{'clusters'} } )
 {
-    my $server = config->{'servers'}->{$name};
+    my $name = config->{'clusters'}->{$name};
 
-    my $response = $UA->get( 'http://'.$server->{'host'}.'/jmx' );
+    my $response = $UA->get( 'http://'.$name->{'host'}.'/jmx' );
 
-    detail->{$name}->{'host'} = $server->{'host'};
+    detail->{$name}->{'host'} = $name->{'host'};
 
     detail->{$name}->{'status'} = "UP";
     if ( $response->is_success )
@@ -70,7 +70,7 @@ for my $name ( keys %{ config->{'servers'} } )
                 {
                     detail->{$name}->{'memory_used'} = sprintf "%.2f GB", $bean->{'HeapMemoryUsage'}->{'used'} / 1024 / 1024 / 1024;
                     detail->{$name}->{'memory_max'}  = sprintf "%.2f GB", $bean->{'HeapMemoryUsage'}->{'max'} / 1024 / 1024 / 1024;
-                    add_metric { 'Tags' => { 'server' => $name, 'metric' => 'HeapMemoryUsage', 'type' => $type }, 'Value' => $bean->{'HeapMemoryUsage'}->{$type} };
+                    add_metric { 'Tags' => { 'cluster' => $name, 'metric' => 'HeapMemoryUsage', 'type' => $type }, 'Value' => $bean->{'HeapMemoryUsage'}->{$type} };
                 }
             }
 
@@ -83,25 +83,25 @@ for my $name ( keys %{ config->{'servers'} } )
                 if ( scalar @{$bean->{'DeadRegionServers'}} )
                 {
                     raise 300;
-                    push @messages, sprintf "%s : %d region server DOWN", ($name,scalar @{$bean->{'DeadRegionServers'}});
+                    push @messages, sprintf "%s : %d region cluster DOWN", ($name,scalar @{$bean->{'DeadRegionServers'}});
                 }
 
                 my $regionsServer = scalar @{$bean->{'RegionServers'}};
                 my $regions = sum map { $_->{'value'}->{'numberOfRegions'} } @{$bean->{'RegionServers'}};
 
                 detail->{$name}->{'regions'} = $regions;
-                detail->{$name}->{'regions_server'} = $regionsServer;
+                detail->{$name}->{'regions_cluster'} = $regionsServer;
                 detail->{$name}->{'average_load'} = sprintf "%.3f", $bean->{'AverageLoad'};
 
-                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'regions' }, 'Value' => $regions };
-                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'regions_server' }, 'Value' => $regionsServer };
-                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'average_load' }, 'Value' => $bean->{'AverageLoad'} };
+                add_metric { 'Tags' => { 'cluster' => $name, 'metric' => 'regions' }, 'Value' => $regions };
+                add_metric { 'Tags' => { 'cluster' => $name, 'metric' => 'regions_cluster' }, 'Value' => $regionsServer };
+                add_metric { 'Tags' => { 'cluster' => $name, 'metric' => 'average_load' }, 'Value' => $bean->{'AverageLoad'} };
             }
 
             elsif ( $bean->{'name'} eq 'hadoop:service=Master,name=MasterStatistics' )
             {
                 detail->{$name}->{'cluster_requests'} = sprintf "%.3f req/s", $bean->{'cluster_requests'};
-                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'cluster_requests' }, 'Value' => $bean->{'cluster_requests'} };
+                add_metric { 'Tags' => { 'cluster' => $name, 'metric' => 'cluster_requests' }, 'Value' => $bean->{'cluster_requests'} };
             }
         }
     }
@@ -122,7 +122,7 @@ else
 {
     foreach my $name ( keys %{ detail() } )
     {
-        push @messages, sprintf("%s : %d region server UP ( %s )", ( $name, detail->{$name}->{'regions_server'} , detail->{$name}->{'cluster_requests'} ));
+        push @messages, sprintf("%s : %d region cluster UP ( %s )", ( $name, detail->{$name}->{'regions_cluster'} , detail->{$name}->{'cluster_requests'} ));
     }
     message join ' , ' , @messages;
 }
