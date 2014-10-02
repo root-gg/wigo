@@ -345,7 +345,8 @@ sub restore
         close PERSIST;
 
         chomp @lines;
-        my $str = join '', @lines;
+        my $str = join "\n", @lines;
+        return unless $str;
 
         eval {
             $persist = $json->decode( $str );
