@@ -1,3 +1,7 @@
+<!--
+  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
+  -->
+
 <!-- Navigation -->
 <nav class="navbar navbar-default navbar-static-top" role="navigation" style="margin-bottom: 0">
     <div ng-include="'partials/top-menu.html'"></div>
@@ -62,12 +66,7 @@
                             <tbody>
                             <tr class="{{ host.Status | statusTableRowCssFilter }}"
                             ng-repeat="host in group.Hosts | orderBy:['-Status','Name']">
-                                <td>
-                                    {{host.Name}}
-                                    <strong style="color:red" ng-show="!host.IsAlive">
-                                        &nbsp;DOWN
-                                    </strong>
-                                </td>
+                                <td>{{host.Name}}</td>
                                 <td>
                                     <span ng-repeat="probe in host.Probes | orderBy:['-Status','Name']"
                                           class="probeLabel label {{ probe.Status | getLevel | labelLevelCssFilter }}"

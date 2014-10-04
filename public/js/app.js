@@ -38,6 +38,30 @@ angular.module('dialog', ['ui.bootstrap']).
         return module;
     });
 
+var panelLevels = {
+    "OK"        : "panel-green",
+    "INFO"      : "panel-primary",
+    "WARNING"   : "panel-yellow",
+    "CRITICAL"  : "panel-red",
+    "ERROR"     : "panel-default"
+}
+
+var labelLevels = {
+    "OK"        : "label-success",
+    "INFO"      : "label-primary",
+    "WARNING"   : "label-warning",
+    "CRITICAL"  : "label-danger",
+    "ERROR"     : "label-default"
+}
+
+var statusRowLevels = {
+    "OK"        : "success",
+    "INFO"      : "info",
+    "WARNING"   : "warning",
+    "CRITICAL"  : "danger",
+    "ERROR"     : "active"
+}
+
 var logLevels = [
     "DEBUG",
     "OK",
@@ -59,8 +83,29 @@ var logRowLevels = {
 }
 
 angular.module('wigo-filters', [])
-    .filter('logLevelCssFilter', function() {
-        return function(status,v) {
+    .filter('getLevel', function() {
+        return function(status){
+            console.log(status,getLevel(status));
+            return getLevel(status);
+        };
+    })
+    .filter('panelLevelCssFilter', function() {
+        return function(level) {
+            return panelLevels[level];
+        };
+    })
+    .filter('labelLevelCssFilter', function() {
+            return function(level) {
+                return labelLevels[level];
+            };
+        })
+    .filter('statusTableRowCssFilter', function() {
+            return function(status) {
+                return statusRowLevels[getLevel(status)];
+            };
+    })
+    .filter('logLevelTableRowCssFilter', function() {
+        return function(status) {
             return logRowLevels[logLevels[status - 1]];
         };
     })
@@ -77,6 +122,7 @@ angular.module('wigo', ['ngRoute', 'dialog', 'restangular', 'wigo-filters'])
 	.config(function($routeProvider) {
 		$routeProvider
 			.when('/',      { controller: HostsCtrl,    templateUrl:'partials/hosts.html',  reloadOnSearch: false })
+			.when('/group', { controller: GroupCtrl,    templateUrl:'partials/group.html',  reloadOnSearch: false })
 			.when('/host',  { controller: HostCtrl,     templateUrl:'partials/host.html',   reloadOnSearch: false })
 			.when('/logs',  { controller: LogsCtrl,     templateUrl:'partials/logs.html',   reloadOnSearch: false })
 			.otherwise({ redirectTo: '/' });
@@ -85,7 +131,114 @@ angular.module('wigo', ['ngRoute', 'dialog', 'restangular', 'wigo-filters'])
         RestangularProvider.setBaseUrl('/api');
     });
 
-function HostsCtrl($scope, Restangular, $dialog, $route, $location) {
+function getLevel(status) {
+    if ( status < 100 ) {
+        return "ERROR";
+    } else if (status == 100) {
+        return "OK";
+    } else if (status < 200) {
+        return "INFO";
+    } else if (status < 300) {
+        return "WARNING";
+    } else if (status <500) {
+        return "CRITICAL";
+    } else {
+        return "ERROR";
+    }
+}
+
+function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll) {
+
+    $scope.init = function() {
+        $scope.load();
+    }
+
+    $scope.menu = {
+        level : "OK"
+    };
+
+    $scope.groups = [];
+    $scope.load = function() {
+        $scope.counts = {
+            "OK" : 0,
+            "INFO" : 0,
+            "WARNING" : 0,
+            "CRITICAL" : 0,
+            "ERROR" : 0
+        };
+        Restangular.all('groups').getList().then(function(groups) {
+            _.each(groups,function(group_name){
+                Restangular.one('groups',group_name).get().then(function(group){
+                    group.counts = {
+                        "OK" : 0,
+                        "INFO" : 0,
+                        "WARNING" : 0,
+                        "CRITICAL" : 0,
+                        "ERROR" : 0
+                    };
+                    _.each(group.Hosts,function(host){
+                        $scope.counts[getLevel(host.Status)]++;
+                        group.counts[getLevel(host.Status)]++;
+                    });
+                    $scope.groups.push(group);
+                });
+            });
+        });
+    }
+
+    $scope.goto = function(anchor){
+        $location.hash(anchor);
+        $anchorScroll();
+    }
+
+    $scope.init();
+}
+
+function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll) {
+
+    $scope.init = function() {
+        $scope.load();
+    }
+
+    $scope.menu = {
+        level : "OK"
+    };
+
+    $scope.groups = [];
+    $scope.load = function() {
+        $scope.counts = {
+            "OK" : 0,
+            "INFO" : 0,
+            "WARNING" : 0,
+            "CRITICAL" : 0,
+            "ERROR" : 0
+        };
+        Restangular.all('groups').getList().then(function(groups) {
+            _.each(groups,function(group_name){
+                Restangular.one('groups',group_name).get().then(function(group){
+                    group.counts = {
+                        "OK" : 0,
+                        "INFO" : 0,
+                        "WARNING" : 0,
+                        "CRITICAL" : 0,
+                        "ERROR" : 0
+                    };
+                    _.each(group.Hosts,function(host){
+                        $scope.counts[getLevel(host.Status)]++;
+                        group.counts[getLevel(host.Status)]++;
+                    });
+                    $scope.groups.push(group);
+                });
+            });
+        });
+    }
+
+    $scope.goto = function(anchor){
+        $location.hash(anchor);
+        $anchorScroll();
+    }
+
+    $scope.init();
 }
 
 function HostCtrl($scope, $dialog, $route, $location) {
@@ -93,8 +246,6 @@ function HostCtrl($scope, $dialog, $route, $location) {
 }
 
 function LogsCtrl($scope, Restangular, $dialog, $route, $location) {
-
-    var _logs = Restangular.all('logs');
     $scope.logLevels = logLevels;
 
     $scope.menu = {
@@ -169,7 +320,6 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location) {
         $scope.updateUrl();
     }
 
-    $scope.hello = "world";
     $scope.init();
 }
 
