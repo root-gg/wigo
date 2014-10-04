@@ -743,7 +743,7 @@ func (this *Wigo) ListGroupsNames() []string {
 func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary ){
 	hs = make([]*HostSummary,0)
 
-	if this.GetLocalHost().Group == groupName || groupName == "all" {
+	if this.GetLocalHost().Group == groupName {
 		hs = append(hs, this.GetLocalHost().GetSummary() )
 	}
 
