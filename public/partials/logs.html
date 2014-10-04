@@ -1,0 +1,59 @@
+<!--
+  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
+  -->
+
+<!-- Navigation -->
+<nav class="navbar navbar-default navbar-static-top" role="navigation" style="margin-bottom: 0">
+    <div ng-include="'partials/top-menu.html'"></div>
+    <div ng-include="'partials/logs-menu.html'"></div>
+</nav>
+
+<!-- Page Content -->
+<div id="page-wrapper">
+    <div class="row">
+        <p></p>
+    </div>
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <strong>Logs</strong>
+                </div>
+                <!-- /.panel-heading -->
+                <div class="panel-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Group</th>
+                                    <th>Host</th>
+                                    <th>Probe</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="{{ log.Level | logLevelCssFilter:menu }}" ng-repeat="log in logs 
+                                | filter:{ Group:menu.group, Host:menu.host, Probe:menu.probe }
+                                | logLevelFilter:menu.level
+                                | filter:menu.search
+                                | orderBy:'-Timestamp'">
+                                    <td>{{ log.Timestamp * 1000 | date:'short' }}</td>
+                                    <td ng-click="set_group(log.Group)">{{ log.Group }}</td>
+                                    <td ng-click="set_host(log.Host)">{{ log.Host }}</td>
+                                    <td ng-click="set_probe(log.Probe)">{{ log.Probe }}</td>
+                                    <td>{{ log.Message }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- /.table-responsive -->
+                </div>
+                <!-- /.panel-body -->
+            </div>
+        </div>
+        <!-- /.col-lg-12 -->
+    </div>
+    <!-- /.row -->
+</div>
+<!-- /#page-wrapper -->

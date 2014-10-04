@@ -1,0 +1,29 @@
+{
+  "name": "wigo",
+  "version": "0.0.1",
+  "authors": [
+    "Charles-Antoine Mathieu <skatkatt@root.gg>"
+  ],
+  "description": "What is going on ?",
+  "main": "js/app.js",
+  "license": "MIT",
+  "homepage": "http://wigo.root.gg",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "angular": "~1.2.20",
+    "bootstrap": "~3.2.0",
+    "fontawesome": "~4.1.0",
+    "underscore": "~1.6.0",
+    "angular-bootstrap": "~0.11.0",
+    "angular-route": "~1.2.21",
+    "angular-resource": "~1.2.26",
+    "restangular": "~1.4.0"
+  }
+}
