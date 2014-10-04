@@ -33,7 +33,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="{{ log.Level | logLevelCssFilter:menu }}" ng-repeat="log in logs 
+                                <tr class="{{ log.Level | logLevelTableRowCssFilter:menu }}" ng-repeat="log in logs 
                                 | filter:{ Group:menu.group, Host:menu.host, Probe:menu.probe }
                                 | logLevelFilter:menu.level
                                 | filter:menu.search
