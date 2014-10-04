@@ -13,8 +13,8 @@ use Wigo::Probe qw/:all/;
 
 my $conf = {
     'toCheck'           => 1,
-    'warnPercentage'    => 75,
-    'critPercentage'    => 150
+    'warnPercentage'    => 150,
+    'critPercentage'    => 200
 };
 
 init( config => $conf );
