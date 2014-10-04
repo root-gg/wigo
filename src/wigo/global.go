@@ -658,6 +658,10 @@ func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 
 	var foundWigo *Wigo
 
+	if this.GetHostname() == hostname {
+		return this
+	}
+
 	for wigoName := range this.RemoteWigos {
 
 		if wigoName == hostname {
@@ -677,8 +681,12 @@ func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 func (this *Wigo) ListRemoteWigosNames() []string {
 	list := make([]string, 0)
 
+	if this.Uuid == LocalWigo.Uuid {
+		list = append(list, this.GetHostname())
+	}
+
 	for wigoName := range this.RemoteWigos {
-		list = append(list, this.RemoteWigos[wigoName].hostname)
+		list = append(list, this.RemoteWigos[wigoName].GetHostname())
 		remoteList := this.RemoteWigos[wigoName].ListRemoteWigosNames()
 		list = append(list, remoteList...)
 	}
