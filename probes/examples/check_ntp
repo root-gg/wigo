@@ -15,7 +15,7 @@ use Net::NTP;
 ###
 
 my $conf = {
-    'ntp_server'    => "pool.ntp.org",
+    'ntp_server'    => "fr.pool.ntp.org",
     'port'          => 123,
     'warning'       => 10,
     'critical'      => 300,
