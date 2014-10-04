@@ -730,7 +730,6 @@ func (this *Wigo) ListGroupsNames() []string {
 		group := this.RemoteWigos[wigoName].GetLocalHost().Group
 
 		if !IsStringInArray( group, list ) && group != "" {
-			log.Printf("REMOTE: appending %s",group)
 			list = append(list, this.RemoteWigos[wigoName].GetLocalHost().Group)
 		}
 
@@ -744,7 +743,7 @@ func (this *Wigo) ListGroupsNames() []string {
 func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary ){
 	hs = make([]*HostSummary,0)
 
-	if this.GetLocalHost().Group == groupName {
+	if this.GetLocalHost().Group == groupName || groupName == "all" {
 		hs = append(hs, this.GetLocalHost().GetSummary() )
 	}
 

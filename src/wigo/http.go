@@ -176,6 +176,7 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 
 	// Return remotes list
 	list := GetLocalWigo().ListGroupsNames()
+	list = append(list, "all")
 	json, err := json.MarshalIndent(list, "", "    ")
 	if err != nil {
 		return 500, ""
