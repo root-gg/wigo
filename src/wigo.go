@@ -480,10 +480,10 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			log.Printf("Can't connect to %s after %d tries : %s", host, tries, err)
 
 			// Create wigo in error
-			if _, ok := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname] ; ok {
-				newWigo := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname].Clone()
+			if existingWigo, ok := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname] ; ok {
+				newWigo := *existingWigo
 				newWigo.Down(fmt.Sprintf("%s",err))
-				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, newWigo)
+				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, &newWigo)
 			} else {
 				errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
 				errorWigo.SetHostname(Hostname.Hostname)

@@ -833,16 +833,3 @@ func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary, status i
 
 	return hs, status
 }
-
-func (this *Wigo) Clone() ( cloned *Wigo ){
-	cloned = new(Wigo)
-	cloned.LocalHost = this.LocalHost
-	cloned.RemoteWigos = this.RemoteWigos
-	cloned.hostname = this.hostname
-	cloned.Uuid = this.Uuid
-	cloned.IsAlive = this.IsAlive
-	cloned.GlobalStatus = this.GlobalStatus
-	cloned.GlobalMessage = this.GlobalMessage
-	cloned.hostname = this.hostname
-	return
-}
