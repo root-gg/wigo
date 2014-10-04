@@ -462,7 +462,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 	for {
 
 		for i := 1; i <= tries; i++ {
-			resp, err = client.Get("http://" + host)
+			resp, err = client.Get("http://" + host + "/api")
 			if err != nil {
 				time.Sleep(time.Second)
 			} else {
@@ -511,7 +511,7 @@ func threadHttp() {
 	apiPort := wigo.GetLocalWigo().GetConfig().Global.ListenPort
 
 	m := martini.Classic()
-	m.Get("/", func() (int, string) {
+	m.Get("/api", func() (int, string) {
 		json, err := wigo.GetLocalWigo().ToJsonString()
 		if err != nil {
 			return 500, fmt.Sprintf("%s", err)

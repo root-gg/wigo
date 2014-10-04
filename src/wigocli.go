@@ -59,7 +59,7 @@ Options
 	}
 
 	// Connect
-	resp, err := http.Get("http://127.0.0.1:4000")
+	resp, err := http.Get("http://127.0.0.1:4000/api")
 	if err != nil {
 		fmt.Printf("Error : %s\n", err)
 		os.Exit(1)
