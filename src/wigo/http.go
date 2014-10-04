@@ -138,8 +138,6 @@ func HttpLogsHandler(params martini.Params) (int, string) {
 			if remoteWigo.LocalHost.Probes[probe] == nil {
 				return 404, "Probe " + probe + " not found in remote wigo " + hostname
 			}
-		} else {
-			return 404, "Can't research probe without remote wigo"
 		}
 	}
 
@@ -176,7 +174,6 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 
 	// Return remotes list
 	list := GetLocalWigo().ListGroupsNames()
-	list = append(list, "all")
 	json, err := json.MarshalIndent(list, "", "    ")
 	if err != nil {
 		return 500, ""

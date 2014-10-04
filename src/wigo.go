@@ -523,6 +523,8 @@ func threadHttp() {
 	m.Get("/logs", wigo.HttpLogsHandler)
 	m.Get("/groups", wigo.HttpGroupsHandler)
 	m.Get("/groups/:group", wigo.HttpGroupsHandler)
+	m.Get("/groups/:group/logs",wigo.HttpLogsHandler)
+	m.Get("/groups/:group/probes/:probe/logs",wigo.HttpLogsHandler)
 	m.Get("/remotes", wigo.HttpRemotesHandler)
 	m.Get("/remotes/:hostname", wigo.HttpRemotesHandler)
 	m.Get("/remotes/:hostname/status", wigo.HttpRemotesStatusHandler)
