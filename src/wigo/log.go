@@ -4,17 +4,19 @@ import "time"
 
 
 type Log struct {
-	Date	string
-	Level	uint8
-	Message string
-	Host	string
-	Probe   string
-	Group	string
+	Date		string
+	Timestamp	int64
+	Level		uint8
+	Message 	string
+	Host		string
+	Probe   	string
+	Group		string
 }
 
 func NewLog( level uint8, message string ) ( this *Log ){
 	this 			= new(Log)
 	this.Date 		= time.Now().Format(dateLayout)
+	this.Timestamp	= time.Now().Unix()
 	this.Level  	= level
 	this.Message	= message
 	this.Host		= GetLocalWigo().GetLocalHost().Name
