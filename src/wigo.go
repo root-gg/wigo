@@ -47,12 +47,6 @@ func main() {
 	// Signals
 	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
-	go func() {
-		for i := 0 ; i < 100 ; i++ {
-			wigo.LocalWigo.AddLog(wigo.NewProbeResult("lipoune",300,0,"looool","{}"), wigo.WARNING, fmt.Sprintf("Probe lipoune switched from 100 to 300 : mitron"))
-		}
-	}()
-
 	// Selection
 	for {
 		select {
@@ -539,6 +533,7 @@ func threadHttp() {
 	m.Get("/api/hosts/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
 	m.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
 	m.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
+	m.Get("/api/probes/:probe/logs", wigo.HttpLogsHandler)
 
 	err := http.ListenAndServe(apiAddress+":"+strconv.Itoa(apiPort), m)
 	if err != nil {
