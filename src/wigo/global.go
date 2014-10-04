@@ -734,7 +734,12 @@ func (this *Wigo) ListGroupsNames() []string {
 		}
 
 		remoteList := this.RemoteWigos[wigoName].ListGroupsNames()
-		list = append(list, remoteList...)
+
+		for i := range remoteList {
+			if !IsStringInArray( remoteList[i], list ) {
+				list = append(list, remoteList[i])
+			}
+		}
 	}
 
 	return list
