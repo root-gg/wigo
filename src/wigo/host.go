@@ -18,7 +18,7 @@ type Host struct {
 type HostSummary struct {
 	Name				string
 	Status				int
-	ProbesStatuses		map[string]int
+	Probes				map[string]map[string]interface {}
 }
 
 func NewHost(hostname string) (this *Host) {
@@ -145,10 +145,12 @@ func (this *Host) GetSummary()( hs *HostSummary ){
 	hs 					= new(HostSummary)
 	hs.Name 			= this.Name
 	hs.Status 			= this.Status
-	hs.ProbesStatuses 	= make(map[string]int)
+	hs.Probes 			= make(map[string]map[string] interface {})
 
 	for probeName := range this.Probes {
-		hs.ProbesStatuses[ probeName ] = this.Probes[probeName].Status
+		hs.Probes[ probeName ] = make(map[string] interface {})
+		hs.Probes[ probeName ]["Status"] = this.Probes[probeName].Status
+		hs.Probes[ probeName ]["Message"] = this.Probes[probeName].Message
 	}
 
 	return hs

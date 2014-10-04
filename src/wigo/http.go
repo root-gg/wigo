@@ -158,10 +158,17 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 
 	group := params["group"]
 
+	result := make(map[string] interface {})
+	result["Name"] = group
+
 	if group != "" {
-		gs := GetLocalWigo().GroupSummary(group)
+		gs, status := GetLocalWigo().GroupSummary(group)
 		if gs != nil {
-			json, err := json.MarshalIndent(gs, "", "    ")
+
+			result["Status"] = status
+			result["Hosts"]  = gs
+
+			json, err := json.MarshalIndent(result, "", "    ")
 			if err != nil {
 				return 500, fmt.Sprintf("Fail to encode summary : %s" ,err)
 			} else {

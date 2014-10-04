@@ -753,20 +753,29 @@ func (this *Wigo) ListGroupsNames() []string {
 	return list
 }
 
-func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary ){
+func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary, status int ){
 	hs = make([]*HostSummary,0)
 
+	status = 0
 	if this.GetLocalHost().Group == groupName {
-		hs = append(hs, this.GetLocalHost().GetSummary() )
+		hs = append( hs, this.GetLocalHost().GetSummary() )
+
+		if this.GetLocalHost().Status > status {
+			status = this.GetLocalHost().Status
+		}
 	}
 
 	for remoteWigoName := range this.RemoteWigos {
-		subSummaries := this.RemoteWigos[remoteWigoName].GroupSummary(groupName)
+		subSummaries, subStatus := this.RemoteWigos[remoteWigoName].GroupSummary(groupName)
 
 		if len(subSummaries) > 0 {
 			hs = append(hs, subSummaries...)
 		}
+
+		if subStatus > status {
+			status = subStatus
+		}
 	}
 
-	return hs
+	return hs, status
 }
