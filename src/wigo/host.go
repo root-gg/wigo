@@ -55,6 +55,10 @@ func NewLocalHost() (this *Host) {
 	// Set group
 	this.Group = GetLocalWigo().GetConfig().Global.Group
 
+	if this.Group == "" {
+		this.Group = "none"
+	}
+
 	return
 }
 
