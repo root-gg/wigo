@@ -139,7 +139,7 @@ func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 func NewWigoFromErrorMessage(message string, isAlive bool) (this *Wigo) {
 
 	this = new(Wigo)
-	this.GlobalStatus = 500
+	this.GlobalStatus = 499
 	this.GlobalMessage = message
 	this.IsAlive = isAlive
 	this.RemoteWigos = make(map[string]*Wigo)
@@ -151,7 +151,7 @@ func NewWigoFromErrorMessage(message string, isAlive bool) (this *Wigo) {
 
 // Status setters
 func (this *Wigo) Down( reason string ){
-	this.GlobalStatus = 500
+	this.GlobalStatus = 499
 	this.GlobalMessage = reason
 	this.IsAlive = false
 }
