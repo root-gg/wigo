@@ -47,6 +47,12 @@ func main() {
 	// Signals
 	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
+	go func() {
+		for i := 0 ; i < 100 ; i++ {
+			wigo.LocalWigo.AddLog(wigo.NewProbeResult("lipoune",300,0,"looool","{}"), wigo.WARNING, fmt.Sprintf("Probe lipoune switched from 100 to 300 : mitron"))
+		}
+	}()
+
 	// Selection
 	for {
 		select {
@@ -519,20 +525,20 @@ func threadHttp() {
 		return 200, json
 	})
 
-	m.Get("/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
-	m.Get("/logs", wigo.HttpLogsHandler)
-	m.Get("/groups", wigo.HttpGroupsHandler)
-	m.Get("/groups/:group", wigo.HttpGroupsHandler)
-	m.Get("/groups/:group/logs",wigo.HttpLogsHandler)
-	m.Get("/groups/:group/probes/:probe/logs",wigo.HttpLogsHandler)
-	m.Get("/remotes", wigo.HttpRemotesHandler)
-	m.Get("/remotes/:hostname", wigo.HttpRemotesHandler)
-	m.Get("/remotes/:hostname/status", wigo.HttpRemotesStatusHandler)
-	m.Get("/remotes/:hostname/logs", wigo.HttpLogsHandler)
-	m.Get("/remotes/:hostname/probes", wigo.HttpRemotesProbesHandler)
-	m.Get("/remotes/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
-	m.Get("/remotes/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
-	m.Get("/remotes/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
+	m.Get("/api/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
+	m.Get("/api/logs", wigo.HttpLogsHandler)
+	m.Get("/api/groups", wigo.HttpGroupsHandler)
+	m.Get("/api/groups/:group", wigo.HttpGroupsHandler)
+	m.Get("/api/groups/:group/logs",wigo.HttpLogsHandler)
+	m.Get("/api/groups/:group/probes/:probe/logs",wigo.HttpLogsHandler)
+	m.Get("/api/hosts", wigo.HttpRemotesHandler)
+	m.Get("/api/hosts/:hostname", wigo.HttpRemotesHandler)
+	m.Get("/api/hosts/:hostname/status", wigo.HttpRemotesStatusHandler)
+	m.Get("/api/hosts/:hostname/logs", wigo.HttpLogsHandler)
+	m.Get("/api/hosts/:hostname/probes", wigo.HttpRemotesProbesHandler)
+	m.Get("/api/hosts/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
+	m.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
+	m.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
 
 	err := http.ListenAndServe(apiAddress+":"+strconv.Itoa(apiPort), m)
 	if err != nil {
