@@ -817,6 +817,10 @@ func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary, status i
 		if this.GetLocalHost().Status > status {
 			status = this.GetLocalHost().Status
 		}
+
+		if this.GlobalStatus > status {
+			status = this.GlobalStatus
+		}
 	}
 
 	for remoteWigoName := range this.RemoteWigos {
