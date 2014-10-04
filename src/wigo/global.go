@@ -715,3 +715,46 @@ func (this *Wigo) EraseRemoteWigos(depth int) *Wigo {
 
 	return this
 }
+
+
+// Groups
+
+func (this *Wigo) ListGroupsNames() []string {
+	list := make([]string, 0)
+
+	if this.Uuid == LocalWigo.Uuid && this.GetLocalHost().Group != "" {
+		list = append(list, this.GetLocalHost().Group)
+	}
+
+	for wigoName := range this.RemoteWigos {
+		group := this.RemoteWigos[wigoName].GetLocalHost().Group
+
+		if !IsStringInArray( group, list ) && group != "" {
+			log.Printf("REMOTE: appending %s",group)
+			list = append(list, this.RemoteWigos[wigoName].GetLocalHost().Group)
+		}
+
+		remoteList := this.RemoteWigos[wigoName].ListGroupsNames()
+		list = append(list, remoteList...)
+	}
+
+	return list
+}
+
+func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary ){
+	hs = make([]*HostSummary,0)
+
+	if this.GetLocalHost().Group == groupName {
+		hs = append(hs, this.GetLocalHost().GetSummary() )
+	}
+
+	for remoteWigoName := range this.RemoteWigos {
+		subSummaries := this.RemoteWigos[remoteWigoName].GroupSummary(groupName)
+
+		if len(subSummaries) > 0 {
+			hs = append(hs, subSummaries...)
+		}
+	}
+
+	return hs
+}

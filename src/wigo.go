@@ -520,8 +520,10 @@ func threadHttp() {
 	})
 
 	m.Get("/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
-	m.Get("/remotes", wigo.HttpRemotesHandler)
 	m.Get("/logs", wigo.HttpLogsHandler)
+	m.Get("/groups", wigo.HttpGroupsHandler)
+	m.Get("/groups/:group", wigo.HttpGroupsHandler)
+	m.Get("/remotes", wigo.HttpRemotesHandler)
 	m.Get("/remotes/:hostname", wigo.HttpRemotesHandler)
 	m.Get("/remotes/:hostname/status", wigo.HttpRemotesStatusHandler)
 	m.Get("/remotes/:hostname/logs", wigo.HttpLogsHandler)

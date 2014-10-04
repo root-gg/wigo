@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/codegangsta/martini"
 	"strconv"
+	"fmt"
 )
 
 func HttpRemotesHandler(params martini.Params) (int, string) {
@@ -152,4 +153,33 @@ func HttpLogsHandler(params martini.Params) (int, string) {
 	}
 
 	return 200, string(json)
+}
+
+
+func HttpGroupsHandler(params martini.Params) (int, string) {
+
+	group := params["group"]
+
+	if group != "" {
+		gs := GetLocalWigo().GroupSummary(group)
+		if gs != nil {
+			json, err := json.MarshalIndent(gs, "", "    ")
+			if err != nil {
+				return 500, fmt.Sprintf("Fail to encode summary : %s" ,err)
+			} else {
+				return 200, string(json)
+			}
+		} else {
+			return 404, ""
+		}
+	}
+
+	// Return remotes list
+	list := GetLocalWigo().ListGroupsNames()
+	json, err := json.MarshalIndent(list, "", "    ")
+	if err != nil {
+		return 500, ""
+	} else {
+		return 200, string(json)
+	}
 }

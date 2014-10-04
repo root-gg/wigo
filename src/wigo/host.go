@@ -15,6 +15,12 @@ type Host struct {
 	parentWigo *Wigo
 }
 
+type HostSummary struct {
+	Name				string
+	Status				int
+	ProbesStatuses		map[string]int
+}
+
 func NewHost(hostname string) (this *Host) {
 
 	this = new(Host)
@@ -128,4 +134,18 @@ func (this *Host) GetParentWigo() *Wigo {
 }
 func (this *Host) SetParentWigo(w *Wigo) {
 	this.parentWigo = w
+}
+
+
+func (this *Host) GetSummary()( hs *HostSummary ){
+	hs 					= new(HostSummary)
+	hs.Name 			= this.Name
+	hs.Status 			= this.Status
+	hs.ProbesStatuses 	= make(map[string]int)
+
+	for probeName := range this.Probes {
+		hs.ProbesStatuses[ probeName ] = this.Probes[probeName].Status
+	}
+
+	return hs
 }
