@@ -1,7 +1,15 @@
 package wigo
 
-import "time"
+import (
+	"time"
+	"os"
+	"log"
+	"encoding/json"
+	"bufio"
+	"io"
+)
 
+var logFilehandle *os.File
 
 type Log struct {
 	Date		string
@@ -36,6 +44,77 @@ func ( this *Log ) SetProbe( probename string ){
 func ( this *Log ) SetGroup( group string ){
 	this.Group = group
 }
+
+// Persist on disk
+func ( this *Log ) Persist() {
+
+	LocalWigo.logsFileLock.Lock()
+	defer LocalWigo.logsFileLock.Unlock()
+
+	if logFilehandle == nil {
+		f, err := os.OpenFile(LocalWigo.GetConfig().Global.EventLog, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Printf("Critical : Failed to open events log file : %s", err)
+			return
+		}
+
+		logFilehandle = f
+	}
+
+	// Json
+	j, err := json.Marshal(this)
+	if err != nil {
+		log.Printf("CRITICAL: Failed convert log to json: %s", err)
+		return
+	}
+
+	// Persist
+	logFilehandle.WriteString(string(j) + "\n")
+
+	return
+}
+
+// LoadFromDisk
+func LoadLogsFromDisk(){
+
+	LocalWigo.logsFileLock.Lock()
+	defer LocalWigo.logsFileLock.Unlock()
+
+	f, err := os.OpenFile(LocalWigo.GetConfig().Global.EventLog, os.O_RDONLY, 0666)
+	if err != nil {
+		log.Printf("Critical : Failed to open events log file : %s", err)
+		return
+	}
+
+	bf := bufio.NewReader(f)
+
+	for {
+		line, isPrefix, err := bf.ReadLine()
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("Error reading file : %s\n", err)
+		}
+		if isPrefix {
+			log.Printf("Error: Unexpected long line reading\n", f.Name())
+		}
+
+		newLog := new(Log)
+		e := json.Unmarshal(line,newLog)
+		if e != nil {
+			break
+		}
+
+		if newLog.Timestamp != 0 {
+			LocalWigo.AddLog(newLog, newLog.Level, newLog.Message)
+		}
+	}
+
+	f.Close()
+}
+
 
 // Log levels
 const (

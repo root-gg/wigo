@@ -37,6 +37,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Loads previous logs
+	go wigo.LoadLogsFromDisk()
+
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
@@ -477,10 +480,15 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			log.Printf("Can't connect to %s after %d tries : %s", host, tries, err)
 
 			// Create wigo in error
-			errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
-			errorWigo.SetHostname(Hostname.Hostname)
-
-			wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, errorWigo)
+			if _, ok := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname] ; ok {
+				newWigo := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname].Clone()
+				newWigo.Down(fmt.Sprintf("%s",err))
+				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, newWigo)
+			} else {
+				errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
+				errorWigo.SetHostname(Hostname.Hostname)
+				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, errorWigo)
+			}
 
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
 			continue

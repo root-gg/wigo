@@ -17,7 +17,9 @@ type Host struct {
 
 type HostSummary struct {
 	Name				string
+	Message				string
 	Status				int
+	IsAlive				bool
 	Probes				[]map[string]interface {}
 }
 

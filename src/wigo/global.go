@@ -39,6 +39,7 @@ type Wigo struct {
 
 	logs		    []*Log
 	logsLock		*sync.RWMutex
+	logsFileLock	*sync.RWMutex
 	logsProbeIndex	map[string][]uint64
 	logsWigoIndex	map[string][]uint64
 	logsGroupIndex	map[string][]uint64
@@ -79,6 +80,7 @@ func InitWigo() (err error) {
 		// Logs
 		LocalWigo.logs = make([]*Log,0)
 		LocalWigo.logsLock = new(sync.RWMutex)
+		LocalWigo.logsFileLock = new(sync.RWMutex)
 		LocalWigo.logsOffset = 0
 		LocalWigo.logsGroupIndex = make(map[string][]uint64)
 		LocalWigo.logsProbeIndex = make(map[string][]uint64)
@@ -145,6 +147,20 @@ func NewWigoFromErrorMessage(message string, isAlive bool) (this *Wigo) {
 
 	return
 }
+
+
+// Status setters
+func (this *Wigo) Down( reason string ){
+	this.GlobalStatus = 500
+	this.GlobalMessage = reason
+	this.IsAlive = false
+}
+func (this *Wigo) Up(){
+	this.GlobalMessage = "OK"
+	this.IsAlive = true
+	this.RecomputeGlobalStatus()
+}
+
 
 // Recompute statuses
 func (this *Wigo) RecomputeGlobalStatus() {
@@ -333,7 +349,15 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 	defer LocalWigo.logsLock.Unlock()
 
 	// Instanciate log
-	newLog := NewLog(level,message)
+	var newLog *Log
+	var isExisting bool = false
+
+	if existingLog, ok := ressource.(*Log) ; ok {
+		isExisting = true
+		newLog = existingLog
+	} else {
+		newLog = NewLog(level, message)
+	}
 
 	// Append
 	this.logs = append(this.logs, newLog)
@@ -391,7 +415,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 
 	case *Wigo :
 
-		newLog.Host  = v.GetLocalHost().GetParentWigo().GetHostname()
+		newLog.Host  = v.GetHostname()
 		newLog.Group = v.GetLocalHost().Group
 		newLog.Level = NOTICE
 
@@ -424,6 +448,26 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
 		}
 
+	case *Log :
+		if newLog.Host != "" {
+			if this.logsWigoIndex[newLog.Host] == nil {
+				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
+			}
+			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
+		}
+		if newLog.Group != "" {
+			if this.logsGroupIndex[newLog.Group] == nil {
+				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
+			}
+			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
+		}
+		if newLog.Probe != "" {
+			if this.logsProbeIndex[newLog.Probe] == nil {
+				this.logsProbeIndex[newLog.Probe] = make([]uint64, 0)
+			}
+			this.logsProbeIndex[newLog.Probe] = append(this.logsProbeIndex[newLog.Probe], index)
+		}
+
 	case string :
 
 		newLog.Group = v
@@ -436,6 +480,10 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 
 			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
 		}
+	}
+
+	if !isExisting {
+		newLog.Persist()
 	}
 
 	return nil
@@ -757,8 +805,14 @@ func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary, status i
 	hs = make([]*HostSummary,0)
 
 	status = 0
+
 	if this.GetLocalHost().Group == groupName {
-		hs = append( hs, this.GetLocalHost().GetSummary() )
+		summary :=  this.GetLocalHost().GetSummary()
+		summary.Status = this.GlobalStatus
+		summary.Message = this.GlobalMessage
+		summary.IsAlive = this.IsAlive
+
+		hs = append( hs, summary )
 
 		if this.GetLocalHost().Status > status {
 			status = this.GetLocalHost().Status
@@ -778,4 +832,17 @@ func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary, status i
 	}
 
 	return hs, status
+}
+
+func (this *Wigo) Clone() ( cloned *Wigo ){
+	cloned = new(Wigo)
+	cloned.LocalHost = this.LocalHost
+	cloned.RemoteWigos = this.RemoteWigos
+	cloned.hostname = this.hostname
+	cloned.Uuid = this.Uuid
+	cloned.IsAlive = this.IsAlive
+	cloned.GlobalStatus = this.GlobalStatus
+	cloned.GlobalMessage = this.GlobalMessage
+	cloned.hostname = this.hostname
+	return
 }

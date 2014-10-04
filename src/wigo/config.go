@@ -36,6 +36,7 @@ func NewConfig() (this *Config) {
 	this.Global.ListenAddress = "0.0.0.0"
 	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
 	this.Global.LogFile = "/var/log/wigo.log"
+	this.Global.EventLog = "/var/lib/wigo/events.log"
 	this.Global.ConfigFile = "/etc/wigo/wigo.conf"
 	this.Global.Group = "none"
 
@@ -114,6 +115,7 @@ type GeneralConfig struct {
 	LogFile         string
 	ConfigFile      string
 	Group           string
+	EventLog		string
 }
 
 type NotificationConfig struct {
