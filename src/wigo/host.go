@@ -27,7 +27,7 @@ func NewHost(hostname string) (this *Host) {
 
 	this.Status = 0
 	this.Name = hostname
-	this.Group = ""
+	this.Group = "none"
 	this.Probes = make(map[string]*ProbeResult)
 
 	return

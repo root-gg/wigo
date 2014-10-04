@@ -37,7 +37,7 @@ func NewConfig() (this *Config) {
 	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
 	this.Global.LogFile = "/var/log/wigo.log"
 	this.Global.ConfigFile = "/etc/wigo/wigo.conf"
-	this.Global.Group = ""
+	this.Global.Group = "none"
 
 	// OpenTSDB
 	this.OpenTSDB.Enabled = false
