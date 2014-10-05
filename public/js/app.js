@@ -252,7 +252,11 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location) {
     };
 
     $scope.load = function() {
-        _logs = Restangular;
+        $scope.menu.group_select = "";
+        $scope.menu.host_select = "";
+        $scope.menu.probe_select = "";
+
+        var _logs = Restangular;
         if($scope.menu.host){
             _logs = _logs.one('hosts',  $scope.menu.host)
         } else if($scope.menu.group){
@@ -265,6 +269,11 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location) {
 
         _logs.getList().then(function(logs) {
             $scope.logs = logs;
+        });
+
+        var _indexes = Restangular.all('logs').one('indexes')
+        _indexes.get().then(function(indexes){
+            $scope.indexes = indexes;
         });
     }
 
