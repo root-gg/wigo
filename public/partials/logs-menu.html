@@ -16,10 +16,7 @@
                 </div>
                 <!-- /input-group -->
             </li>
-            <li class="sidebar-search">
-                <select ng-model="menu.level" ng-options="level for level in logLevels" class="form-control" >
-                </select>
-            </li>
+
             <li class="sidebar-search" ng-show="menu.group">
                 Group : {{menu.group}} <i class="fa fa-times" ng-click="remove_group()"></i>
             </li>
@@ -28,6 +25,56 @@
             </li>
             <li class="sidebar-search" ng-show="menu.probe">
                 Probe : {{menu.probe}} <i class="fa fa-times" ng-click="remove_probe()"></i>
+            </li>
+
+            <li class="sidebar-search">
+                <div style="text-align:center">
+                    Level
+                </div>
+                <select ng-model="menu.level" ng-options="level for level in logLevels" class="form-control" >
+                </select>
+            </li>
+            <li class="sidebar-search">
+                <div style="text-align:center">
+                    Group
+                </div>
+                <div class="form-group input-group">
+                    <select ng-model="menu.group_select" ng-options="group for group in indexes.groups" class="form-control">
+                    </select>
+                    <span class="input-group-btn">
+                        <button class="btn btn-default" type="button" ng-click="set_group(menu.group_select)">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </span>
+                </div>
+            </li>
+            <li class="sidebar-search">
+                <div style="text-align:center">
+                    Host
+                </div>
+                <div class="form-group input-group">
+                    <select ng-model="menu.host_select" ng-options="host for host in indexes.hosts" class="form-control">
+                    </select>
+                    <span class="input-group-btn">
+                        <button class="btn btn-default" type="button" ng-click="set_host(menu.host_select)">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </span>
+                </div>
+            </li>
+            <li class="sidebar-search">
+                <div style="text-align:center">
+                    Probe
+                </div>
+                <div class="form-group input-group">
+                    <select ng-model="menu.probe_select" ng-options="probe for probe in indexes.probes" class="form-control">
+                    </select>
+                    <span class="input-group-btn">
+                        <button class="btn btn-default" type="button" ng-click="set_probe(menu.probe_select)">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </span>
+                </div>
             </li>
         </ul>
     </div>
