@@ -153,10 +153,6 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
         $scope.load();
     }
 
-    $scope.menu = {
-        level : "OK"
-    };
-
     $scope.groups = [];
     $scope.load = function() {
         $scope.counts = {
@@ -191,21 +187,26 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
         $anchorScroll();
     }
 
+    $scope.gotoGroup = function(group){
+         $location.search('name',group);
+         $location.path('group');
+         $location.hash();
+         $route.reload();
+    }
+
     $scope.init();
 }
 
 function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll) {
 
     $scope.init = function() {
+        $scope.name = $location.search().name;
         $scope.load();
     }
 
-    $scope.menu = {
-        level : "OK"
-    };
-
-    $scope.groups = [];
+    $scope.hosts = [];
     $scope.load = function() {
+        if (!$scope.name) return;
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -213,22 +214,20 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
             "CRITICAL" : 0,
             "ERROR" : 0
         };
-        Restangular.all('groups').getList().then(function(groups) {
-            _.each(groups,function(group_name){
-                Restangular.one('groups',group_name).get().then(function(group){
-                    group.counts = {
-                        "OK" : 0,
-                        "INFO" : 0,
-                        "WARNING" : 0,
-                        "CRITICAL" : 0,
-                        "ERROR" : 0
-                    };
-                    _.each(group.Hosts,function(host){
-                        $scope.counts[getLevel(host.Status)]++;
-                        group.counts[getLevel(host.Status)]++;
-                    });
-                    $scope.groups.push(group);
+        Restangular.one('groups',$scope.name).get().then(function(group) {
+            _.each(group.Hosts,function(host){
+                host.counts = {
+                    "OK" : 0,
+                    "INFO" : 0,
+                    "WARNING" : 0,
+                    "CRITICAL" : 0,
+                    "ERROR" : 0
+                };
+                _.each(host.Probes,function(probe){
+                    $scope.counts[getLevel(probe.Status)]++;
+                    host.counts[getLevel(probe.Status)]++;
                 });
+                $scope.hosts.push(host);
             });
         });
     }

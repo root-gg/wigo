@@ -6,7 +6,10 @@
     <div class="sidebar-nav navbar-collapse">
         <ul class="nav" id="side-menu">
             <li ng-repeat="group in groups | orderBy:['-Status','Name']">
-                <a ng-click="goto(group.Name)"><span class="text-capitalize" style="font-size:20px;">{{group.Name}}</span>
+                <a ng-click="goto(group.Name)">
+                    <span ng-click="gotoGroup(group.Name)" class="menuHover" class="text-capitalize" style="font-size:16px;">
+                        {{group.Name}}
+                    </span>
                     <button ng-show="group.counts['WARNING']" type="button" class="btn btn-warning btn-circle countLabelRight">
                         {{group.counts['WARNING']}}
                     </button>

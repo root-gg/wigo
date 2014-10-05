@@ -13,3 +13,8 @@
     display:inline-block;
     margin-right:3px;
 }
+
+.menuHover:hover {
+    font-weight: bold;
+    text-decoration: underline;
+}
