@@ -32,7 +32,9 @@
         <div class="col-lg-12">
             <div class="panel {{ group.Status | getLevel | panelLevelCssFilter }}">
                 <div id="{{group.Name}}"class="panel-heading">
-                    <strong class="text-capitalize">{{group.Name}}</strong>
+                    <span ng-click="gotoGroup(group.Name)" class="menuHover text-capitalize" style="font-weight:bold;">
+                        {{group.Name}}
+                    </span>
                     <button ng-show="group.counts['ERROR']" type="button" class="btn btn-default btn-circle countLabel">
                         {{group.counts['ERROR']}}
                     </button>
