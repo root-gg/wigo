@@ -54,6 +54,14 @@ var labelLevels = {
     "ERROR"     : "label-default"
 }
 
+var btnLevels = {
+    "OK"        : "btn-success",
+    "INFO"      : "btn-primary",
+    "WARNING"   : "btn-warning",
+    "CRITICAL"  : "btn-danger",
+    "ERROR"     : "btn-default"
+}
+
 var statusRowLevels = {
     "OK"        : "success",
     "INFO"      : "info",
@@ -83,12 +91,6 @@ var logRowLevels = {
 }
 
 angular.module('wigo-filters', [])
-    .filter('getLevel', function() {
-        return function(status){
-            console.log(status,getLevel(status));
-            return getLevel(status);
-        };
-    })
     .filter('panelLevelCssFilter', function() {
         return function(level) {
             return panelLevels[level];
@@ -98,7 +100,12 @@ angular.module('wigo-filters', [])
             return function(level) {
                 return labelLevels[level];
             };
-        })
+    })
+    .filter('btnLevelCssFilter', function() {
+            return function(level) {
+                return btnLevels[level];
+            };
+    })
     .filter('statusTableRowCssFilter', function() {
             return function(status) {
                 return statusRowLevels[getLevel(status)];
@@ -172,9 +179,14 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
                         "CRITICAL" : 0,
                         "ERROR" : 0
                     };
+                    group.Level = getLevel(group.Status);
                     _.each(group.Hosts,function(host){
-                        $scope.counts[getLevel(host.Status)]++;
-                        group.counts[getLevel(host.Status)]++;
+                        host.Level = getLevel(host.Status);
+                        $scope.counts[host.Level]++;
+                        group.counts[host.Level]++;
+                        _.each(host.Probes,function(probe){
+                            probe.Level = getLevel(probe.Status);
+                        });
                     });
                     $scope.groups.push(group);
                 });
@@ -190,6 +202,13 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
     $scope.gotoGroup = function(group){
          $location.search('name',group);
          $location.path('group');
+         $location.hash();
+         $route.reload();
+    }
+
+    $scope.gotoHost = function(host){
+         $location.search('name',host);
+         $location.path('host');
          $location.hash();
          $route.reload();
     }
@@ -223,9 +242,11 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
                     "CRITICAL" : 0,
                     "ERROR" : 0
                 };
+                host.Level = getLevel(host.Status);
                 _.each(host.Probes,function(probe){
-                    $scope.counts[getLevel(probe.Status)]++;
-                    host.counts[getLevel(probe.Status)]++;
+                    probe.Level = getLevel(probe.Status);
+                    $scope.counts[probe.Level]++;
+                    host.counts[probe.Level]++;
                 });
                 $scope.hosts.push(host);
             });
@@ -237,11 +258,47 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
         $anchorScroll();
     }
 
+    $scope.gotoHost = function(host){
+         $location.search('name',host);
+         $location.path('host');
+         $location.hash();
+         $route.reload();
+    }
+
     $scope.init();
 }
 
-function HostCtrl($scope, $dialog, $route, $location) {
-    $scope.hello = "world";
+function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll) {
+     $scope.init = function() {
+        $scope.name = $location.search().name;
+        $scope.load();
+    }
+
+    $scope.probes = [];
+    $scope.load = function() {
+        if (!$scope.name) return;
+        $scope.counts = {
+            "OK" : 0,
+            "INFO" : 0,
+            "WARNING" : 0,
+            "CRITICAL" : 0,
+            "ERROR" : 0
+        };
+        Restangular.one('hosts',$scope.name).get().then(function(host) {
+            _.each(host.LocalHost.Probes,function(probe){
+                probe.Level = getLevel(probe.Status)
+                $scope.counts[probe.Level]++;
+                $scope.probes.push(probe);
+            });
+        });
+    }
+
+    $scope.goto = function(anchor){
+        $location.hash(anchor);
+        $anchorScroll();
+    }
+
+    $scope.init();
 }
 
 function LogsCtrl($scope, Restangular, $dialog, $route, $location) {

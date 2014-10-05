@@ -18,9 +18,10 @@
                         <div style="text-align:center;">
                             <strong>{{level}}</strong>
                         </div>
-                    <div style="text-align:center;">
-                        <div class="huge">
-                            {{counts[level]}}
+                        <div style="text-align:center;">
+                            <div class="huge">
+                                {{counts[level]}}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -30,7 +31,7 @@
     <!-- /.row -->
     <div class="row" ng-repeat="group in groups | orderBy:['-Status','Name']">
         <div class="col-lg-12">
-            <div class="panel {{ group.Status | getLevel | panelLevelCssFilter }}">
+            <div class="panel {{ group.Level | panelLevelCssFilter }}">
                 <div id="{{group.Name}}"class="panel-heading">
                     <span ng-click="gotoGroup(group.Name)" class="menuHover text-capitalize" style="font-weight:bold;">
                         {{group.Name}}
@@ -65,14 +66,16 @@
                             <tr class="{{ host.Status | statusTableRowCssFilter }}"
                             ng-repeat="host in group.Hosts | orderBy:['-Status','Name']">
                                 <td>
-                                    {{host.Name}}
+                                    <span ng-click="gotoHost(host.Name)" class="menuHover">
+                                        {{host.Name}}
+                                    </span>
                                     <strong style="color:red" ng-show="!host.IsAlive">
                                         &nbsp;DOWN
                                     </strong>
                                 </td>
                                 <td>
                                     <span ng-repeat="probe in host.Probes | orderBy:['-Status','Name']"
-                                          class="probeLabel label {{ probe.Status | getLevel | labelLevelCssFilter }}"
+                                          class="probeLabel label {{ probe.Level | labelLevelCssFilter }}"
                                           popover="{{probe.Message}}" popover-trigger="mouseenter">
                                         {{probe.Name}}
                                     </span>

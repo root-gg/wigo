@@ -6,7 +6,10 @@
     <div class="sidebar-nav navbar-collapse">
         <ul class="nav" id="side-menu">
             <li ng-repeat="host in hosts | orderBy:['-Status','Name']">
-                <a ng-click="goto(host.Name)"><span class="text-capitalize" style="font-size:16px;">{{host.Name}}</span>
+                <a ng-click="goto(host.Name)">
+                    <span ng-click="gotoHost(host.Name)" class="menuHover" class="text-capitalize" style="font-size:16px;">
+                        {{host.Name}}
+                    </span>
                     <button ng-show="host.counts['WARNING']" type="button" class="btn btn-warning btn-circle countLabelRight">
                         {{host.counts['WARNING']}}
                     </button>
