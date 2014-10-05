@@ -144,7 +144,7 @@ func NewWigoFromErrorMessage(message string, isAlive bool) (this *Wigo) {
 	this.IsAlive = isAlive
 	this.RemoteWigos = make(map[string]*Wigo)
 	this.LocalHost = new(Host)
-
+	this.LocalHost.Status = 499
 	return
 }
 
@@ -152,6 +152,7 @@ func NewWigoFromErrorMessage(message string, isAlive bool) (this *Wigo) {
 // Status setters
 func (this *Wigo) Down( reason string ){
 	this.GlobalStatus = 499
+	this.LocalHost.Status = 499
 	this.GlobalMessage = reason
 	this.IsAlive = false
 }
@@ -808,7 +809,8 @@ func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary, status i
 
 	if this.GetLocalHost().Group == groupName {
 		summary :=  this.GetLocalHost().GetSummary()
-		summary.Status = this.GlobalStatus
+		summary.Name	= this.GetHostname()
+		summary.Status 	= this.GlobalStatus
 		summary.Message = this.GlobalMessage
 		summary.IsAlive = this.IsAlive
 
