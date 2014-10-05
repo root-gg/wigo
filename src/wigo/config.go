@@ -44,6 +44,7 @@ func NewConfig() (this *Config) {
 	this.OpenTSDB.Enabled = false
 	this.OpenTSDB.Address = ""
 	this.OpenTSDB.Port = 0
+	this.OpenTSDB.SslEnabled = false
 	this.OpenTSDB.MetricPrefix = "wigo"
 
 	// Remote Wigos
@@ -161,5 +162,6 @@ type OpenTSDBConfig struct {
 	Enabled      bool
 	Address      string
 	Port         int
+	SslEnabled	 bool
 	MetricPrefix string
 }

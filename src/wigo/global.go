@@ -101,7 +101,7 @@ func InitWigo() (err error) {
 		// OpenTSDB
 		if LocalWigo.GetConfig().OpenTSDB.Enabled {
 			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
-			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, true, true)
+			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, true, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
 		}
 	}
 
