@@ -24,6 +24,7 @@ type ProbeResult struct {
 	Value     interface{}
 	Message   string
 	ProbeDate string
+	Timestamp int64
 
 	Metrics interface{}
 	Detail  interface{}
@@ -41,6 +42,7 @@ func NewProbeResultFromJson(name string, ba []byte) (this *ProbeResult) {
 
 	this.Name = name
 	this.ProbeDate = time.Now().Format(dateLayout)
+	this.Timestamp = time.Now().Unix()
 	this.ExitCode = 0
 
 	this.parentHost = GetLocalWigo().GetLocalHost()
@@ -56,6 +58,7 @@ func NewProbeResult(name string, status int, exitCode int, message string, detai
 	this.Message = message
 	this.Detail = detail
 	this.ProbeDate = time.Now().Format(dateLayout)
+	this.Timestamp = time.Now().Unix()
 
 	this.parentHost = GetLocalWigo().GetLocalHost()
 
