@@ -22,9 +22,10 @@
                         <div style="text-align:center;">
                             <strong>{{level}}</strong>
                         </div>
-                    <div style="text-align:center;">
-                        <div class="huge">
-                            {{counts[level]}}
+                        <div style="text-align:center;">
+                            <div class="huge">
+                                {{counts[level]}}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -34,9 +35,11 @@
     <!-- /.row -->
     <div class="row" ng-repeat="host in hosts | orderBy:['-Status','Name']">
         <div class="col-lg-12">
-            <div class="panel {{ host.Status | getLevel | panelLevelCssFilter }}">
+            <div class="panel {{ host.Level | panelLevelCssFilter }}">
                 <div id="{{host.Name}}"class="panel-heading">
-                    <strong class="text-capitalize">{{host.Name}}</strong>
+                    <span ng-click="gotoHost(host.Name)" class="menuHover text-capitalize" style="font-weight:bold;">
+                        {{host.Name}}
+                    </span>
                     <button ng-show="host.counts['ERROR']" type="button" class="btn btn-default btn-circle countLabel">
                         {{host.counts['ERROR']}}
                     </button>

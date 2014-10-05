@@ -1,0 +1,23 @@
+<!--
+  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
+  -->
+
+<div class="navbar-default sidebar" role="navigation">
+    <div class="sidebar-nav navbar-collapse">
+        <ul class="nav" id="side-menu">
+            <li ng-repeat="probe in probes | orderBy:['-Status','Name']">
+                <a ng-click="goto(probe.Name)">
+                    <span class="text-capitalize" style="font-size:16px;">
+                        {{probe.Name}}
+                    </span>
+                    <button ng-show="probe.Status != 100" type="button" class="btn {{ probe.Level | btnLevelCssFilter }} btn-circle countLabelRight">
+                        {{probe.Status}}
+                    </button>
+                    <div style="clear: both;"></div>
+                </a>
+            </li>
+        </ul>
+    </div>
+    <!-- /.sidebar-collapse -->
+</div>
+<!-- /.navbar-static-side -->

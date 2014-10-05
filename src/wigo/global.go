@@ -567,7 +567,7 @@ func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*L
 func (this *Wigo) ToJsonString() (string, error) {
 
 	// Send json to socket channel
-	j, e := json.MarshalIndent(this, "", "    ")
+	j, e := json.Marshal(this)
 	if e != nil {
 		return "", e
 	}

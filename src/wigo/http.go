@@ -27,7 +27,7 @@ func HttpRemotesHandler(params martini.Params) (int, string) {
 
 	// Return remotes list
 	list := GetLocalWigo().ListRemoteWigosNames()
-	json, err := json.MarshalIndent(list, "", "    ")
+	json, err := json.Marshal(list)
 	if err != nil {
 		return 500, ""
 	} else {
@@ -53,7 +53,7 @@ func HttpRemotesProbesHandler(params martini.Params) (int, string) {
 	// Get probe or probes
 	if probe != "" {
 		if remoteWigo.LocalHost.Probes[probe] != nil {
-			json, err := json.MarshalIndent(remoteWigo.LocalHost.Probes[probe], "", "    ")
+			json, err := json.Marshal(remoteWigo.LocalHost.Probes[probe])
 			if err != nil {
 				return 500, ""
 			} else {
@@ -61,7 +61,7 @@ func HttpRemotesProbesHandler(params martini.Params) (int, string) {
 			}
 		}
 	} else {
-		json, err := json.MarshalIndent(remoteWigo.ListProbes(), "", "    ")
+		json, err := json.Marshal(remoteWigo.ListProbes())
 		if err != nil {
 			return 500, ""
 		} else {
@@ -145,7 +145,7 @@ func HttpLogsHandler(params martini.Params) (int, string) {
 	logs := LocalWigo.SearchLogs(probe,hostname,group)
 
 	// Json
-	json, err := json.MarshalIndent(logs, "", "    ")
+	json, err := json.Marshal(logs)
 	if err != nil {
 		return 500, ""
 	}
@@ -168,7 +168,7 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 			result["Status"] = status
 			result["Hosts"]  = gs
 
-			json, err := json.MarshalIndent(result, "", "    ")
+			json, err := json.Marshal(result)
 			if err != nil {
 				return 500, fmt.Sprintf("Fail to encode summary : %s" ,err)
 			} else {
@@ -181,7 +181,7 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 
 	// Return remotes list
 	list := GetLocalWigo().ListGroupsNames()
-	json, err := json.MarshalIndent(list, "", "    ")
+	json, err := json.Marshal(list)
 	if err != nil {
 		return 500, ""
 	} else {
@@ -212,7 +212,7 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 	}
 
 	// Return remotes list
-	json, err := json.MarshalIndent(result, "", "    ")
+	json, err := json.Marshal(result)
 	if err != nil {
 		return 500, fmt.Sprintf("Error while encoding to json : %s", err)
 	} else {
