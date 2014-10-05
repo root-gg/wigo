@@ -188,3 +188,34 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 		return 200, string(json)
 	}
 }
+
+func HttpLogsIndexesHandler(params martini.Params) (int, string) {
+
+	result := make(map[string][]string)
+	result["probes"] 	= make([]string,0)
+	result["hosts"] 	= make([]string,0)
+	result["groups"] 	= make([]string,0)
+
+	// Probes
+	for probeName := range LocalWigo.logsProbeIndex {
+		result["probes"] = append(result["probes"], probeName)
+	}
+
+	// Hosts
+	for hostName := range LocalWigo.logsWigoIndex {
+		result["hosts"] = append(result["hosts"], hostName)
+	}
+
+	// Groups
+	for groupName := range LocalWigo.logsGroupIndex {
+		result["groups"] = append(result["groups"], groupName)
+	}
+
+	// Return remotes list
+	json, err := json.MarshalIndent(result, "", "    ")
+	if err != nil {
+		return 500, fmt.Sprintf("Error while encoding to json : %s", err)
+	} else {
+		return 200, string(json)
+	}
+}

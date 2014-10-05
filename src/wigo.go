@@ -529,6 +529,7 @@ func threadHttp() {
 
 	m.Get("/api/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
 	m.Get("/api/logs", wigo.HttpLogsHandler)
+	m.Get("/api/logs/indexes", wigo.HttpLogsIndexesHandler)
 	m.Get("/api/groups", wigo.HttpGroupsHandler)
 	m.Get("/api/groups/:group", wigo.HttpGroupsHandler)
 	m.Get("/api/groups/:group/logs",wigo.HttpLogsHandler)
