@@ -105,7 +105,6 @@ sub output {
         defined $metric->{'Value'} and $metric->{'Value'} += 0;
     }
 
-    save();
     print $json->encode( $result ) . "\n";
 
     if ( defined $code )
@@ -222,6 +221,7 @@ sub persist
     if ( @_ )
     {
         $persist = shift;
+        save();
     }
     else
     {
