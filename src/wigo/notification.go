@@ -273,7 +273,7 @@ func CallbackHttp(json string) (e error) {
     postValues.Add("Notification", string(json))
 
     // Make request
-    _, reqErr := c.PostForm(httpUrl, postValues)
+    resp, reqErr := c.PostForm(httpUrl, postValues)
     if reqErr != nil {
         log.Printf("Error sending callback to url %s : %s", httpUrl, reqErr)
         return reqErr
@@ -281,5 +281,8 @@ func CallbackHttp(json string) (e error) {
         log.Printf(" - Sent to http url : %s", httpUrl)
     }
 
-    return  nil
+
+    resp.Body.Close()
+
+    return nil
 }
