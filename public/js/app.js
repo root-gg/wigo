@@ -202,14 +202,14 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
     $scope.gotoGroup = function(group){
          $location.search('name',group);
          $location.path('group');
-         $location.hash();
+         $location.hash(null);
          $route.reload();
     }
 
     $scope.gotoHost = function(host){
          $location.search('name',host);
          $location.path('host');
-         $location.hash();
+         $location.hash(null);
          $route.reload();
     }
 
@@ -261,7 +261,7 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
     $scope.gotoHost = function(host){
          $location.search('name',host);
          $location.path('host');
-         $location.hash();
+         $location.hash(null);
          $route.reload();
     }
 

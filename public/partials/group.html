@@ -36,7 +36,7 @@
     <div class="row" ng-repeat="host in hosts | orderBy:['-Status','Name']">
         <div class="col-lg-12">
             <div class="panel {{ host.Level | panelLevelCssFilter }}">
-                <div id="{{host.Name}}"class="panel-heading">
+                <div id="{{host.Name}}" class="panel-heading">
                     <span ng-click="gotoHost(host.Name)" class="menuHover text-capitalize" style="font-weight:bold;">
                         {{host.Name}}
                     </span>

@@ -33,5 +33,24 @@
         </div>
     </div>
     <!-- /.row -->
+    <div class="row" ng-repeat="probe in probes | orderBy:['-Status','Name']">
+        <div class="panel {{ probe.Level | panelLevelCssFilter }}">
+            <div id="{{probe.Name}}" class="panel-heading">
+                <div class="row">
+                    <div>
+                        <strong>{{probe.Name}}</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-body">
+                <p>
+                    {{ probe.Message }}
+                </p>
+                <p>
+                    <pre>{{ probe.Detail | json }}</pre>
+                </p>
+            </div>
+        </div>
+    </div>
 </div>
 <!-- /#page-wrapper -->
