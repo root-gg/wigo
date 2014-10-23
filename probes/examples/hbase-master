@@ -122,7 +122,14 @@ else
 {
     foreach my $name ( keys %{ detail() } )
     {
-        push @messages, sprintf("%s : %d region cluster UP ( %s )", ( $name, detail->{$name}->{'regions_cluster'} , detail->{$name}->{'cluster_requests'} ));
+        if ( detail->{$name}->{'regions_cluster'} and detail->{$name}->{'cluster_requests'} )
+        {
+            push @messages, sprintf("%s : %d region cluster UP ( %s )", ( $name, detail->{$name}->{'regions_cluster'} , detail->{$name}->{'cluster_requests'} ));
+        }
+        else
+        {
+            push @messages, sprintf( "%s : is UP", ( $name ) );
+        }
     }
     message join ' , ' , @messages;
 }
