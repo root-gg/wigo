@@ -1,0 +1,83 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'directories' => [
+        {
+            #'name'  => 'test',
+            #'path'  => '/tmp/spool',
+            #'warning'  => '2',
+            #'critical'  => '10',
+            #'match' => '.*',
+        }
+    ],
+};
+
+init( config => $conf );
+
+if ( ! scalar ( @{config->{'directories'}} ) )
+{
+    message "No spoodir to monitor";
+    output 13;
+}
+
+my @messages;
+foreach my $dir ( @{config->{'directories'}} )
+{
+    my $name  = $dir->{'name'}  || $dir->{'path'};
+    my $match = $dir->{'match'} || '[^\.].*';
+
+    if ( ! -d $dir->{'path'} )
+    {
+        raise 500;
+        push @messages, $dir->{'path'} . " does not exists";
+        detail->{$name}->{'error'} = $dir->{'path'} . " does not exists";
+        next;
+    }
+
+    my $dh;
+    if ( opendir $dh, $dir->{'path'} )
+    {
+        my @files = grep { /^$match$/ } readdir($dh);
+        closedir $dh;
+
+        if ( scalar @files > $dir->{'critical'} )
+        {
+            raise 300;
+            push @messages, "There is " . scalar @files . " files in " . $dir->{'path'};
+        }
+        elsif ( scalar @files > $dir->{'warning'} )
+        {
+            raise 200;
+            push @messages, "There is " . scalar @files . " files in " . $dir->{'path'};
+        }
+       
+        detail->{$name}->{'items'} = scalar @files;
+        add_metric { 'Tags' => { 'directory' => $name, 'metric' => 'items' }, 'Value' => scalar @files };
+    }
+    else
+    {
+        detail->{$name}->{'directory'} = $dir->{'path'} . " unable to open directory : $!";
+    }
+}
+
+if ( scalar @messages )
+{
+    message join ' , ' , @messages;
+}
+else
+{
+    message "All monitored spooldir are ok";
+}
+
+output 0;
