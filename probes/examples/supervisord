@@ -69,7 +69,7 @@ for my $line ( split "\n", $statuslist )
 if ( scalar @messages )
 {
 	message join(" , ", @messages);
-	result->{'message'} .= " , $count other processus are RUNNING" if $count;
+	result->{'Message'} .= " , $count other processus are RUNNING" if $count;
 }
 else
 {
