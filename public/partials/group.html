@@ -69,7 +69,7 @@
                             <tbody>
                             <tr class="{{ probe.Status | statusTableRowCssFilter }}"
                             ng-repeat="probe in host.Probes | orderBy:['-Status','Name']">
-                                <td>{{probe.Name}}</td>
+                                <td ng-click="gotoProbe(host.Name,probe.Name)">{{probe.Name}}</td>
                                 <td>{{probe.Message}}</td>
                             </tr>
                             </tbody>

@@ -74,11 +74,13 @@
                                     </strong>
                                 </td>
                                 <td>
-                                    <span ng-repeat="probe in host.Probes | orderBy:['-Status','Name']"
-                                          class="probeLabel label {{ probe.Level | labelLevelCssFilter }}"
-                                          popover="{{probe.Message}}" popover-trigger="mouseenter">
-                                        {{probe.Name}}
-                                    </span>
+                                    <a ng-click="gotoProbe(host.Name, probe.Name)" ng-repeat="probe in host.Probes | orderBy:['-Status','Name']">
+                                        <span
+                                            class="probeLabel label {{ probe.Level | labelLevelCssFilter }}"
+                                            popover="{{probe.Message}}" popover-trigger="mouseenter">
+                                            {{probe.Name}}
+                                        </span>
+                                    </a>
                                 </td>
                             </tr>
                             </tbody>

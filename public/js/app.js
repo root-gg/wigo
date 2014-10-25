@@ -214,6 +214,13 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
          $route.reload();
     }
 
+    $scope.gotoProbe = function(host,probe){
+         $location.search('name',host);
+         $location.path('host');
+         $location.hash(probe);
+         $route.reload();
+    }
+
     $scope.init();
 }
 
@@ -264,6 +271,13 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
          $location.search('name',host);
          $location.path('host');
          $location.hash(null);
+         $route.reload();
+    }
+
+    $scope.gotoProbe = function(host,probe){
+         $location.search('name',host);
+         $location.path('host');
+         $location.hash(probe);
          $route.reload();
     }
 
