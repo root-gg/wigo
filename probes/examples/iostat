@@ -29,6 +29,13 @@ init( config => $conf );
 ###
 
 my $now = time;
+
+if ( ! -r "/proc/diskstats" )
+{
+    message "/proc/diskstats does not exists";
+    output 13;
+}
+
 if( ! open IOSTATS, '<', '/proc/diskstats' )
 {
     status  500;
