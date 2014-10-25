@@ -1,0 +1,80 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'lsiutil'       => '/usr/bin/lsiutil',
+    'ports'         => [ 1 ],
+};
+
+init( config => $conf );
+
+my $lsiutil = config->{'lsiutil'};
+
+if ( ! ( config->{'ports'} and ref(config->{'ports'}) eq 'ARRAY' and scalar @{ config->{'ports'} } > 0 ) )
+{
+    message "no lsi port to check";
+    exit 13;
+}
+
+if( ! -x $lsiutil )
+{
+    raise 500;
+    message "lsiutil $lsiutil is not executable";
+    output 13;
+}
+
+my @messages;
+foreach my $port ( @{config->{'ports'}} )
+{
+    debug "Check raid port $port";
+    my $msg;
+    my @status = `$lsiutil -p$port -a21,1,0,0,0`;
+    foreach my $line ( @status )
+    {
+        debug $line;
+
+        if ( my ($state) = $line =~ /Volume State:\s+(.*)$/ )
+        {
+            detail->{"port$port"}->{'state'} = $state;
+            $msg = "Port $port state is $state";
+            if( $state ne 'optimal, enabled' )
+            {
+                if ( $state =~ /resync in progress/ )
+                {
+                    raise 200;
+                }
+                else
+                {
+                    raise 300;
+                }
+            }
+        }
+
+        if ( my ($resyncPct) = $line =~ /Resync Progress:.*,\s+(\d+)%/ )
+        {
+            detail->{"port$port"}->{'resync'} = "$resyncPct%";
+            $msg .= " $resyncPct%"
+        }
+    }
+
+    if ( ! $msg )
+    {
+        raise 500;
+        $msg = "Port $port state is unknown";
+    }
+
+    push @messages, $msg;
+}
+
+message join ' , ', @messages;
+output 0;
