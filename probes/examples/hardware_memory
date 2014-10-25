@@ -61,5 +61,6 @@ elsif ( $usePercentage > config->{'warnLevel'} )
 # Add MemUsed
 add_metric { Tags => { type => "MemUsed" },     Value   => $realUsed };
 add_metric { Tags => { type => "MemRealFree" }, Value   => $realFree };
+add_metric { Tags => { type => "MemUsedPct" }, Value    => $usePercentage };
 
 output 0;
