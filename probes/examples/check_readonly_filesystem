@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+use Time::HiRes qw/time/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'files' => [
+        '/.wigo_fs_check'
+    ],
+};
+
+init( config => $conf );
+
+if ( ! ( config->{'files'} and ref(config->{'files'}) eq 'ARRAY' and scalar @{ config->{'files'} } > 0 ) )
+{
+    message "no lsi volume to check";
+    output 13;
+}
+
+my @messages;
+foreach my $file ( @{ config->{'files'} } )
+{
+    my $msg;
+    my $time = time;
+
+    if ( open FILE, '>', $file )
+    {
+        print FILE $time;
+        close FILE;
+    }
+
+    if ( open FILE, '<', $file )
+    {
+        my $read = <FILE>;
+        close FILE;
+        if ( $read ne $time )
+        {
+            $msg = "Readonly since " . int( $time - $read ) . " secs";
+            raise 300;
+        }
+    }
+    else
+    {
+        $msg = "Can't open $file for reading : $!";
+        raise 300;
+    }
+
+    $msg and push @messages, $msg;
+    detail->{$file} = $msg || "OK";
+}
+
+if ( scalar @messages )
+{
+    message join ' , ', @messages;
+}
+else
+{
+    message "All monitored filesystem are writable";
+}
+
+output 0;
