@@ -24,10 +24,9 @@ my $conf = {
 init( config => $conf );
 
 my %h;
-my $c1 = time;
-
 persist or persist({ 'countFailed' => 0 });
 
+my ($c1,$c2);
 for( my $try = 1; $try <= 3; $try++ )
 {
     # Net::NTP has no timeout.
@@ -35,7 +34,9 @@ for( my $try = 1; $try <= 3; $try++ )
     {
         local $SIG{"ALRM"} = sub { die "ntp timeout\n"; };
         alarm 5 ;
+        $c1 = time;
         %h = get_ntp_response( config->{'ntp_server'}, config->{'port'} );
+        $c2 = time;
         alarm 0 ;
     };
 
@@ -67,7 +68,6 @@ for( my $try = 1; $try <= 3; $try++ )
     }
 }
 
-my $c2 = time;
 my $responseTime = sprintf "%.3f", ( $c2 - $c1 ) * 1000;
 
 my $s1 = $h{'Receive Timestamp'};
