@@ -23,7 +23,7 @@ Wigo::Probe::save_config("check_raid_megaraid.conf");
 if ( ! ( config->{'volumes'} and ref(config->{'volumes'}) eq 'ARRAY' and scalar @{ config->{'volumes'} } > 0 ) )
 {
     message "no megaraid array to check";
-    exit 13;
+    output 13;
 }
 
 my $megacli = config->{'megacli'};

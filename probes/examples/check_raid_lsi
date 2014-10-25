@@ -21,7 +21,7 @@ init( config => $conf );
 if ( ! ( config->{'volumes'} and ref(config->{'volumes'}) eq 'ARRAY' and scalar @{ config->{'volumes'} } > 0 ) )
 {
     message "no lsi volume to check";
-    exit 13;
+    output 13;
 }
 
 my $lsiutil = config->{'lsiutil'};
