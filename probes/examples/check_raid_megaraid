@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'megacli'       => '/opt/MegaRAID/MegaCli/MegaCli64',
+    'volumes'       => [ 0, 1 ],
+};
+
+init( config => $conf );
+
+Wigo::Probe::save_config("check_raid_megaraid.conf");
+
+if ( ! ( config->{'volumes'} and ref(config->{'volumes'}) eq 'ARRAY' and scalar @{ config->{'volumes'} } > 0 ) )
+{
+    message "no megaraid array to check";
+    exit 13;
+}
+
+my $megacli = config->{'megacli'};
+if( ! -x $megacli )
+{
+    raise 500;
+    message "megacli $megacli is not executable";
+    output 13;
+}
+
+my @messages;
+foreach my $volume ( @{config->{'volumes'}} )
+{
+    debug "Check raid volume $volume";
+    my $msg;
+    my @status = `$megacli -LDInfo -L$volume -aALL`;
+    foreach my $line ( @status )
+    {
+        debug $line;
+
+        if ( my ($key,$value) = $line =~ /^(.*?)\s*:\s*(.*)$/ )
+        {
+            detail->{"volume$volume"}->{$key} = $value;
+            if ( $key eq "State" )
+            {
+                $msg = "Volume $volume state is $value";
+                if( $value ne 'Optimal' )
+                {
+                    raise 300;
+                }
+            }
+        }
+    }
+
+    if ( ! $msg )
+    {
+        raise 500;
+        $msg = "Volume $volume state is unknown";
+    }
+
+    push @messages, $msg;
+}
+
+message join ' , ', @messages;
+output 0;

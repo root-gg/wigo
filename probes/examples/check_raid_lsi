@@ -13,19 +13,18 @@ use Wigo::Probe qw/:all/;
 
 my $conf = {
     'lsiutil'       => '/usr/bin/lsiutil',
-    'ports'         => [ 1 ],
+    'volumes'       => [ 1 ],
 };
 
 init( config => $conf );
 
-my $lsiutil = config->{'lsiutil'};
-
-if ( ! ( config->{'ports'} and ref(config->{'ports'}) eq 'ARRAY' and scalar @{ config->{'ports'} } > 0 ) )
+if ( ! ( config->{'volumes'} and ref(config->{'volumes'}) eq 'ARRAY' and scalar @{ config->{'volumes'} } > 0 ) )
 {
-    message "no lsi port to check";
+    message "no lsi volume to check";
     exit 13;
 }
 
+my $lsiutil = config->{'lsiutil'};
 if( ! -x $lsiutil )
 {
     raise 500;
@@ -34,19 +33,19 @@ if( ! -x $lsiutil )
 }
 
 my @messages;
-foreach my $port ( @{config->{'ports'}} )
+foreach my $volume ( @{config->{'volumes'}} )
 {
-    debug "Check raid port $port";
+    debug "Check raid volume $volume";
     my $msg;
-    my @status = `$lsiutil -p$port -a21,1,0,0,0`;
+    my @status = `$lsiutil -p$volume -a21,1,0,0,0`;
     foreach my $line ( @status )
     {
         debug $line;
 
         if ( my ($state) = $line =~ /Volume State:\s+(.*)$/ )
         {
-            detail->{"port$port"}->{'state'} = $state;
-            $msg = "Port $port state is $state";
+            detail->{"volume$volume"}->{'state'} = $state;
+            $msg = "Volume $volume state is $state";
             if( $state ne 'optimal, enabled' )
             {
                 if ( $state =~ /resync in progress/ )
@@ -62,7 +61,7 @@ foreach my $port ( @{config->{'ports'}} )
 
         if ( my ($resyncPct) = $line =~ /Resync Progress:.*,\s+(\d+)%/ )
         {
-            detail->{"port$port"}->{'resync'} = "$resyncPct%";
+            detail->{"volume$volume"}->{'resync'} = "$resyncPct%";
             $msg .= " $resyncPct%"
         }
     }
@@ -70,7 +69,7 @@ foreach my $port ( @{config->{'ports'}} )
     if ( ! $msg )
     {
         raise 500;
-        $msg = "Port $port state is unknown";
+        $msg = "Volume $volume state is unknown";
     }
 
     push @messages, $msg;
