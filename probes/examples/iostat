@@ -32,7 +32,7 @@ my $now = time;
 if( ! open IOSTATS, '<', '/proc/diskstats' )
 {
     status  500;
-    message "Error while fetching iface stats: " . $!;
+    message "Error while fetching disk stats: " . $!;
     output 1;
 }
 my @iostats = <IOSTATS>;
