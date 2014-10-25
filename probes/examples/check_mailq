@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'mailq'         => '/usr/bin/mailq',
+    'warning'       => 25,
+    'critical'      => 100,
+};
+
+init( config => $conf );
+
+my $mailq = config->{'mailq'};
+if ( ! -x $mailq )
+{
+    raise   500;
+    message "$mailq is not executable";
+    output  13;
+}
+
+my @response = `$mailq 2>/dev/null | tail -n 1`;
+if ( scalar @response != 1 )
+{
+    raise   500;
+    message 'No response from mailq command';
+    output  1;
+}
+
+my $waitingMails = 0;
+my $waitingKbytes = 0;
+my $line = shift @response;
+chomp $line;
+if( $line =~ /Mail queue is empty/i )
+{
+    message "Mail queue is empty";
+}
+elsif( ($waitingKbytes, $waitingMails) = $line =~ /(\d+) Kbytes in (\d+) Request/i )
+{
+    message "$waitingKbytes Kbytes in $waitingMails Request";
+    if ( $waitingMails > config->{'critical'} )
+    {
+        raise 300;
+    }
+    elsif ( $waitingMails > config->{'warning'} )
+    {
+        raise 200;
+    }
+}
+else
+{
+    raise 500;
+    message "Can't parse mailq response";
+    output 1;
+}
+
+detail->{'waitingMails'} = $waitingMails;
+detail->{'waitingKbytes'} = $waitingKbytes;
+
+add_metric { "Tags" => { 'metric' => 'waitingMails' },  'Value' => $waitingMails };
+add_metric { "Tags" => { 'metric' => 'waitingKbytes' }, 'Value' => $waitingKbytes };
+
+output 0;
