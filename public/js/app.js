@@ -154,7 +154,7 @@ function getLevel(status) {
     }
 }
 
-function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll) {
+function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout) {
 
     $scope.init = function() {
         $scope.load();
@@ -189,6 +189,7 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
                         });
                     });
                     $scope.groups.push(group);
+                    $timeout($anchorScroll);
                 });
             });
         });
@@ -216,7 +217,7 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
     $scope.init();
 }
 
-function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll) {
+function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout) {
 
     $scope.init = function() {
         $scope.name = $location.search().name;
@@ -250,6 +251,7 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
                 });
                 $scope.hosts.push(host);
             });
+            $timeout($anchorScroll);
         });
     }
 
@@ -268,7 +270,7 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
     $scope.init();
 }
 
-function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll) {
+function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout) {
      $scope.init = function() {
         $scope.name = $location.search().name;
         $scope.load();
@@ -290,6 +292,8 @@ function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll
                 $scope.counts[probe.Level]++;
                 $scope.probes.push(probe);
             });
+
+            $timeout($anchorScroll);
         });
     }
 
