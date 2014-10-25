@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'minimum' => 600,
+    'maximum' => 86400 * 365 * 3,
+};
+
+Wigo::Probe::save_config("check_uptime.conf");
+
+init( config => $conf );
+
+if ( open UPTIME,'<', '/proc/uptime' )
+{
+    my $uptime = (split /\s/, <UPTIME>)[0];
+    close UPTIME;
+
+    if ( ! $uptime )
+    {
+        raise   500;
+        message "Invalid reading from /proc/uptime";
+        output  1;
+    }
+
+    my $days  = int($uptime / (24 * 60 * 60));
+    my $hours = ($uptime / (60 * 60)) % 24;
+    my $mins  = ($uptime / 60) % 60;
+    my $secs  = $uptime % 60;
+    my $struptime = "$days days $hours hours $mins mins $secs secs";
+
+    detail->{'uptime'} = int($uptime);
+    detail->{'struptime'} = $struptime;
+
+    if ( config->{'minimum'} and $uptime < config->{'minimum'} )
+    {
+        raise 300;
+        message "Uptime is too low : $struptime";
+    }
+    elsif ( config->{'maximum'} and $uptime > config->{'maximum'} )
+    {
+        raise 200;
+        message "Uptime is too high : $struptime";
+    }
+    else
+    {
+        message "Uptime is $struptime";
+    }
+} else {
+    raise   500;
+    message "Can't open /proc/uptime";
+    output  1;
+}
+
+output 0;
