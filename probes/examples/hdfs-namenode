@@ -20,7 +20,7 @@ use JSON::XS;
 ###
 
 my $conf = {
-    'clusters' => {
+    'servers' => {
         #'master1' => {
         #    'host' => '127.0.0.1:60010',
         #},
@@ -29,18 +29,18 @@ my $conf = {
 
 init( config => $conf );
 
-if ( ! scalar ( keys %{config->{'clusters'}} ) )
+if ( ! scalar ( keys %{config->{'servers'}} ) )
 {
     message "No HDFS namenode to monitor";
     output 13;
 }
 
 my @messages;
-for my $name ( keys %{ config->{'clusters'} } )
+for my $name ( keys %{ config->{'servers'} } )
 {
-    my $server = config->{'clusters'}->{$name};
+    my $server = config->{'servers'}->{$name};
 
-    my $response = undef; #$UA->get( 'http://'.$server->{'host'}.'/jmx' );
+    my $response = $UA->get( 'http://'.$server->{'host'}.'/jmx' );
 
     detail->{$name}->{'host'} = $server->{'host'};
 
@@ -50,8 +50,7 @@ for my $name ( keys %{ config->{'clusters'} } )
         my $data;
         eval
         {
-            $data = decode_json `cat /tmp/nn.json`;
-            #$data = decode_json($response->decoded_content);
+            $data = decode_json($response->decoded_content);
         };
 
         if ( $@ or !$data or ! ref $data eq 'HASH' )
@@ -71,7 +70,7 @@ for my $name ( keys %{ config->{'clusters'} } )
                 {
                     detail->{$name}->{'memory_used'} = sprintf "%.2f GB", $bean->{'HeapMemoryUsage'}->{'used'} / 1024 / 1024 / 1024;
                     detail->{$name}->{'memory_max'}  = sprintf "%.2f GB", $bean->{'HeapMemoryUsage'}->{'max'} / 1024 / 1024 / 1024;
-                    add_metric { 'Tags' => { 'cluster' => $name, 'metric' => 'HeapMemoryUsage', 'type' => $type }, 'Value' => $bean->{'HeapMemoryUsage'}->{$type} };
+                    add_metric { 'Tags' => { 'server' => $name, 'metric' => 'HeapMemoryUsage', 'type' => $type }, 'Value' => $bean->{'HeapMemoryUsage'}->{$type} };
                 }
             }
 
@@ -111,7 +110,7 @@ for my $name ( keys %{ config->{'clusters'} } )
 
                 for my $metric ( qw /CapacityUsed CapacityTotal FilesTotal BlocksTotal MissingBlocks CorruptBlocks UnderReplicatedBlocks / )
                 {
-                    add_metric { 'Tags' => { 'cluster' => $name, 'metric' => $metric }, 'Value' => $bean->{$metric} };
+                    add_metric { 'Tags' => { 'server' => $name, 'metric' => $metric }, 'Value' => $bean->{$metric} };
                 }
             }
         }
