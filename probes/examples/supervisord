@@ -56,7 +56,6 @@ for my $line ( split "\n", $statuslist )
 	
 		if ( $status ne 'RUNNING' )
 		{
-			raise 300;
 			push @messages, "$process is $status";
 		}
 		else
@@ -68,6 +67,7 @@ for my $line ( split "\n", $statuslist )
 
 if ( scalar @messages )
 {
+	raise 300 + scalar @messages;
 	message join(" , ", @messages);
 	result->{'Message'} .= " , $count other processus are RUNNING" if $count;
 }
