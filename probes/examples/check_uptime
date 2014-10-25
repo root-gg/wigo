@@ -16,8 +16,6 @@ my $conf = {
     'maximum' => 86400 * 365 * 3,
 };
 
-Wigo::Probe::save_config("check_uptime.conf");
-
 init( config => $conf );
 
 if ( open UPTIME,'<', '/proc/uptime' )
