@@ -27,7 +27,7 @@ init( config => $conf );
 
 if ( ! scalar ( @{config->{'directories'}} ) )
 {
-    message "No spoodir to monitor";
+    message "No spooldir to monitor";
     output 13;
 }
 
