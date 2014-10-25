@@ -41,7 +41,7 @@ if ( $countInactiveProcesses )
 else
 {
     status  100;
-    message "All process configured in probe are running";
+    message "All monitored process are running";
 }
 
 detail->{'not_running'} = \@inactiveProcesses;
