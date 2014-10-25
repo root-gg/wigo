@@ -14,6 +14,7 @@ my $UA = LWP::UserAgent->new;
 $UA->timeout(5);
 
 use JSON::XS;
+use Time::HiRes qw/time/;
 
 ###
 # DEFAULT CONFIG
@@ -35,14 +36,22 @@ if ( ! scalar ( keys %{config->{'servers'}} ) )
     output 13;
 }
 
+my $now = time;
+my $new = {
+    'time' => $now,
+};
+
+persist or persist({});
+my $delta_time = $now - persist->{'time'} if persist->{'time'};
+
 my @messages;
 for my $name ( keys %{ config->{'servers'} } )
 {
-    my $name = config->{'servers'}->{$name};
+    my $server = config->{'servers'}->{$name};
 
-    my $response = $UA->get( 'http://'.$name->{'host'}.'/jmx' );
+    my $response = $UA->get( 'http://'.$server->{'host'}.'/jmx' );
 
-    detail->{$name}->{'host'} = $name->{'host'};
+    detail->{$name}->{'host'} = $server->{'host'};
 
     detail->{$name}->{'status'} = "UP";
     if ( $response->is_success )
@@ -78,23 +87,25 @@ for my $name ( keys %{ config->{'servers'} } )
             {
                 detail->{$name}->{'active'} = $bean->{'IsActiveMaster'};
 
-                detail->{$name}->{'DeadRegionServers'}  = $bean->{'DeadRegionServers'};
-
-                if ( scalar @{$bean->{'DeadRegionServers'}} )
+                detail->{$name}->{'region_server_down'} = $bean->{'DeadRegionServers'};
+                my $regionServerDown = scalar @{$bean->{'DeadRegionServers'}};
+                if ( $regionServerDown > 0 )
                 {
-                    raise 300;
-                    push @messages, sprintf "%s : %d region cluster DOWN", ($name,scalar @{$bean->{'DeadRegionServers'}});
+                    raise 300 + $regionServerDown;
+                    push @messages, sprintf "%s : %d region server DOWN", ($name,$regionServerDown);
                 }
+                detail->{$name}->{'num_region_server_down'} = $regionServerDown;
 
-                my $regionsServer = scalar @{$bean->{'RegionServers'}};
+                my $regionServer = scalar @{$bean->{'RegionServers'}};
                 my $regions = sum map { $_->{'value'}->{'numberOfRegions'} } @{$bean->{'RegionServers'}};
 
                 detail->{$name}->{'regions'} = $regions;
-                detail->{$name}->{'regions_server'} = $regionsServer;
+                detail->{$name}->{'region_server'} = $regionServer;
                 detail->{$name}->{'average_load'} = sprintf "%.3f", $bean->{'AverageLoad'};
 
                 add_metric { 'Tags' => { 'server' => $name, 'metric' => 'regions' }, 'Value' => $regions };
-                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'regions_server' }, 'Value' => $regionsServer };
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'region_server' }, 'Value' => $regionServer };
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'region_server_down' }, 'Value' => $regionServerDown };
                 add_metric { 'Tags' => { 'server' => $name, 'metric' => 'average_load' }, 'Value' => $bean->{'AverageLoad'} };
             }
 
@@ -102,6 +113,34 @@ for my $name ( keys %{ config->{'servers'} } )
             {
                 detail->{$name}->{'cluster_requests'} = sprintf "%.3f req/s", $bean->{'cluster_requests'};
                 add_metric { 'Tags' => { 'server' => $name, 'metric' => 'cluster_requests' }, 'Value' => $bean->{'cluster_requests'} };
+            }
+
+            if ( $bean->{'name'} eq 'Hadoop:service=HBase,name=Master,sub=Server' )
+            {
+                detail->{$name}->{'active'} = $bean->{'tag.isActiveMaster'};
+                detail->{$name}->{'region_server'} = $bean->{'numRegionServers'};
+                detail->{$name}->{'average_load'} = sprintf "%.3f", $bean->{'averageLoad'};
+                detail->{$name}->{'region_server_down'} = $bean->{'tag.deadRegionServers'};
+
+                my $regionServerDown = $bean->{'numDeadRegionServers'};
+                if ( $bean->{'numDeadRegionServers'} > 0 )
+                {
+                    raise 300;
+                    push @messages, sprintf "%s : %d region server DOWN", ($name, $regionServerDown);
+                }
+                detail->{$name}->{'num_region_server_down'} = $regionServerDown;
+
+                $new->{'reqs'} = $bean->{'clusterRequests'};
+                if ( $delta_time and persist->{'reqs'} )
+                {
+                    my $reqs = ( $new->{'reqs'} - persist->{'reqs'} ) / $delta_time;
+                    detail->{$name}->{'cluster_requests'} = sprintf "%.3f req/s", $reqs;
+                    add_metric { 'Tags' => { 'server' => $name, 'metric' => 'cluster_requests' }, 'Value' => $reqs };
+                }
+
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'region_server' }, 'Value' => $bean->{'numRegionServers'} };
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'region_server_down' }, 'Value' => $regionServerDown };
+                add_metric { 'Tags' => { 'server' => $name, 'metric' => 'average_load' }, 'Value' => $bean->{'averageLoad'} };
             }
         }
     }
@@ -114,6 +153,8 @@ for my $name ( keys %{ config->{'servers'} } )
     }
 }
 
+persist $new;
+
 if ( scalar @messages )
 {
     message join ' , ' , @messages;
@@ -122,16 +163,23 @@ else
 {
     foreach my $name ( keys %{ detail() } )
     {
-        if ( detail->{$name}->{'regions_server'} and detail->{$name}->{'cluster_requests'} )
+        my $msg = sprintf( "%s OK", ( $name ) );
+        if ( detail->{$name}->{'region_server'} )
         {
-            push @messages, sprintf("%s : %d region server UP ( %s )", ( $name, detail->{$name}->{'regions_server'} , detail->{$name}->{'cluster_requests'} ));
+            $msg .= sprintf(" %d region server", ( detail->{$name}->{'region_server'} ));
         }
-        else
+        if ( detail->{$name}->{'average_load'} )
         {
-            push @messages, sprintf( "%s : is UP", ( $name ) );
+            $msg .= sprintf(" ( load %.2f )", ( detail->{$name}->{'average_load'} ));
         }
+        if ( detail->{$name}->{'cluster_requests'} )
+        {
+            $msg .= sprintf( " ( %.2f req/s )", ( detail->{$name}->{'cluster_requests'} ));
+        }
+        push @messages, $msg;
     }
     message join ' , ' , @messages;
 }
 
+persist $new;
 output 0;
