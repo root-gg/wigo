@@ -1,3 +1,7 @@
+/*
+ * Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
+ */
+
 angular.module('dialog', ['ui.bootstrap']).
     factory('$dialog', function ($rootScope, $modal) {
 
@@ -237,13 +241,13 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
 function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
 
     $scope.init = function() {
-        $scope.name = $location.search().name;
+        $scope.group = $location.search().name;
         $scope.load();
     }
 
     $scope.hosts = [];
     $scope.load = function() {
-        if (!$scope.name) return;
+        if (!$scope.group) return;
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -251,7 +255,7 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
             "CRITICAL" : 0,
             "ERROR" : 0
         };
-        Restangular.one('groups',$scope.name).get().then(function(group) {
+        Restangular.one('groups',$scope.group).get().then(function(group) {
             _.each(group.Hosts,function(host){
                 host.counts = {
                     "OK" : 0,
@@ -278,13 +282,13 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
 
 function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
      $scope.init = function() {
-        $scope.name = $location.search().name;
+        $scope.host = $location.search().name;
         $scope.load();
     }
 
     $scope.probes = [];
     $scope.load = function() {
-        if (!$scope.name) return;
+        if (!$scope.host) return;
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -292,7 +296,7 @@ function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll
             "CRITICAL" : 0,
             "ERROR" : 0
         };
-        Restangular.one('hosts',$scope.name).get().then(function(host) {
+        Restangular.one('hosts',$scope.host).get().then(function(host) {
             _.each(host.LocalHost.Probes,function(probe){
                 probe.Level = getLevel(probe.Status)
                 $scope.counts[probe.Level]++;

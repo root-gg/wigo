@@ -2,7 +2,7 @@
   "name": "wigo",
   "version": "0.0.1",
   "authors": [
-    "Charles-Antoine Mathieu <skatkatt@root.gg>"
+    "Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>"
   ],
   "description": "What is going on ?",
   "main": "js/app.js",

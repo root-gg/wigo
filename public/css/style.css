@@ -1,17 +1,21 @@
+/*
+ * Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
+ */
+
 .countLabel {
-    display:inline-block;
-    margin-left:3px;
+    display: inline-block;
+    margin-left: 3px;
 }
 
 .countLabelRight {
-    display:inline-block;
-    float:right;
-    margin-left:3px;
+    display: inline-block;
+    float: right;
+    margin-left: 3px;
 }
 
 .probeLabel {
-    display:inline-block;
-    margin-right:3px;
+    display: inline-block;
+    margin-right: 3px;
 }
 
 .menuHover:hover {
@@ -21,4 +25,26 @@
 
 .linkHover:hover {
     text-decoration: underline;
+}
+
+.navbar-center
+{
+    position: absolute;
+    width: 100%;
+    left: 0;
+    text-align: center;
+    vertical-align: top;
+    margin: auto;
+}
+
+.top-counter
+{
+    margin: 8px 8px 8px 0px;
+}
+
+.page-title
+{
+    padding-right: 25px;
+    padding-top: 2px;
+    font-size: 18px;
 }
