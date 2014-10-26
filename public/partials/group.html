@@ -37,7 +37,7 @@
         <div class="col-lg-12">
             <div class="panel {{ host.Level | panelLevelCssFilter }}">
                 <div id="{{host.Name}}" class="panel-heading">
-                    <span ng-click="gotoHost(host.Name)" class="menuHover text-capitalize" style="font-weight:bold;">
+                    <span ng-click="goto.host(host.Name)" class="menuHover text-capitalize" style="font-weight:bold;">
                         {{host.Name}}
                     </span>
                     <button ng-show="host.counts['ERROR']" type="button" class="btn btn-default btn-circle countLabel">
@@ -69,7 +69,7 @@
                             <tbody>
                             <tr class="{{ probe.Status | statusTableRowCssFilter }}"
                             ng-repeat="probe in host.Probes | orderBy:['-Status','Name']">
-                                <td ng-click="gotoProbe(host.Name,probe.Name)">{{probe.Name}}</td>
+                                <td ng-click="goto.probe(host.Name,probe.Name)">{{probe.Name}}</td>
                                 <td>{{probe.Message}}</td>
                             </tr>
                             </tbody>

@@ -18,3 +18,7 @@
     font-weight: bold;
     text-decoration: underline;
 }
+
+.linkHover:hover {
+    text-decoration: underline;
+}

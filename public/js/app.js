@@ -38,6 +38,41 @@ angular.module('dialog', ['ui.bootstrap']).
         return module;
     });
 
+angular.module('wigo-navigation', []).
+    factory('$goto', function ($route, $location, $anchorScroll) {
+
+        var module = {};
+
+        module.group = function(group){
+             $location.search('name',group);
+             $location.path('group');
+             $location.hash(null);
+             $route.reload();
+        }
+
+        module.host = function(host){
+             $location.search('name',host);
+             $location.path('host');
+             $location.hash(null);
+             $route.reload();
+        }
+
+        module.probe = function(host,probe){
+             $location.search('name',host);
+             $location.path('host');
+             $location.hash(probe);
+             $route.reload();
+        }
+
+        module.anchor = function(anchor){
+            console.log(anchor);
+            $location.hash(anchor);
+            $anchorScroll();
+        }
+
+        return module;
+    });
+
 var panelLevels = {
     "OK"        : "panel-green",
     "INFO"      : "panel-primary",
@@ -125,7 +160,7 @@ angular.module('wigo-filters', [])
         };
     });
 
-angular.module('wigo', ['ngRoute', 'dialog', 'restangular', 'wigo-filters'])
+angular.module('wigo', ['ngRoute', 'dialog', 'restangular', 'wigo-filters', 'wigo-navigation'])
 	.config(function($routeProvider) {
 		$routeProvider
 			.when('/',      { controller: HostsCtrl,    templateUrl:'partials/hosts.html',  reloadOnSearch: false })
@@ -154,7 +189,7 @@ function getLevel(status) {
     }
 }
 
-function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout) {
+function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
 
     $scope.init = function() {
         $scope.load();
@@ -195,36 +230,11 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
         });
     }
 
-    $scope.goto = function(anchor){
-        $location.hash(anchor);
-        $anchorScroll();
-    }
-
-    $scope.gotoGroup = function(group){
-         $location.search('name',group);
-         $location.path('group');
-         $location.hash(null);
-         $route.reload();
-    }
-
-    $scope.gotoHost = function(host){
-         $location.search('name',host);
-         $location.path('host');
-         $location.hash(null);
-         $route.reload();
-    }
-
-    $scope.gotoProbe = function(host,probe){
-         $location.search('name',host);
-         $location.path('host');
-         $location.hash(probe);
-         $route.reload();
-    }
-
+    $scope.goto = $goto;
     $scope.init();
 }
 
-function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout) {
+function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
 
     $scope.init = function() {
         $scope.name = $location.search().name;
@@ -262,29 +272,11 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
         });
     }
 
-    $scope.goto = function(anchor){
-        $location.hash(anchor);
-        $anchorScroll();
-    }
-
-    $scope.gotoHost = function(host){
-         $location.search('name',host);
-         $location.path('host');
-         $location.hash(null);
-         $route.reload();
-    }
-
-    $scope.gotoProbe = function(host,probe){
-         $location.search('name',host);
-         $location.path('host');
-         $location.hash(probe);
-         $route.reload();
-    }
-
+    $scope.goto = $goto;
     $scope.init();
 }
 
-function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout) {
+function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
      $scope.init = function() {
         $scope.name = $location.search().name;
         $scope.load();
@@ -311,15 +303,11 @@ function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll
         });
     }
 
-    $scope.goto = function(anchor){
-        $location.hash(anchor);
-        $anchorScroll();
-    }
-
+    $scope.goto = $goto;
     $scope.init();
 }
 
-function LogsCtrl($scope, Restangular, $dialog, $route, $location) {
+function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto) {
     $scope.logLevels = logLevels;
 
     $scope.menu = {
@@ -403,6 +391,7 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location) {
         $scope.updateUrl();
     }
 
+    $scope.goto = $goto;
     $scope.init();
 }
 

@@ -39,9 +39,21 @@
                                 | filter:menu.search
                                 | orderBy:'-Timestamp'">
                                     <td>{{ log.Timestamp * 1000 | date:'short' }}</td>
-                                    <td ng-click="set_group(log.Group)">{{ log.Group }}</td>
-                                    <td ng-click="set_host(log.Host)">{{ log.Host }}</td>
-                                    <td ng-click="set_probe(log.Probe)">{{ log.Probe }}</td>
+                                    <td ng-click="set_group(log.Group)">
+                                        <span ng-click="goto.group(log.Group)" class="linkHover">
+                                            {{ log.Group }}
+                                        </span>
+                                    </td>
+                                    <td ng-click="set_host(log.Host)">
+                                        <span ng-click="goto.host(log.Host)" class="linkHover">
+                                            {{ log.Host }}
+                                        </span>
+                                    </td>
+                                    <td ng-click="set_probe(log.Probe)">
+                                        <span ng-click="goto.probe(log.Host,log.Probe)" class="linkHover">
+                                            {{ log.Probe }}
+                                        </span>
+                                    </td>
                                     <td>{{ log.Message }}</td>
                                 </tr>
                             </tbody>
