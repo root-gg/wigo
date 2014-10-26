@@ -123,9 +123,9 @@ for my $name ( keys %{ config->{'servers'} } )
                 detail->{$name}->{'region_server_down'} = $bean->{'tag.deadRegionServers'};
 
                 my $regionServerDown = $bean->{'numDeadRegionServers'};
-                if ( $bean->{'numDeadRegionServers'} > 0 )
+                if ( $regionServerDown > 0 )
                 {
-                    raise 300;
+                    raise 300 + $regionServerDown;
                     push @messages, sprintf "%s : %d region server DOWN", ($name, $regionServerDown);
                 }
                 detail->{$name}->{'num_region_server_down'} = $regionServerDown;
