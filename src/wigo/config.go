@@ -23,7 +23,7 @@ type Config struct {
 	Notifications *NotificationConfig
 }
 
-func NewConfig() (this *Config) {
+func NewConfig( configFile string ) (this *Config) {
 
 	// General params
 	this = new(Config)
@@ -36,8 +36,9 @@ func NewConfig() (this *Config) {
 	this.Global.ListenAddress = "0.0.0.0"
 	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
 	this.Global.LogFile = "/var/log/wigo.log"
+	this.Global.LogVerbose = true
 	this.Global.EventLog = "/var/lib/wigo/events.log"
-	this.Global.ConfigFile = "/etc/wigo/wigo.conf"
+	this.Global.ConfigFile = configFile
 	this.Global.Group = "none"
 
 	// OpenTSDB
@@ -114,6 +115,7 @@ type GeneralConfig struct {
 	ListenAddress   string
 	ProbesDirectory string
 	LogFile         string
+	LogVerbose		bool
 	ConfigFile      string
 	Group           string
 	EventLog		string

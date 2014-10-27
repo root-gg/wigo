@@ -11,6 +11,7 @@ import (
 	"container/list"
 	"github.com/bodji/gopentsdb"
 	"github.com/nu7hatch/gouuid"
+	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
 	"strings"
 )
@@ -65,8 +66,35 @@ func InitWigo() (err error) {
             LocalWigo.Uuid = LocalWigo.uuidObj.String()
         }
 
+
+		// Args
+		usage := `wigo
+
+Usage:
+	wigo
+	wigo [options]
+
+Options:
+	-h 	--help
+	-v 	--version
+	-c, --config CONFIG		Specify config file
+`
+
+		// Parse args
+		configFile := "/etc/wigo/wigo.conf"
+
+		arguments, _ := docopt.Parse(usage, nil, true, LocalWigo.Version, false)
+
+		for key, value := range arguments {
+			if _, ok := value.(string); ok {
+				if key == "--config" {
+					configFile = value.(string)
+				}
+			}
+		}
+
 		// Load config
-		LocalWigo.config = NewConfig()
+		LocalWigo.config = NewConfig( configFile )
 
 		// Init LocalHost and RemoteWigos list
 		LocalWigo.LocalHost = NewLocalHost()
@@ -101,7 +129,7 @@ func InitWigo() (err error) {
 		// OpenTSDB
 		if LocalWigo.GetConfig().OpenTSDB.Enabled {
 			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
-			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, true, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
+			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.LogVerbose, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
 		}
 	}
 
