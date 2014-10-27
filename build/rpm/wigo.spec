@@ -81,7 +81,7 @@ rm -rf %{buildroot}
 /etc/cron.d/wigo
 /usr/local/wigo
 /usr/local/bin/wigocli
-%config(noreplace) /etc/wigo.conf
+%config(noreplace) /etc/wigo/wigo.conf
 %config(noreplace) /etc/wigo/conf.d
 
 
