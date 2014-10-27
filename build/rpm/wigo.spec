@@ -35,13 +35,14 @@ mkdir -p %{buildroot}/etc/wigo/conf.d
 mkdir -p %{buildroot}/etc/cron.d
 mkdir -p %{buildroot}/etc/logrotate.d
 mkdir -p %{buildroot}/etc/init.d
+mkdir -p %{buildroot}/usr/local/wigo/bin
 mkdir -p %{buildroot}/usr/local/wigo/lib
 mkdir -p %{buildroot}/usr/local/wigo/etc/conf.d
 mkdir -p %{buildroot}/usr/local/wigo/probes/examples
 mkdir -p %{buildroot}/usr/local/bin
 mkdir -p %{buildroot}/var/lib/wigo
 
-cp build/wigo %{buildroot}/usr/local/wigo/bin
+cp build/wigo %{buildroot}/usr/local/wigo/bin/wigo
 cp build/wigocli %{buildroot}/usr/local/bin/wigocli
 
 # Copy lib
