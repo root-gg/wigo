@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Getopt::Long;
-use JSON::XS;
+use JSON;
 use File::Basename;
 
 require Exporter;
@@ -48,10 +48,10 @@ GetOptions (
     '<>' => sub { push @$args, $_[0] }
 ) or die("Error in command line arguments\n");
 
-my $json = JSON::XS->new;
+my $json = JSON->new;
 if ( exists $opts->{'debug'} )
 {
-    $json = JSON::XS->new->pretty;
+    $json = JSON->new->pretty;
 }
 
 ###
@@ -241,7 +241,7 @@ sub raise {
 
 sub save_config
 {
-    my $json = JSON::XS->new->pretty;
+    my $json = JSON->new->pretty;
 
     my $path = shift || $CONFIG_PATH . "/" . $name . ".conf";
 
