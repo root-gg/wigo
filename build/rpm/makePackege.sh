@@ -30,7 +30,7 @@ sed -i "s/##VERSION##/$VERSION/"        public/index.html
 ###
 
 SRC_ROOT=$(mktemp -d)
-tar czvf  $SRC_ROOT/wigo.tar.bz2 -C $REPO_ROOT wigo
+tar czvf $SRC_ROOT/wigo.tar.bz2 -C .. wigo
 
 ###
 # BUILD RPM PACKAGE

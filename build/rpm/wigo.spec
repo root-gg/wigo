@@ -7,7 +7,7 @@ License:	MIT
 URL:		https://git.root.gg/bodji/wigo
 Source0:	wigo.tar.bz2
 #BuildRequires:
-#Requires:
+Requires:   ntp-perl, perl-JSON, perl-libwww-perl
 
 %description
 WiGo is a monitoring tool that just works
@@ -20,8 +20,9 @@ WiGo is a monitoring tool that just works
 
 
 %build
-go build -o src/wigo src/wigo.go
-go build -o src/wigocli src/wigocli.go
+mkdir -p build
+go build -o build/wigo src/wigo.go
+go build -o build/wigocli src/wigocli.go
 
 
 
@@ -40,8 +41,8 @@ mkdir -p %{buildroot}/usr/local/wigo/probes/examples
 mkdir -p %{buildroot}/usr/local/bin
 mkdir -p %{buildroot}/var/lib/wigo
 
-cp src/wigo %{buildroot}/usr/local/wigo/bin
-cp src/wigocli %{buildroot}/usr/local/bin/wigocli
+cp build/wigo %{buildroot}/usr/local/wigo/bin
+cp build/wigocli %{buildroot}/usr/local/bin/wigocli
 
 # Copy lib
 cp -R lib/* %{buildroot}/usr/local/wigo/lib/
@@ -80,7 +81,7 @@ rm -rf %{buildroot}
 /etc/cron.d/wigo
 /usr/local/wigo
 /usr/local/bin/wigocli
-%config(noreplace) /etc/wigo.conf
+%config(noreplace) /etc/wigo/wigo.conf
 %config(noreplace) /etc/wigo/conf.d
 
 
