@@ -28,7 +28,6 @@
 wigo=${WIGO-/usr/local/wigo/bin/wigo}
 prog=`/bin/basename $wigo`
 conffile=${CONFFILE-/etc/wigo/wigo.conf}
-lockfile=${LOCKFILE-/var/lock/subsys/wigo}
 pidfile=${PIDFILE-/var/run/wigo.pid}
 RETVAL=0
 
