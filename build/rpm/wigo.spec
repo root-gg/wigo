@@ -7,7 +7,7 @@ License:	MIT
 URL:		https://git.root.gg/bodji/wigo
 Source0:	wigo.tar.bz2
 #BuildRequires:
-#Requires:
+Requires:   ntp-perl, perl-JSON, perl-libwww-perl
 
 %description
 WiGo is a monitoring tool that just works
