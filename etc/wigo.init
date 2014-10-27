@@ -10,7 +10,9 @@
 #                    placed in /etc/init.d.
 ### END INIT INFO
 
-# Author: Mathieu Bodjikian <mathieu@bodjikian.fr>
+# Authors:
+#   Mathieu Bodjikian <mathieu@bodjikian.fr>
+#   Charles-Antoine Mathieu <skatkatt@root.gg>
 
 # Do NOT "set -e"
 
