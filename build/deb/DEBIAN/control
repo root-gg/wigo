@@ -1,5 +1,5 @@
 Package: wigo
-Version: ##
+Version: 0.00
 Section: base
 Priority: optional
 Architecture: amd64
