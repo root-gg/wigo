@@ -1,0 +1,8 @@
+Package: wigo
+Version: 0.61.8
+Section: base
+Priority: optional
+Architecture: amd64
+Depends: bash, libjson-xs-perl, libnet-ntp-perl, libwww-perl
+Maintainer: Mathieu Bodjikian <mathieu@bodjikian.fr>
+Description: WiGo aka "What is Going On" is a lightweight monitoring system

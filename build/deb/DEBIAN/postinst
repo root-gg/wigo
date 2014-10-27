@@ -1,0 +1,61 @@
+#!/bin/bash
+
+echo "Installing WiGO on your system"
+
+WIGOPATH="/usr/local/wigo"
+EXAMPLEPROBES60=( hardware_load_average hardware_disks hardware_memory ifstat supervisord check_mdadm check_process haproxy lm-sensors iostat )
+EXAMPLEPROBES300=( smart check_ntp packages-apt )
+
+# <TEMPORARY>
+rm /etc/wigo/conf.d/smart.conf
+# </TEMPORARY>
+
+# Copy config file if not present on system
+if [ ! -e /etc/wigo/wigo.conf ] ; then
+    cp $WIGOPATH/etc/wigo.conf.sample /etc/wigo/wigo.conf
+    update-rc.d wigo defaults
+else
+    echo "Config file /etc/wigo.conf already exists. Not overriding it.."
+fi
+
+# Copying probes config files if not present
+CONFIGFILES=$(cd $WIGOPATH/etc/conf.d && ls *.conf)
+for configFile in $CONFIGFILES; do 
+    if [ ! -e /etc/wigo/conf.d/$configFile ] ; then
+        echo "Copying probe conf file $configFile to /etc/wigo/conf.d/$configFile"
+        cp $WIGOPATH/etc/conf.d/$configFile /etc/wigo/conf.d/$configFile
+    fi
+done
+
+# Retro compatibility
+if [ -e /etc/wigo.conf ] ; then
+    echo "Old config file detected, moving it to /etc/wigo/wigo.conf.."
+    mv /etc/wigo.conf /etc/wigo/wigo.conf
+fi
+
+# Enabling default probes on 60 directory
+echo "Enabling default probes.."
+
+cd $WIGOPATH/probes/60
+for probeName in ${EXAMPLEPROBES60[@]}; do 
+    if [ ! -e $probeName ] ; then
+        echo " - Enabling $probeName every 60 seconds"
+        ln -s ../examples/$probeName .
+    else
+        echo " - Probe $probeName already exists. Doing nothing.."
+    fi
+done
+
+cd $WIGOPATH/probes/300
+for probeName in ${EXAMPLEPROBES300[@]}; do
+    if [ ! -e $probeName ] ; then
+        echo " - Enabling $probeName every 300 seconds"
+        ln -s ../examples/$probeName .
+    else
+        echo " - Probe $probeName already exists. Doing nothing.."
+    fi
+done
+
+
+# Start it
+/etc/init.d/wigo restart
