@@ -6,6 +6,7 @@ BUILDDIR=$(pwd)
 PACKAGEROOT=/tmp/wigoBuild
 REPOROOT=$(readlink -f ../..)
 DEBMIRRORROOT=/var/www/mir.root.gg
+GOCROSSCOMPILEFILE=/root/golang-crosscompile/crosscompile.bash
 
 # Test if we are in the right directory
 if [ ! -e $REPOROOT/src/wigo.go ] ; then 
@@ -25,6 +26,7 @@ mkdir -p $PACKAGEROOT/etc/cron.d
 mkdir -p $PACKAGEROOT/etc/logrotate.d
 mkdir -p $PACKAGEROOT/etc/init.d
 mkdir -p $PACKAGEROOT/usr/local/wigo/lib
+mkdir -p $PACKAGEROOT/usr/local/wigo/bin
 mkdir -p $PACKAGEROOT/usr/local/wigo/etc/conf.d
 mkdir -p $PACKAGEROOT/usr/local/wigo/probes/examples
 mkdir -p $PACKAGEROOT/usr/local/bin
@@ -36,11 +38,31 @@ cd $REPOROOT/src
 VERSION=$(cat ../VERSION)
 
 sed -i "s/##VERSION##/Wigo v$VERSION/" wigo/global.go
+echo "Compiling wigo && wigocli"
+echo " - Building amd64 versions..."
 go build -o bin/wigo wigo.go || exit
 go build -o bin/wigocli wigocli.go || exit
+
+if [ -e $GOCROSSCOMPILEFILE ] ; then
+    source $GOCROSSCOMPILEFILE
+
+    if `hash go-linux-arm` ; then
+        echo " - Building ARM versions..."
+        go-linux-arm build -o bin/wigo_arm wigo.go || exit
+        go-linux-arm build -o bin/wigocli_arm wigocli.go || exit
+    fi
+
+    if `hash go-linux-386` ; then
+        echo " - Building i386 versions..."
+        go-linux-386 build -o bin/wigo_386 wigo.go || exit
+        go-linux-386 build -o bin/wigocli_386 wigocli.go || exit
+    fi
+fi
+
 git checkout wigo/global.go
 
 
+echo "Copying files to package temporary directory"
 cp bin/wigo $PACKAGEROOT/usr/local/wigo/bin
 cp bin/wigocli $PACKAGEROOT/usr/local/bin/wigocli
 
@@ -70,13 +92,42 @@ cp $REPOROOT/etc/wigo.logrotate $PACKAGEROOT/etc/logrotate.d/wigo
 cp -R $REPOROOT/public $PACKAGEROOT/usr/local/wigo
 
 # Replace version
-sed -i "s/^Version:.*/Version: $VERSION/" $BUILDDIR/DEBIAN/control
-git checkout $BUILDDIR/DEBIAN/control
+sed -i "s/^Version:.*/Version: $VERSION/" $PACKAGEROOT/DEBIAN/control
 
 # Add to mir
-dpkg-deb --build $PACKAGEROOT $PACKAGEROOT/wigo.deb
-reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy $PACKAGEROOT/wigo.deb
-reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie $PACKAGEROOT/wigo.deb
+echo "Building deb packages."
+echo " - Building amd64 deb..."
+dpkg-deb --build $PACKAGEROOT /tmp/wigo.deb
+
+if [ -e $REPOROOT/src/bin/wigo_arm ] ; then
+    echo " - Building arm deb..."
+    sed -i "s/^Architecture:.*/Architecture: armhf/" $PACKAGEROOT/DEBIAN/control
+    cp $REPOROOT/src/bin/wigo_arm $PACKAGEROOT/usr/local/wigo/bin/wigo
+    cp $REPOROOT/src/bin/wigocli_arm $PACKAGEROOT/usr/local/bin/wigocli
+    dpkg-deb --build $PACKAGEROOT /tmp/wigo_arm.deb
+fi
+
+
+if [ -e $REPOROOT/src/bin/wigo_386 ] ; then
+    echo " - Building i386 deb..."
+    sed -i "s/^Architecture:.*/Architecture: i386/" $PACKAGEROOT/DEBIAN/control
+    cp $REPOROOT/src/bin/wigo_386 $PACKAGEROOT/usr/local/wigo/bin/wigo
+    cp $REPOROOT/src/bin/wigocli_386 $PACKAGEROOT/usr/local/bin/wigocli
+    dpkg-deb --build $PACKAGEROOT /tmp/wigo_386.deb
+fi
+
+reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo.deb
+reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo.deb
+
+if [ -e /tmp/wigo_arm.deb ] ; then
+    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_arm.deb
+    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_arm.deb
+fi
+
+if [ -e /tmp/wigo_386.deb ] ; then
+    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_386.deb
+    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_386.deb
+fi
 
 # Remove folder
-rm -fr $DEBMIRRORROOT
+#rm -fr $DEBMIRRORROOT
