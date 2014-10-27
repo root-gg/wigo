@@ -17,7 +17,7 @@ cd $REPO_ROOT
 # REPLACE VERSION
 ###
 
-VERSION=$(cat ../VERSION)
+VERSION=$(cat VERSION)
 git checkout wigo.spec
 git checkout src/wigo/global.go
 git checkout public/index.html
