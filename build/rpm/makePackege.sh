@@ -4,9 +4,9 @@
 # LOCATE ROOT
 ###
 
-REPO_ROOT=$(readlink -f ../../../wigo >/dev/null 2>&1)
+REPO_ROOT=$(readlink -f ../../../wigo 2>&1)
 
-if [ ! -d $REPO_ROOT ]; then
+if [ -z "$REPO_ROOT" ] || [ ! -d $REPO_ROOT ]; then
     echo "Run build script from wigo/build/rpm directory"
     exit 1
 fi
