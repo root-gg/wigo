@@ -94,6 +94,7 @@ EXAMPLEPROBES300=( smart check_ntp packages-apt )
 # Enabling default probes on 60 directory
 echo "Enabling default probes.."
 
+mkdir -p $WIGOPATH/probes/60
 cd $WIGOPATH/probes/60
 for probeName in ${EXAMPLEPROBES60[@]}; do
 
@@ -105,6 +106,7 @@ for probeName in ${EXAMPLEPROBES60[@]}; do
     fi
 done
 
+mkdir -p $WIGOPATH/probes/300
 cd $WIGOPATH/probes/300
 for probeName in ${EXAMPLEPROBES300[@]}; do
 
