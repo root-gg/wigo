@@ -18,10 +18,10 @@ cd $REPO_ROOT
 ###
 
 VERSION=$(cat VERSION)
-git checkout wigo.spec
+git checkout build/rpm/wigo.spec
 git checkout src/wigo/global.go
 git checkout public/index.html
-sed -i "s/##VERSION##/$VERSION/"        wigo.spec
+sed -i "s/##VERSION##/$VERSION/"        build/rpm/wigo.spec
 sed -i "s/##VERSION##/Wigo v$VERSION/"  src/wigo/global.go
 sed -i "s/##VERSION##/$VERSION/"        public/index.html
 
@@ -36,4 +36,4 @@ tar czvf  $SRC_ROOT/wigo.tar.bz2 -C $REPO_ROOT wigo
 # BUILD RPM PACKAGE
 ###
 
-rpmbuild --define "_sourcedir $SRC_ROOT" -ba wigo.spec
+rpmbuild --define "_sourcedir $SRC_ROOT" -ba build/rpm/wigo.spec
