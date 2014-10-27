@@ -25,21 +25,26 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-nginx=${WIGO-/usr/bin/wigo}
-prog=`/bin/basename $nginx`
+wigo=${WIGO-/usr/bin/wigo}
+prog=`/bin/basename $wigo`
 conffile=${CONFFILE-/etc/wigo/wigo.conf}
 lockfile=${LOCKFILE-/var/lock/subsys/wigo}
 pidfile=${PIDFILE-/var/run/wigo.pid}
 RETVAL=0
 
 start() {
-    echo -n $"Starting $prog: "
-
-    daemon --pidfile=${pidfile} ${nginx} --config ${conffile}
-    RETVAL=$?
-    echo
-    [ $RETVAL = 0 ] && touch ${lockfile}
-    return $RETVAL
+    if [ -s ${pidfile} ]; then
+        RETVAL=1
+        echo -n "Already running !" && warning
+        echo
+    else
+        echo -n $"Starting $prog: "
+        nohup ${wigo} --config ${conffile} 2>&1 >/dev/null &
+        echo $! > ${pidfile}
+        RETVAL=$?
+        echo
+        return $RETVAL
+    fi
 }
 
 stop() {
@@ -47,7 +52,7 @@ stop() {
     killproc -p ${pidfile} ${prog}
     RETVAL=$?
     echo
-    [ $RETVAL = 0 ] && rm -f ${lockfile} ${pidfile}
+    [ $RETVAL = 0 ] && rm -f ${pidfile}
 }
 
 reload() {

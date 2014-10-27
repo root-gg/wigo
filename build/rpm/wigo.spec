@@ -119,6 +119,9 @@ for probeName in ${EXAMPLEPROBES300[@]}; do
     fi
 done
 
+mkdir -p /var/lib/wigo
+mkdir -p /var/log/wigo
+
 # Start it
 /etc/init.d/wigo restart
 
