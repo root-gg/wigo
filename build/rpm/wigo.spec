@@ -6,8 +6,8 @@ Summary:	WiGo is a monitoring tool that just works
 License:	MIT
 URL:		https://git.root.gg/bodji/wigo
 Source0:	wigo.tar.bz2
-#BuildRequires:
 Requires:   ntp-perl, perl-JSON, perl-Time-HiRes
+AutoReqProv: no
 
 %description
 WiGo is a monitoring tool that just works
