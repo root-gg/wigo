@@ -14,6 +14,7 @@ import (
 	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
 	"strings"
+	"path/filepath"
 )
 
 // Static global object
@@ -66,6 +67,15 @@ func InitWigo() (err error) {
             LocalWigo.Uuid = LocalWigo.uuidObj.String()
         }
 
+		// Clean temporary files
+		removeFunc := func(path string, f os.FileInfo, err error)(e error) {
+			if strings.HasSuffix(path, ".wigo") {
+				os.Remove(path)
+			}
+			return
+		};
+
+		filepath.Walk("/tmp", removeFunc)
 
 		// Args
 		usage := `wigo
