@@ -174,7 +174,7 @@ else
         }
         if ( detail->{$name}->{'cluster_requests'} )
         {
-            $msg .= sprintf( " ( %.2f req/s )", ( detail->{$name}->{'cluster_requests'} ));
+            $msg .= sprintf( " ( %s )", ( detail->{$name}->{'cluster_requests'} ));
         }
         push @messages, $msg;
     }
