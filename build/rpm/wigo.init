@@ -25,7 +25,7 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-wigo=${WIGO-/usr/bin/wigo}
+wigo=${WIGO-/usr/local/wigo/bin/wigo}
 prog=`/bin/basename $wigo`
 conffile=${CONFFILE-/etc/wigo/wigo.conf}
 lockfile=${LOCKFILE-/var/lock/subsys/wigo}
