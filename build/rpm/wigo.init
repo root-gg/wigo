@@ -32,18 +32,14 @@ pidfile=${PIDFILE-/var/run/wigo.pid}
 RETVAL=0
 
 start() {
-    if [ -s ${pidfile} ]; then
-        RETVAL=1
-        echo -n "Already running !" && warning
-        echo
-    else
-        echo -n $"Starting $prog: "
-        nohup ${wigo} --config ${conffile} 2>&1 >/dev/null &
-        echo $! > ${pidfile}
-        RETVAL=$?
-        echo
-        return $RETVAL
-    fi
+    echo -n $"Starting $prog: "
+    nohup ${wigo} --config ${conffile} >/dev/null 2>&1 &
+    echo $! > ${pidfile}
+    RET=$(rh_status)
+    RETVAL=$?
+    echo -n $RET
+    test $RETVAL -eq 0 && success || failure
+    echo
 }
 
 stop() {
@@ -62,7 +58,7 @@ reload() {
 }
 
 rh_status() {
-    status -p ${pidfile} ${nginx}
+    status -p ${pidfile} ${wigo}
 }
 
 # See how we were called.
