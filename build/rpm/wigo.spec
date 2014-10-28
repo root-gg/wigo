@@ -97,10 +97,9 @@ echo "Enabling default probes.."
 mkdir -p $WIGOPATH/probes/60
 cd $WIGOPATH/probes/60
 for probeName in ${EXAMPLEPROBES60[@]}; do
-
     if [ ! -e $probeName ] ; then
         echo " - Enabling $probeName every 60 seconds"
-        ln -s ../../probes-examples/$probeName .
+        ln -s ../examples/$probeName .
     else
         echo " - Probe $probeName already exists. Doing nothing.."
     fi
@@ -109,10 +108,9 @@ done
 mkdir -p $WIGOPATH/probes/300
 cd $WIGOPATH/probes/300
 for probeName in ${EXAMPLEPROBES300[@]}; do
-
     if [ ! -e $probeName ] ; then
         echo " - Enabling $probeName every 300 seconds"
-        ln -s ../../probes-examples/$probeName .
+        ln -s ../examples/$probeName .
     else
         echo " - Probe $probeName already exists. Doing nothing.."
     fi
