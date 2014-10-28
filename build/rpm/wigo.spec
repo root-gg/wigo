@@ -77,15 +77,15 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
+%doc README
 /etc/init.d/wigo
+/etc/wigo
+%config(noreplace) /etc/wigo/wigo.conf
+%config(noreplace) /etc/wigo/conf.d
 /etc/logrotate.d/wigo
 /etc/cron.d/wigo
 /usr/local/wigo
 /usr/local/bin/wigocli
-%config(noreplace) /etc/wigo/wigo.conf
-%config(noreplace) /etc/wigo/conf.d
-
-
 
 %post
 WIGOPATH="/usr/local/wigo"
