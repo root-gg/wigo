@@ -25,21 +25,22 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-nginx=${WIGO-/usr/bin/wigo}
-prog=`/bin/basename $nginx`
+wigo=${WIGO-/usr/local/wigo/bin/wigo}
+prog=`/bin/basename $wigo`
 conffile=${CONFFILE-/etc/wigo/wigo.conf}
-lockfile=${LOCKFILE-/var/lock/subsys/wigo}
 pidfile=${PIDFILE-/var/run/wigo.pid}
 RETVAL=0
 
 start() {
     echo -n $"Starting $prog: "
-
-    daemon --pidfile=${pidfile} ${nginx} --config ${conffile}
+    nohup ${wigo} --config ${conffile} >/dev/null 2>&1 &
+    echo $! > ${pidfile}
+    sleep 1
+    RET=$(rh_status)
     RETVAL=$?
+    echo -n $RET
+    test $RETVAL -eq 0 && success || failure
     echo
-    [ $RETVAL = 0 ] && touch ${lockfile}
-    return $RETVAL
 }
 
 stop() {
@@ -47,7 +48,7 @@ stop() {
     killproc -p ${pidfile} ${prog}
     RETVAL=$?
     echo
-    [ $RETVAL = 0 ] && rm -f ${lockfile} ${pidfile}
+    [ $RETVAL = 0 ] && rm -f ${pidfile}
 }
 
 reload() {
@@ -58,7 +59,7 @@ reload() {
 }
 
 rh_status() {
-    status -p ${pidfile} ${nginx}
+    status -p ${pidfile} ${wigo}
 }
 
 # See how we were called.
@@ -84,3 +85,4 @@ case "$1" in
 esac
 
 exit $RETVAL
+

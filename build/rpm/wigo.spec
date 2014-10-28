@@ -6,8 +6,8 @@ Summary:	WiGo is a monitoring tool that just works
 License:	MIT
 URL:		https://git.root.gg/bodji/wigo
 Source0:	wigo.tar.bz2
-#BuildRequires:
-Requires:   ntp-perl, perl-JSON, perl-libwww-perl
+Requires:   ntp-perl, perl-JSON, perl-Time-HiRes
+AutoReqProv: no
 
 %description
 WiGo is a monitoring tool that just works
@@ -35,13 +35,14 @@ mkdir -p %{buildroot}/etc/wigo/conf.d
 mkdir -p %{buildroot}/etc/cron.d
 mkdir -p %{buildroot}/etc/logrotate.d
 mkdir -p %{buildroot}/etc/init.d
+mkdir -p %{buildroot}/usr/local/wigo/bin
 mkdir -p %{buildroot}/usr/local/wigo/lib
 mkdir -p %{buildroot}/usr/local/wigo/etc/conf.d
 mkdir -p %{buildroot}/usr/local/wigo/probes/examples
 mkdir -p %{buildroot}/usr/local/bin
 mkdir -p %{buildroot}/var/lib/wigo
 
-cp build/wigo %{buildroot}/usr/local/wigo/bin
+cp build/wigo %{buildroot}/usr/local/wigo/bin/wigo
 cp build/wigocli %{buildroot}/usr/local/bin/wigocli
 
 # Copy lib
@@ -77,14 +78,13 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root,-)
 /etc/init.d/wigo
+/etc/wigo
+%config(noreplace) /etc/wigo/wigo.conf
+%config(noreplace) /etc/wigo/conf.d
 /etc/logrotate.d/wigo
 /etc/cron.d/wigo
 /usr/local/wigo
 /usr/local/bin/wigocli
-%config(noreplace) /etc/wigo/wigo.conf
-%config(noreplace) /etc/wigo/conf.d
-
-
 
 %post
 WIGOPATH="/usr/local/wigo"
@@ -94,27 +94,30 @@ EXAMPLEPROBES300=( smart check_ntp packages-apt )
 # Enabling default probes on 60 directory
 echo "Enabling default probes.."
 
+mkdir -p $WIGOPATH/probes/60
 cd $WIGOPATH/probes/60
 for probeName in ${EXAMPLEPROBES60[@]}; do
-
     if [ ! -e $probeName ] ; then
         echo " - Enabling $probeName every 60 seconds"
-        ln -s ../../probes-examples/$probeName .
+        ln -s ../examples/$probeName .
     else
         echo " - Probe $probeName already exists. Doing nothing.."
     fi
 done
 
+mkdir -p $WIGOPATH/probes/300
 cd $WIGOPATH/probes/300
 for probeName in ${EXAMPLEPROBES300[@]}; do
-
     if [ ! -e $probeName ] ; then
         echo " - Enabling $probeName every 300 seconds"
-        ln -s ../../probes-examples/$probeName .
+        ln -s ../examples/$probeName .
     else
         echo " - Probe $probeName already exists. Doing nothing.."
     fi
 done
+
+mkdir -p /var/lib/wigo
+mkdir -p /var/log/wigo
 
 # Start it
 /etc/init.d/wigo restart
