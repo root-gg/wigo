@@ -77,7 +77,6 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-%doc README
 /etc/init.d/wigo
 /etc/wigo
 %config(noreplace) /etc/wigo/wigo.conf
