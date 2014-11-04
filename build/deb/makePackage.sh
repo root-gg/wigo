@@ -119,6 +119,7 @@ if [ -e $REPOROOT/src/bin/wigo_386 ] ; then
     dpkg-deb --build $PACKAGEROOT /tmp/wigo_386.deb
 fi
 
+reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb squeeze /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo.deb
 
