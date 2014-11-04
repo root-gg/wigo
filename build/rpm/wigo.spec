@@ -39,6 +39,9 @@ mkdir -p %{buildroot}/usr/local/wigo/bin
 mkdir -p %{buildroot}/usr/local/wigo/lib
 mkdir -p %{buildroot}/usr/local/wigo/etc/conf.d
 mkdir -p %{buildroot}/usr/local/wigo/probes/examples
+mkdir -p %{buildroot}/usr/local/wigo/probes/300
+mkdir -p %{buildroot}/usr/local/wigo/probes/120
+mkdir -p %{buildroot}/usr/local/wigo/probes/60
 mkdir -p %{buildroot}/usr/local/bin
 mkdir -p %{buildroot}/var/lib/wigo
 
