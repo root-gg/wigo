@@ -29,6 +29,9 @@ mkdir -p $PACKAGEROOT/usr/local/wigo/lib
 mkdir -p $PACKAGEROOT/usr/local/wigo/bin
 mkdir -p $PACKAGEROOT/usr/local/wigo/etc/conf.d
 mkdir -p $PACKAGEROOT/usr/local/wigo/probes/examples
+mkdir -p $PACKAGEROOT/usr/local/wigo/probes/60
+mkdir -p $PACKAGEROOT/usr/local/wigo/probes/120
+mkdir -p $PACKAGEROOT/usr/local/wigo/probes/300
 mkdir -p $PACKAGEROOT/usr/local/bin
 mkdir -p $PACKAGEROOT/var/lib/wigo
 
