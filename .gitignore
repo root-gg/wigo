@@ -1,5 +1,13 @@
 src/bin
 wigocli
+generate_cert
+
+# dev
+probes/60
+ssl
+var
+wigo.conf.*
+
 *.log
 
 

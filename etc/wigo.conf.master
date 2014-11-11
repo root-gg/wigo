@@ -13,26 +13,41 @@
 #                           If provided, a tag group will be added on OpenTSDB puts
 #
 [Global]
-
+Hostname                    = "Master"
 LogVerbose                  = true
-LogFile                     = "/var/log/wigo.log"
-ProbesDirectory             = "/usr/local/wigo/probes"
+LogFile                     = "/home/skatkatt/git/wigo/var/log/wigo.log"
+UuidFile                    = "/home/skatkatt/git/wigo/var/lib/wigo.uuid.master"
+ProbesDirectory             = "/home/skatkatt/git/wigo/probes"
+EventLog                    = "/home/skatkatt/git/wigo/var/lib/events.log"
 Group                       = ""
 
 [Http]
 Enabled                     = true
 Address                     = "0.0.0.0"
-Port                        = 4000
-Login                       = ""
-Password                    = ""
-SslEnabled                  = false
+Port                        = 5000
+SslEnabled                  = true
+SslCert                     = "/home/skatkatt/git/wigo/etc/ssl/wigo.crt"
+SslKey                      = "/home/skatkatt/git/wigo/etc/ssl/wigo.key"
+Login                       = "foo"
+Password                    = "bar"
 
-[Push]
+[PushServer]
 Enabled                     = true
-Address                     = "0.0.0.0"
-Port                        = 4001
+Address                     = "127.0.0.1"
+Port                        = 5001
 Secret                      = "secret"
-SslEnabled                  = false
+SslEnabled                  = true
+SslCert                     = "/home/skatkatt/git/wigo/var/lib/ssl/wigo.crt"
+SslKey                      = "/home/skatkatt/git/wigo/var/lib/ssl/wigo.key"
+AllowedClientsFile          = "/home/skatkatt/git/wigo/var/lib/allowed"
+AutoAcceptClients           = true
+
+[PushClient]
+Enabled                     = false
+Address                     = "0.0.0.0"
+Port                        = 5001
+Secret                      = "secret"
+SslEnabled                  = true
 
 # OpenTSDB
 #
@@ -61,8 +76,8 @@ MetricPrefix                = "wigo"
 # RemoteWigosCheckTries     -> Number of tries before setting remote wigo in error
 # RemoteWigosCheckTries     -> Number of tries before setting remote wigo in error
 #
-[RemoteWigos]
 
+[RemoteWigos]
 CheckTries                  = 3
 CheckInterval               = 10
 
@@ -96,6 +111,7 @@ List                        = []
 
 # General
 MinLevelToSend              = 250
+RescueOnly                  = false
 OnWigoChange                = false
 OnProbeChange               = false
 

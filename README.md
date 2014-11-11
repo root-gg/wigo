@@ -134,3 +134,6 @@ export GOPATH="$GOPATH:..../wigo/src"
 go build src/wigo.go
 go build src/wigocli.go
 ```
+
+
+openssl req -x509 -nodes -days 3650 -newkey rsa:4096 -keyout etc/ssl/wigo.key -out etc/ssl/wigo.crt

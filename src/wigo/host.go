@@ -1,10 +1,5 @@
 package wigo
 
-import (
-	"log"
-	"os"
-)
-
 // Host
 
 type Host struct {
@@ -23,43 +18,17 @@ type HostSummary struct {
 	Probes				[]map[string]interface {}
 }
 
-func NewHost(hostname string) (this *Host) {
+func NewHost(hostname string, group string) (this *Host) {
 
 	this = new(Host)
 
 	this.Status = 0
 	this.Name = hostname
-	this.Group = "none"
+	this.Group = group
 	this.Probes = make(map[string]*ProbeResult)
-
-	return
-}
-
-func NewLocalHost() (this *Host) {
-
-	this = new(Host)
-	this.Status = 100
-	this.Probes = make(map[string]*ProbeResult)
-
-	// Get hostname
-	localHostname, err := os.Hostname()
-	if err != nil {
-		log.Println("Couldn't get hostname for local machine, using localhost")
-
-		this.Name = "localhost"
-	} else {
-		this.Name = localHostname
-	}
 
 	// Set parent wigo
 	this.parentWigo = GetLocalWigo()
-
-	// Set group
-	this.Group = GetLocalWigo().GetConfig().Global.Group
-
-	if this.Group == "" {
-		this.Group = "none"
-	}
 
 	return
 }
