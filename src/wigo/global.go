@@ -186,7 +186,6 @@ Options:
 	InitChannels()
 
 	// Rpc
-
 	if LocalWigo.config.PushServer.Enabled {
 		LocalWigo.push = NewPushServer(LocalWigo.config.PushServer)
 	}

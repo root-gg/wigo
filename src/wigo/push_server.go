@@ -13,26 +13,29 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-
+// Push server expose method to update client's
+// data over RPCs. Data is transferred using binary
+// gob serialisation over tcp connection. Secure TLS
+// connection is available and highly recommended.
 type PushServer struct {
 	config		*PushServerConfig
 	server		*rpc.Server
-	cartman 	*Cartman
+	authority 	*Authority
 	tokens  	map[string]string
 }
 
-func NewPushServer( config *PushServerConfig ) ( this *PushServer ) {
+func NewPushServer(config *PushServerConfig ) ( this *PushServer ) {
 	this = new(PushServer)
 
+	// TODO clean this periodically
 	this.tokens = make(map[string]string)
 
 	this.config = config
-	address := this.config.Address+":"+strconv.Itoa(config.Port)
-	this.cartman = NewCartman(this.config)
+	address := this.config.Address + ":" + strconv.Itoa(config.Port)
+	this.authority = NewAuthority(this.config)
 
 	gob.Register([]interface {}{})
 	gob.Register(map[string]interface {}{})
-
 	rpc.Register(this)
 
 	var listner net.Listener
@@ -42,21 +45,21 @@ func NewPushServer( config *PushServerConfig ) ( this *PushServer ) {
 		tlsConfig.Certificates = make([]tls.Certificate, 1)
 		tlsConfig.Certificates[0], err = tls.LoadX509KeyPair(this.config.SslCert,this.config.SslKey)
 		if err != nil {
-			log.Fatal("Push server error : ", err)
+			log.Fatalf("Push server : error while loading server certificate : %s", err)
 		}
 		rawListner, err := net.Listen("tcp", address)
 		if err != nil {
-			log.Fatal("Push server error : ", err)
+			log.Fatalf("Push server : listen error : %s", err)
 		}
 		listner = tls.NewListener(rawListner, tlsConfig);
 
-		log.Println("Tls push server now listening @ " + address)
+		log.Printf("Push server : now listening @ %s ( TLS enabled )", address)
 	} else {
 		listner, err = net.Listen("tcp", this.config.Address+":"+strconv.Itoa(this.config.Port)) ;
 		if err != nil {
-			log.Fatal("Push server error : ", err)
+			log.Fatalf("Push server : listen error %s", err)
 		}
-		log.Println("Plain push server now listening @ " + address)
+		log.Println("Push server : now listening @ %s ( TLS disabled ! )", address)
 	}
 
 	go func() {
@@ -64,78 +67,70 @@ func NewPushServer( config *PushServerConfig ) ( this *PushServer ) {
 			if conn, err := listner.Accept() ; err == nil {
 	 			go rpc.ServeConn(conn)
 			} else {
-				log.Println(err)
+				log.Printf("Push server : accept connection error %s", err)
 			}
 		}
 	}()
 	return
 }
 
-func (this *PushServer) Test(str string, str2 *string) (err error) {
-	log.Println("revc : " + str)
-	*str2 = str
+// PUSH SERVER RPCs
+
+// Send the server CA certificate to the client so it can
+// verify the identity of the server. To avoid the small window
+// of MITM vulnerability you might copy the certificate by yourself.
+func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) ( err error ) {
+	Dump(req)
+	log.Println("Push server : Sending server certificate to " + req.Hostname);
+	*cert = this.authority.GetServerCertificate()
 	return
 }
 
-func (this *PushServer) Yo(req HelloRequest, reply *bool) ( err error ) {
+// Register a new client. It will first be added to a 
+// waiting list, then an admin action will be required
+// to grant the client to the allowed list. You may accept
+// new clients automatically with the AutoAcceptClient setting.
+func (this *PushServer) Register(req HelloRequest, reply *bool) ( err error ) {
 	Dump(req)
-	if this.cartman.IsAllowed(req.Uuid) {
-		log.Println("Push server : " + req.Hostname + " is already allowed")
-	} else {
-		this.cartman.AddToWaitingList(req.Uuid,req.Hostname)
+	if ! this.authority.IsAllowed(req.Uuid) {
+		this.authority.AddClientToWaitingList(req.Uuid,req.Hostname)
 		if ( this.config.AutoAcceptClients ) {
-			this.cartman.Allow(req.Uuid, req.Hostname)
+			this.authority.AllowClient(req.Uuid, req.Hostname)
 		}
 	}
 	return
 }
 
-func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) ( err error ) {
+// Sign the client uuid with the server's private key.
+// The client will have to provide this as a proof of
+// his identity at every new connection.
+func (this *PushServer) GetUuidSignature(req HelloRequest, sig *[]byte) ( err error ) {
 	Dump(req)
-	log.Println("Push server : Sending server certificate to " + req.Hostname);
-	*cert = this.cartman.GetServerCertificate()
-	return
-}
-
-func (this *PushServer) Autograph(req HelloRequest, autograph *[]byte) ( err error ) {
-	Dump(req)
-	if this.cartman.IsAllowed(req.Uuid) {
-		log.Println("Push server : Sending autograph to " + req.Hostname);
-		*autograph, err = this.cartman.GetAutograph(req.Uuid, req.Hostname)
+	if this.authority.IsAllowed(req.Uuid) {
+		log.Println("Push server : Sending uuid signature to " + req.Hostname);
+		*sig, err = this.authority.GetUuidSignature(req.Uuid, req.Hostname)
 	} else {
 		err = errors.New("NOT ALLOWED")
 	}
 	return
 }
 
-type HelloRequest struct {
-	Hostname 	string
-	Uuid		string
-	Autograph	[]byte
-}
-
-func NewHelloRequest(autograph []byte) ( this *HelloRequest ){
-	this = new(HelloRequest)
-	this.Hostname = LocalWigo.GetHostname()
-	this.Uuid = LocalWigo.Uuid
-	this.Autograph = autograph
-	return
-}
-
+// Verify the validity of the client's uuid signature. This is done 
+// once for every connection then a token then a token is used.
 func (this *PushServer) Hello(req HelloRequest, token *string) ( err error ) {
 	Dump(req)
-	if this.cartman.IsAllowed(req.Uuid) {
-		if err = this.cartman.VerifyAutograph(req.Uuid, req.Autograph) ; err == nil {
+	if this.authority.IsAllowed(req.Uuid) {
+		if err = this.authority.VerifyUuidSignature(req.Uuid, req.UuidSignature) ; err == nil {
 			if t, err := uuid.NewV4() ; err == nil {
 				*token = t.String()
 				this.tokens[*token] = req.Uuid
-				log.Println("Push server : hello " + req.Hostname)
+				log.Printf("Push server : hello %s", req.Hostname)
 			} else {
-				log.Println("Unable to generate push token : " + err.Error())
+				log.Printf("Push server : unable to generate token : %s", err)
 				err = errors.New("NOT ALLOWED")
 			}
 		} else {
-			log.Println("Push server : invalid autograph " + req.Hostname)
+			log.Println("Push server : invalid uuid signature for " + req.Hostname)
 			err = errors.New("NOT ALLOWED")
 		}
 	} else {
@@ -145,9 +140,46 @@ func (this *PushServer) Hello(req HelloRequest, token *string) ( err error ) {
 	return
 }
 
-/*
- * Base request
- */
+// Update a client's data
+func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
+	Dump(req)
+	if err := this.auth(req.Request) ; err == nil {
+		// TODO this should return an error
+		LocalWigo.AddOrUpdateRemoteWigo(req.Wigo.GetHostname(), &req.Wigo)
+	}
+	return
+}
+
+// Disconnect the client gracefully
+func (this *PushServer) Goodbye(req Request, reply *bool) ( err error ) {
+	Dump(req)
+	if err = this.auth(&req) ; err == nil {
+		delete(this.tokens,req.Token)
+		req.wigo.IsAlive = false;
+	}
+	return
+}
+
+// As the signature of RPC methods is not flexible
+// Input parameter are encapsulated into requests
+// objects.
+
+// Hello request for the first request
+type HelloRequest struct {
+	Hostname 		string
+	Uuid			string
+	UuidSignature	[]byte
+}
+
+func NewHelloRequest(uuidSignature []byte) ( this *HelloRequest ){
+	this = new(HelloRequest)
+	this.Hostname = LocalWigo.GetHostname()
+	this.Uuid = LocalWigo.Uuid
+	this.UuidSignature = uuidSignature
+	return
+}
+
+// Base request for every subsequent requests
 type Request struct {
 	Token 	   	string
 	wigo		*Wigo
@@ -159,28 +191,28 @@ func NewRequest(token string) ( this *Request ) {
 	return
 }
 
+// This check the validity of the token. Token will
+// expire within 300 seconds hence forcing the client
+// to reconnect. Here we also check for flooding clients.
 func (this *PushServer) auth(req *Request) ( err error ) {
 	Dump(req)
 	if uuid, ok := this.tokens[req.Token] ; ok {
 		if req.wigo = LocalWigo.FindRemoteWigoByUuid(uuid) ; req.wigo != nil {
-			// Check session validity
 			// TODO implement anti flood
 			if time.Now().Unix() - req.wigo.LastUpdate > int64(300) {
-				log.Println("Push server : session timed out for " + req.wigo.GetHostname())
+				log.Printf("Push server : session timed out for %s", req.wigo.GetHostname())
 				err = errors.New("NOT ALLOWED")
 			}
 		}
 	} else {
-		log.Println("Push server : invalid token " + req.Token)
+		log.Printf("Push server : invalid token %s" + req.Token)
 		err = errors.New("NOT ALLOWED")
 	}
 
 	return
 }
 
-/*
- * Update request
- */
+// Request the server to update the client's data
 type UpdateRequest struct {
 	*Request
 	Wigo		Wigo
@@ -190,22 +222,5 @@ func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
 	this = new(UpdateRequest)
 	this.Request = NewRequest(token)
 	this.Wigo = *wigo
-	return
-}
-
-func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
-	Dump(req)
-	if err := this.auth(req.Request) ; err == nil {
-		LocalWigo.AddOrUpdateRemoteWigo(req.Wigo.GetHostname(), &req.Wigo)
-	}
-	return
-}
-
-func (this *PushServer) Goodbye(req Request, reply *bool) ( err error ) {
-	Dump(req)
-	if err := this.auth(&req) ; err == nil {
-		delete(this.tokens,req.Token)
-		req.wigo.IsAlive = false;
-	}
 	return
 }
