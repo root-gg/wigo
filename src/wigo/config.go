@@ -46,7 +46,7 @@ func NewConfig( configFile string ) (this *Config) {
 
 	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
 	this.Global.LogFile = "/var/log/wigo.log"
-	this.Global.EventLog = "/var/lib/wigo/uuid"
+	this.Global.UuidFile = "/var/lib/wigo/uuid"
 	this.Global.LogVerbose = true
 	this.Global.EventLog = "/var/lib/wigo/events.log"
 	this.Global.ConfigFile = configFile
@@ -55,7 +55,7 @@ func NewConfig( configFile string ) (this *Config) {
 	// Http server
 	this.Http.Enabled = true
 	this.Http.Address = "0.0.0.0"
-	this.Http.Port = 6000
+	this.Http.Port = 4000
 	this.Http.SslEnabled = false
 	this.Http.SslCert = "/etc/wigo/ssl/wigo.crt"
 	this.Http.SslKey  = "/etc/wigo/ssl/wigo.key"
@@ -66,8 +66,8 @@ func NewConfig( configFile string ) (this *Config) {
 	// Push server
 	this.PushServer.Enabled = false
 	this.PushServer.Address = "0.0.0.0"
-	this.PushServer.Port = 6001
-	this.PushServer.SslEnabled = false
+	this.PushServer.Port = 4001
+	this.PushServer.SslEnabled = true
 	this.PushServer.SslCert = "/etc/wigo/ssl/wigo.crt"
 	this.PushServer.SslKey  = "/etc/wigo/ssl/wigo.key"
 	this.PushServer.AllowedClientsFile = "/var/lib/wigo/allowed"
@@ -75,10 +75,10 @@ func NewConfig( configFile string ) (this *Config) {
 	this.PushServer.AutoAcceptClients = false
 
 	// Push client
-	this.PushClient.Enabled = true
+	this.PushClient.Enabled = false
 	this.PushClient.Address = "127.0.0.1"
-	this.PushClient.Port = 6001
-	this.PushClient.SslEnabled = false
+	this.PushClient.Port = 4001
+	this.PushClient.SslEnabled = true
 	this.PushClient.SslCert = "/etc/wigo/ssl/wigo.crt"
 	this.PushClient.UuidSig = "/etc/wigo/ssl/uuid.sig"
 	this.PushClient.PushInterval = 15
@@ -91,7 +91,6 @@ func NewConfig( configFile string ) (this *Config) {
 
 	// Notifications
 	this.Notifications.MinLevelToSend = 101
-	this.Notifications.RescueOnly = false
 
 	this.Notifications.OnWigoChange = false
 	this.Notifications.OnHostChange = false
@@ -140,7 +139,7 @@ func NewConfig( configFile string ) (this *Config) {
 			AdvancedRemoteWigo.Hostname = hostname
 			AdvancedRemoteWigo.Port = port
 
-			AdvancedRemoteWigo.SslEnabled = false
+			AdvancedRemoteWigo.SslEnabled = true
 			AdvancedRemoteWigo.Login = ""
 			AdvancedRemoteWigo.Password = ""
 
@@ -216,7 +215,6 @@ type RemoteWigoConfig struct {
 
 type NotificationConfig struct {
 	// Noticications
-	RescueOnly 		bool
 	MinLevelToSend 	int
 
 	OnWigoChange  	bool

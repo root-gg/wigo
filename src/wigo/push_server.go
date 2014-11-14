@@ -123,6 +123,11 @@ func (this *PushServer) Hello(req HelloRequest, token *string) ( err error ) {
 		if err = this.authority.VerifyUuidSignature(req.Uuid, req.UuidSignature) ; err == nil {
 			if t, err := uuid.NewV4() ; err == nil {
 				*token = t.String()
+				for t, uuid := range this.tokens {
+					if uuid == req.Uuid {
+						delete(this.tokens,t)
+					}
+				}
 				this.tokens[*token] = req.Uuid
 				log.Printf("Push server : hello %s", req.Hostname)
 			} else {
