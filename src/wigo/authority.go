@@ -15,6 +15,7 @@ import (
 	"regexp"
 
 	"github.com/nu7hatch/gouuid"
+	"fmt"
 )
 
 // The Authority is responsible to handle the security
@@ -100,11 +101,15 @@ func ( this *Authority) GetServerCertificate() []byte {
 
 // Add a client to the waiting list
 func ( this *Authority ) AddClientToWaitingList(uuid string,hostname string ) (err error){
-	if len(this.Waiting) < this.config.MaxWaitingClients {
-		this.Waiting[uuid] = hostname
-		log.Printf("Authority : added %s to waiting list", hostname)
-	} else {
-		err = errors.New("Authority : Too many wainting clients")
+	if _, ok := this.Waiting[uuid] ; ! ok {
+		if len(this.Waiting) < this.config.MaxWaitingClients {
+			this.Waiting[uuid] = hostname
+			message := fmt.Sprintf("New client %s", hostname)
+			SendNotification(NewNotificationFromMessage(message))
+			log.Printf("Authority : %s", message)
+		} else {
+			err = errors.New("Authority : Too many wainting clients")
+		}
 	}
 
 	return

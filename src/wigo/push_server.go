@@ -86,11 +86,9 @@ func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) ( e
 // new clients automatically with the AutoAcceptClient setting.
 func (this *PushServer) Register(req HelloRequest, reply *bool) ( err error ) {
 	Dump(req)
-	if ! this.authority.IsAllowed(req.Uuid) {
-		this.authority.AddClientToWaitingList(req.Uuid,req.Hostname)
-		if ( this.config.AutoAcceptClients ) {
-			this.authority.AllowClient(req.Uuid)
-		}
+	this.authority.AddClientToWaitingList(req.Uuid,req.Hostname)
+	if ( this.config.AutoAcceptClients ) {
+		this.authority.AllowClient(req.Uuid)
 	}
 	return
 }

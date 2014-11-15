@@ -510,10 +510,27 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 	}
 
 	// TODO handle ssl and basic auth
+	var protocol string
+	if Hostname.SslEnabled {
+		protocol = "https://"
+	} else {
+		protocol = "http://"
+	}
+	url := protocol + host + "/api"
+
+	req, err := http.NewRequest("GET",url, nil)
+	if err != nil {
+		log.Printf("RemoteHostCheckRoutine : Unable to build get request : %s ", err)
+		return
+	}
+
+	if Hostname.Login != "" && Hostname.Password != "" {
+		req.SetBasicAuth("<username>", "<password>")
+	}
 
 	for {
 		for i := 1; i <= tries; i++ {
-			resp, err = client.Get("http://" + host + "/api")
+			resp, err = client.Do(req)
 			if err != nil {
 				time.Sleep(time.Second)
 			} else {
