@@ -627,6 +627,9 @@ func threadHttp(config *wigo.HttpConfig) {
 	r.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
 	r.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
 	r.Get("/api/probes/:probe/logs", wigo.HttpLogsHandler)
+	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
+	r.Post("/api/authority/hosts/:uuid/allow",wigo.HttpAuthorityAllowHandler)
+	r.Post("/api/authority/hosts/:uuid/revoke",wigo.HttpAuthorityRevokeHandler)
 
 	m.Use(func(c martini.Context, w http.ResponseWriter, r *http.Request) {
 		if ( strings.HasPrefix(r.URL.Path,"/api") ) {
@@ -668,9 +671,12 @@ func threadPush(config *wigo.PushClientConfig) {
 					if ( err != nil ) {
 						pushClient.Close()
 						pushClient = nil
+						if ( err.Error() != "RECONNECT" ) {
+							time.Sleep(time.Duration(config.PushInterval) * time.Second)
+						}
+						continue
 					}
 				} else {
-					log.Println(err)
 					pushClient.Close()
 					pushClient = nil
 					if ( err.Error() != "RECONNECT" ) {
@@ -683,7 +689,6 @@ func threadPush(config *wigo.PushClientConfig) {
 			time.Sleep(time.Duration(config.PushInterval) * time.Second)
 			err = pushClient.Update()
 			if ( err != nil ) {
-				log.Println(err)
 				pushClient.Close()
 				pushClient = nil
 			}

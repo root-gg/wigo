@@ -89,14 +89,23 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error){
 			return
 		}
 
+		// Check if the client is allowed to push to the server. If it's not
+		// the case add the client to a waiting appoval list. This beahviour may
+		// be disabled by setting the AutoAcceptClients configuration parametter
+		// to true on the push server.
+		log.Println("Push client : Register")
+		b := new(bool) // void response
+		err = this.client.Call("PushServer.Register", NewHelloRequest(nil), b)
+		if ( err != nil ) {
+			return
+		}
+
 		if _, err = os.Stat(this.config.UuidSig); err == nil {
 			if this.uuidSignature, err = ioutil.ReadFile(this.config.UuidSig) ; err != nil {
-				log.Fatal("Push client : unable to read uuid signature")
+				log.Fatal("Push client : Unable to read uuid signature")
 			}
 		} else {
-			// Ask the server's authority to sign our uuid
-			log.Println("Push client : registering")
-			err = this.Register()
+			err = this.SignUuid()
 			if err == nil {
 				// Ask for immediate reconnect
 				err = errors.New("RECONNECT")
@@ -125,6 +134,7 @@ func (this *PushClient) GetServerCertificate() (err error) {
 		return errors.New("Push client : Not connected")
 	}
 
+	log.Println("Push client : Downloading server certificate")
 	var cert []byte
 	err = this.client.Call("PushServer.GetServerCertificate", NewHelloRequest(nil), &cert)
 	if err == nil {
@@ -140,33 +150,20 @@ func (this *PushClient) GetServerCertificate() (err error) {
 	return
 }
 
-// Registering is a three step process, first ask the server
-// to add the client on the waiting list. Then wait for the
-// admin to move the client from the waiting list to the allowed
-// list ( this behaviour may be disabled by setting the AutoAcceptClients
-// configuration setting on the push server ). Then the client will
-// ask the server to sign his uuid, this way the server is able to
+// Ask the server to sign the client's uuid, this way the server is able to
 // verify the client identity. The uuid signature is persisted on the
 // file system.
-func (this *PushClient) Register() (err error) {
+func (this *PushClient) SignUuid() (err error) {
 	if ( this.client == nil ) {
 		return errors.New("Push client : Not connected")
 	}
 
-	log.Println("Push client : register")
-
-	b := new(bool) // void response
-	// Ask the server to add the client on the waiting list
-	err = this.client.Call("PushServer.Register", NewHelloRequest(nil), b)
-	if ( err != nil ) {
-		return
-	}
-
+	log.Println("Push client : Ask for uuid signature!")
 	for {
 		// Check if the client has been allowed and ask the server to sign the client's uuid
 		err = this.client.Call("PushServer.GetUuidSignature", NewHelloRequest(nil), &this.uuidSignature)
 		if  err != nil {
-			if err.Error() == "NOT ALLOWED" {
+			if err.Error() == "WAITING" {
 				time.Sleep(time.Duration(this.config.PushInterval) * time.Second)
 				continue
 			}
@@ -198,10 +195,17 @@ func (this *PushClient) Hello() (err error) {
 		return errors.New("Push client : Not connected")
 	}
 
-	log.Println("Push client : say Hello!")
-	err = this.client.Call("PushServer.Hello", NewHelloRequest(this.uuidSignature), &this.token)
-	if ( err != nil ) {
-		log.Println("Push client : hello error : " + err.Error())
+	log.Println("Push client : Hello")
+	for {
+		err = this.client.Call("PushServer.Hello", NewHelloRequest(this.uuidSignature), &this.token)
+		if ( err != nil ) {
+			if err.Error() == "WAITING" {
+				time.Sleep(time.Duration(this.config.PushInterval) * time.Second)
+				continue
+			}
+			log.Println("Push client : hello error : " + err.Error())
+		}
+		break
 	}
 
 	return
@@ -213,7 +217,7 @@ func (this *PushClient) Update() (err error) {
 		return errors.New("Push client : Not connected")
 	}
 
-	log.Println("Push client : update")
+	log.Println("Push client : Update")
 	reply := new(bool)
 	err = this.client.Call("PushServer.Update", NewUpdateRequest(LocalWigo,this.token), reply)
 	if err != nil {
@@ -230,7 +234,7 @@ func (this *PushClient) Goodbye() (err error) {
 	}
 	defer this.Close()
 
-	log.Println("Push client : goodbye")
+	log.Println("Push client : Goodbye")
 	reply := new(bool)
 	err = this.client.Call("PushServer.Goodbye", NewUpdateRequest(LocalWigo,this.token), reply)
 	if err != nil {

@@ -219,3 +219,57 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 		return 200, string(json)
 	}
 }
+
+func HttpAuthorityListHandler(params martini.Params) (int, string) {
+
+	result := make(map[string]map[string]string)
+
+	if LocalWigo.push == nil {
+		return 500, "Push server is not started"
+	}
+
+	result["waiting"] = LocalWigo.push.authority.Waiting
+	result["allowed"] = LocalWigo.push.authority.Allowed
+
+	// Return remotes list
+	json, err := json.Marshal(result)
+	if err != nil {
+		return 500, fmt.Sprintf("Error while encoding to json : %s", err)
+	} else {
+		return 200, string(json)
+	}
+}
+
+func HttpAuthorityAllowHandler(params martini.Params) (int, string) {
+
+	uuid := params["uuid"]
+
+	if LocalWigo.push == nil {
+		return 500, "Push server is not started"
+	}
+
+	err := LocalWigo.push.authority.AllowClient(uuid)
+
+	if err != nil {
+		return 500, err.Error()
+	}
+
+	return 200, "OK"
+}
+
+func HttpAuthorityRevokeHandler(params martini.Params) (int, string) {
+
+	uuid := params["uuid"]
+
+	if LocalWigo.push == nil {
+		return 500, "Push server is not started"
+	}
+
+	err := LocalWigo.push.authority.RevokeClient(uuid)
+
+	if err != nil {
+		return 500, err.Error()
+	}
+
+	return 200, "OK"
+}

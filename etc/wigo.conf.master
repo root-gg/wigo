@@ -40,7 +40,7 @@ SslEnabled                  = true
 SslCert                     = "/home/skatkatt/git/wigo/var/lib/ssl/wigo.crt"
 SslKey                      = "/home/skatkatt/git/wigo/var/lib/ssl/wigo.key"
 AllowedClientsFile          = "/home/skatkatt/git/wigo/var/lib/allowed"
-AutoAcceptClients           = true
+AutoAcceptClients           = false
 
 [PushClient]
 Enabled                     = false

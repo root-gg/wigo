@@ -12,8 +12,9 @@ import (
 	"crypto"
 	"os"
 	"bufio"
-	"github.com/nu7hatch/gouuid"
 	"regexp"
+
+	"github.com/nu7hatch/gouuid"
 )
 
 // The Authority is responsible to handle the security
@@ -35,6 +36,7 @@ type Authority struct {
 
 	Waiting  	 	map[string]string
 	Allowed			map[string]string
+	Tokens  		map[string]string
 }
 
 func NewAuthority(config *PushServerConfig) (this *Authority) {
@@ -73,6 +75,7 @@ func NewAuthority(config *PushServerConfig) (this *Authority) {
 
 	this.Waiting 	= make(map[string]string)
 	this.Allowed	= make(map[string]string)
+	this.Tokens 	= make(map[string]string)
 	this.LoadAllowedList()
 
 	return
@@ -168,19 +171,42 @@ func ( this *Authority ) SaveAllowedList() (err error) {
 }
 
 // Add a client to the allowed list. The client have to be
-// in the waiting list.
-func ( this *Authority ) AllowClient(uuid string, hostname string) (err error){
-	if h, ok := this.Waiting[uuid] ; ok {
-		if h == hostname {
+// in the waiting list. // TODO remove this limitation
+func ( this *Authority ) AllowClient(uuid string) (err error){
+	if hostname, ok := this.Waiting[uuid] ; ok {
 			delete(this.Waiting,uuid)
 			this.Allowed[uuid] = hostname
-			this.SaveAllowedList()
-			log.Println("Authority : added " + hostname + " to ready list")
-		} else {
-			err = errors.New("Authority : Invalid uuid " + uuid)
-		}
+			if err := this.SaveAllowedList() ; err != nil {
+				// Fatal ?
+				log.Println(err)
+			}
+			log.Println("Authority : " + hostname + " added to allowed list")
 	} else {
-		err = errors.New("Authority : No waiting uuid for " + hostname)
+		err = errors.New("Authority : Invalid uuid " + uuid)
+	}
+	return
+}
+
+// Add a client to the allowed list. The client have to be
+// in the waiting list.
+func ( this *Authority ) RevokeClient(uuid string) (err error){
+	if hostname, ok := this.Waiting[uuid] ; ok {
+		delete(this.Waiting,uuid)
+		log.Println("Authority : " + hostname + " removed from waiting list")
+	}
+	if hostname, ok := this.Allowed[uuid] ; ok {
+		delete(this.Allowed,uuid)
+		if err := this.SaveAllowedList() ; err != nil {
+			// Fatal ?
+			log.Println(err)
+		}
+		log.Println("Authority : " + hostname + " removed from allowed list")
+	}
+	for token, u := range this.Tokens {
+		if uuid == u {
+			delete(this.Tokens,token)
+			log.Println("Authority : token " + token + " revoked")
+		}
 	}
 	return
 }
@@ -204,5 +230,55 @@ func ( this *Authority ) VerifyUuidSignature(uuid string, uuidSignature []byte) 
 	hash.Write([]byte(uuid))
 	digest := hash.Sum(nil)
 	err = rsa.VerifyPKCS1v15(&this.privateKey.PublicKey, crypto.SHA256, digest, uuidSignature)
+	return
+}
+
+// Generate a token to use as a proof of identity for all subsequent requests
+func ( this  *Authority ) GetToken(clientUuid string) (token string, err error) {
+	if t, err := uuid.NewV4() ; err == nil {
+		token = t.String()
+		for t, u := range this.Tokens {
+			if clientUuid == u {
+				delete(this.Tokens,t)
+			}
+		}
+		this.Tokens[token] = clientUuid
+	} else {
+		err = errors.New("Authority : Unable to generate token : " + err.Error())
+		log.Println(err)
+	}
+
+	return
+}
+
+// Verify the validity of a token
+func ( this  *Authority ) VerifyToken(uuid string, token string) (err error) {
+	if u, ok := this.Tokens[token] ; ok {
+		if uuid != u {
+			err = errors.New("Authority : Invalid token " + token + " for client with uuid " + uuid)
+			log.Println(err)
+		}
+	} else {
+		err = errors.New("Authority : Invalid token " + token + " for client with uuid " + uuid)
+		log.Println(err)
+	}
+
+	return
+}
+
+// Revoke a token
+func ( this  *Authority ) RevokeToken(uuid string, token string) (err error) {
+	if u, ok := this.Tokens[token] ; ok {
+		if uuid == u {
+			delete(this.Tokens, token)
+		} else {
+			err = errors.New("Authority : Invalid token " + token + " for client with uuid " + uuid)
+			log.Println(err)
+		}
+	} else {
+		err = errors.New("Authority : Invalid token " + token + " for client with uuid " + uuid)
+		log.Println(err)
+	}
+
 	return
 }

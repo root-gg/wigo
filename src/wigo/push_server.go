@@ -9,8 +9,6 @@ import (
 	"encoding/gob"
 	"crypto/tls"
 	"time"
-
-	"github.com/nu7hatch/gouuid"
 )
 
 // Push server expose method to update client's
@@ -21,14 +19,10 @@ type PushServer struct {
 	config		*PushServerConfig
 	server		*rpc.Server
 	authority 	*Authority
-	tokens  	map[string]string
 }
 
 func NewPushServer(config *PushServerConfig ) ( this *PushServer ) {
 	this = new(PushServer)
-
-	// TODO clean this periodically
-	this.tokens = make(map[string]string)
 
 	this.config = config
 	address := this.config.Address + ":" + strconv.Itoa(config.Port)
@@ -95,7 +89,7 @@ func (this *PushServer) Register(req HelloRequest, reply *bool) ( err error ) {
 	if ! this.authority.IsAllowed(req.Uuid) {
 		this.authority.AddClientToWaitingList(req.Uuid,req.Hostname)
 		if ( this.config.AutoAcceptClients ) {
-			this.authority.AllowClient(req.Uuid, req.Hostname)
+			this.authority.AllowClient(req.Uuid)
 		}
 	}
 	return
@@ -110,7 +104,11 @@ func (this *PushServer) GetUuidSignature(req HelloRequest, sig *[]byte) ( err er
 		log.Println("Push server : Sending uuid signature to " + req.Hostname);
 		*sig, err = this.authority.GetUuidSignature(req.Uuid, req.Hostname)
 	} else {
-		err = errors.New("NOT ALLOWED")
+		if this.authority.IsWaiting(req.Uuid) {
+			err = errors.New("WAITING")
+		} else {
+			err = errors.New("NOT ALLOWED")
+		}
 	}
 	return
 }
@@ -121,17 +119,9 @@ func (this *PushServer) Hello(req HelloRequest, token *string) ( err error ) {
 	Dump(req)
 	if this.authority.IsAllowed(req.Uuid) {
 		if err = this.authority.VerifyUuidSignature(req.Uuid, req.UuidSignature) ; err == nil {
-			if t, err := uuid.NewV4() ; err == nil {
-				*token = t.String()
-				for t, uuid := range this.tokens {
-					if uuid == req.Uuid {
-						delete(this.tokens,t)
-					}
-				}
-				this.tokens[*token] = req.Uuid
+			if *token, err = this.authority.GetToken(req.Uuid) ; err == nil{
 				log.Printf("Push server : hello %s", req.Hostname)
 			} else {
-				log.Printf("Push server : unable to generate token : %s", err)
 				err = errors.New("NOT ALLOWED")
 			}
 		} else {
@@ -139,7 +129,11 @@ func (this *PushServer) Hello(req HelloRequest, token *string) ( err error ) {
 			err = errors.New("NOT ALLOWED")
 		}
 	} else {
-		err = errors.New("NOT ALLOWED")
+		if this.authority.IsWaiting(req.Uuid) {
+			err = errors.New("WAITING")
+		} else {
+			err = errors.New("NOT ALLOWED")
+		}
 	}
 
 	return
@@ -148,9 +142,11 @@ func (this *PushServer) Hello(req HelloRequest, token *string) ( err error ) {
 // Update a client's data
 func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 	Dump(req)
-	if err := this.auth(req.Request) ; err == nil {
+	if err = this.auth(req.Request) ; err == nil {
 		// TODO this should return an error
 		LocalWigo.AddOrUpdateRemoteWigo(req.Wigo.GetHostname(), &req.Wigo)
+	} else {
+		err = errors.New("NOT ALLOWED")
 	}
 	return
 }
@@ -159,8 +155,10 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 func (this *PushServer) Goodbye(req Request, reply *bool) ( err error ) {
 	Dump(req)
 	if err = this.auth(&req) ; err == nil {
-		delete(this.tokens,req.Token)
-		req.wigo.IsAlive = false;
+		this.authority.RevokeToken(req.Uuid,req.Token)
+		if wigo := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; wigo != nil {
+			wigo.IsAlive = false
+		}
 	}
 	return
 }
@@ -186,12 +184,13 @@ func NewHelloRequest(uuidSignature []byte) ( this *HelloRequest ){
 
 // Base request for every subsequent requests
 type Request struct {
+	Uuid		string
 	Token 	   	string
-	wigo		*Wigo
 }
 
-func NewRequest(token string) ( this *Request ) {
+func NewRequest(uuid string, token string) ( this *Request ) {
 	this = new(Request)
+	this.Uuid = uuid
 	this.Token = token
 	return
 }
@@ -201,16 +200,16 @@ func NewRequest(token string) ( this *Request ) {
 // to reconnect. Here we also check for flooding clients.
 func (this *PushServer) auth(req *Request) ( err error ) {
 	Dump(req)
-	if uuid, ok := this.tokens[req.Token] ; ok {
-		if req.wigo = LocalWigo.FindRemoteWigoByUuid(uuid) ; req.wigo != nil {
+	err = this.authority.VerifyToken(req.Uuid,req.Token)
+	if err == nil {
+		if wigo := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; wigo != nil {
 			// TODO implement anti flood
-			if time.Now().Unix() - req.wigo.LastUpdate > int64(300) {
-				log.Printf("Push server : session timed out for %s", req.wigo.GetHostname())
+			if time.Now().Unix() - wigo.LastUpdate > int64(300) {
+				log.Printf("Push server : session timed out for %s", wigo.GetHostname())
 				err = errors.New("NOT ALLOWED")
 			}
 		}
 	} else {
-		log.Printf("Push server : invalid token %s" + req.Token)
 		err = errors.New("NOT ALLOWED")
 	}
 
@@ -225,7 +224,7 @@ type UpdateRequest struct {
 
 func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
 	this = new(UpdateRequest)
-	this.Request = NewRequest(token)
+	this.Request = NewRequest(wigo.Uuid, token)
 	this.Wigo = *wigo
 	return
 }
