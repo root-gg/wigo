@@ -193,7 +193,7 @@ Options:
 	// OpenTSDB
 	if LocalWigo.config.OpenTSDB.Enabled {
 		log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
-		LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.LogVerbose, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
+		LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.Debug, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
 	}
 
 	return nil
@@ -322,9 +322,11 @@ func (this *Wigo) AddOrUpdateRemoteWigo(wigoName string, remoteWigo *Wigo) {
 
 func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *Wigo) {
 
+	/*
 	if (newWigo.GlobalStatus != oldWigo.GlobalStatus) || (oldWigo.IsAlive != newWigo.IsAlive) {
 		NewNotificationWigo(oldWigo, newWigo)
 	}
+	*/
 
 	// Detect changes and deleted probes
 	if oldWigo.LocalHost != nil {

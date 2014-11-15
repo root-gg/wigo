@@ -47,7 +47,7 @@ func NewConfig( configFile string ) (this *Config) {
 	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
 	this.Global.LogFile = "/var/log/wigo.log"
 	this.Global.UuidFile = "/var/lib/wigo/uuid"
-	this.Global.LogVerbose = true
+	this.Global.Debug = false
 	this.Global.EventLog = "/var/lib/wigo/events.log"
 	this.Global.ConfigFile = configFile
 	this.Global.Group = "none"
@@ -161,7 +161,7 @@ type GeneralConfig struct {
 	ProbesDirectory string
 	UuidFile		string
 	LogFile         string
-	LogVerbose		bool
+	Debug			bool
 	ConfigFile      string
 	Group           string
 	EventLog		string
