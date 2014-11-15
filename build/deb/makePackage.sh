@@ -98,6 +98,10 @@ cp -R $REPOROOT/public $PACKAGEROOT/usr/local/wigo
 sed -i "s/^Version:.*/Version: $VERSION/" $PACKAGEROOT/DEBIAN/control
 
 # Add to mir
+if [[ $1 == "dev" ]] ; then
+    sed -i "s/^Package:.*/Package: wigo-dev/" $PACKAGEROOT/DEBIAN/control
+fi
+
 echo "Building deb packages."
 echo " - Building amd64 deb..."
 dpkg-deb --build $PACKAGEROOT /tmp/wigo.deb
@@ -132,6 +136,3 @@ if [ -e /tmp/wigo_386.deb ] ; then
     reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_386.deb
     reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_386.deb
 fi
-
-# Remove folder
-#rm -fr $DEBMIRRORROOT
