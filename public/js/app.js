@@ -167,10 +167,11 @@ angular.module('wigo-filters', [])
 angular.module('wigo', ['ngRoute', 'dialog', 'restangular', 'wigo-filters', 'wigo-navigation'])
 	.config(function($routeProvider) {
 		$routeProvider
-			.when('/',      { controller: HostsCtrl,    templateUrl:'partials/hosts.html',  reloadOnSearch: false })
-			.when('/group', { controller: GroupCtrl,    templateUrl:'partials/group.html',  reloadOnSearch: false })
-			.when('/host',  { controller: HostCtrl,     templateUrl:'partials/host.html',   reloadOnSearch: false })
-			.when('/logs',  { controller: LogsCtrl,     templateUrl:'partials/logs.html',   reloadOnSearch: false })
+			.when('/',          { controller: HostsCtrl,        templateUrl:'partials/hosts.html',      reloadOnSearch: false })
+			.when('/group',     { controller: GroupCtrl,        templateUrl:'partials/group.html',      reloadOnSearch: false })
+			.when('/host',      { controller: HostCtrl,         templateUrl:'partials/host.html',       reloadOnSearch: false })
+			.when('/logs',      { controller: LogsCtrl,         templateUrl:'partials/logs.html',       reloadOnSearch: false })
+			.when('/authority', { controller: AuthorityCtrl,    templateUrl:'partials/authority.html',  reloadOnSearch: false })
 			.otherwise({ redirectTo: '/' });
     })
     .config(function(RestangularProvider) {
@@ -396,6 +397,63 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto) {
     }
 
     $scope.goto = $goto;
+    $scope.init();
+}
+
+
+function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $q) {
+
+    $scope.init = function() {
+        $scope.load();
+    }
+
+    $scope.load = function() {
+        $scope.waiting = [];
+        $scope.allowed = [];
+        Restangular.one('authority').one('hosts').get().then(function(hosts) {
+            _.each(hosts.waiting, function(hostname,uuid) {
+                $scope.waiting.push({ uuid : uuid, hostname : hostname });
+            });
+            _.each(hosts.allowed, function(hostname,uuid) {
+                $scope.allowed.push({ uuid : uuid, hostname : hostname });
+            });
+            console.log($scope.waiting,$scope.allowed);
+        });
+    }
+
+    $scope.allow = function(host) {
+        Restangular.one('authority').one('hosts',host.uuid).one('allow').post().then(function() {
+            $scope.load();
+        })
+    }
+
+    $scope.allow_all = function(host) {
+        var requests = [];
+        _.each($scope.waiting, function(host) {
+            requests.push(Restangular.one('authority').one('hosts',host.uuid).one('allow').post())
+        });
+        $q.all(requests).then(function() {
+            $scope.load();
+        })
+    }
+
+    $scope.revoke = function(host) {
+        console.log("revoke",host);
+        Restangular.one('authority').one('hosts',host.uuid).one('revoke').post().then(function() {
+            $scope.load();
+        })
+    }
+
+    $scope.revoke_all = function() {
+        var requests = [];
+        _.each($scope.allowed, function(host) {
+            requests.push(Restangular.one('authority').one('hosts',host.uuid).one('revoke').post())
+        });
+        $q.all(requests).then(function() {
+            $scope.load();
+        })
+    }
+
     $scope.init();
 }
 
