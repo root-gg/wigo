@@ -15,20 +15,23 @@ import (
 	"time"
     "net/http"
 
-	// Custom libs
-	"github.com/codegangsta/martini"
-	"github.com/howeyc/fsnotify"
 	"wigo"
+
+	"github.com/codegangsta/martini"
+	"github.com/codegangsta/martini-contrib/auth"
+	"github.com/codegangsta/martini-contrib/gzip"
+	"github.com/codegangsta/martini-contrib/secure"
+
+	"github.com/howeyc/fsnotify"
 )
 
-import _ "net/http/pprof"
+import (
+	_ "net/http/pprof"
+	"strings"
+	"crypto/tls"
+)
 
 func main() {
-
-	// Debug heap
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
 
 	// Init Wigo
 	err := wigo.InitWigo()
@@ -37,15 +40,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	config := wigo.GetLocalWigo().GetConfig()
+
+	if ( config.Global.Debug ) {
+		// Debug heap
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	}
+
 	// Loads previous logs
 	go wigo.LoadLogsFromDisk()
 
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
-	go threadRemoteChecks(wigo.GetLocalWigo().GetConfig().RemoteWigos.AdvancedList)
+
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
-	go threadHttp()
+	go threadRemoteChecks(config.RemoteWigos.AdvancedList)
+	go threadAliveChecks()
+
+	if config.Http.Enabled {
+		go threadHttp(config.Http)
+	}
+
+	if config.PushClient.Enabled {
+		go threadPush(config.PushClient)
+	}
 
 	// Signals
 	signal.Notify(wigo.Channels.ChanSignals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
@@ -240,7 +261,6 @@ func threadLocalChecks() {
 							}
 						}
 
-						// Sleep right amount of time
 						time.Sleep(time.Second * time.Duration(sleepTImeInt))
 					}
 				}()
@@ -264,6 +284,31 @@ func threadRemoteChecks(remoteWigos []wigo.AdvancedRemoteWigoConfig) {
 	for _, host := range remoteWigos {
 		log.Printf(" -> Adding %s to the remote check list\n", host.Hostname)
 		go launchRemoteHostCheckRoutine(host)
+	}
+}
+
+func threadAliveChecks() {
+	for {
+		now := time.Now().Unix()
+		for _, host := range wigo.GetLocalWigo().RemoteWigos {
+			if host.LastUpdate < now - int64(wigo.GetLocalWigo().GetConfig().Global.AliveTimeout) {
+				if ( host.IsAlive ) {
+					message := fmt.Sprintf("Wigo %s DOWN : %s", host.GetHostname(), host.GlobalMessage)
+					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
+					wigo.GetLocalWigo().AddLog(host, wigo.CRITICAL, message)
+				}
+				host.IsAlive = false;
+				host.GlobalStatus = 499;
+			} else {
+				if ( !host.IsAlive ) {
+					message := fmt.Sprintf("Wigo %s UP", host.GetHostname())
+					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
+					wigo.GetLocalWigo().AddLog(host, wigo.INFO, message)
+				}
+				host.IsAlive = true;
+			}
+		}
+		time.Sleep(time.Second)
 	}
 }
 
@@ -462,10 +507,28 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		tries = Hostname.CheckTries
 	}
 
-	for {
+	// TODO handle ssl and basic auth
+	var protocol string
+	if Hostname.SslEnabled {
+		protocol = "https://"
+	} else {
+		protocol = "http://"
+	}
+	url := protocol + host + "/api"
 
+	req, err := http.NewRequest("GET",url, nil)
+	if err != nil {
+		log.Printf("RemoteHostCheckRoutine : Unable to build get request : %s ", err)
+		return
+	}
+
+	if Hostname.Login != "" && Hostname.Password != "" {
+		req.SetBasicAuth("<username>", "<password>")
+	}
+
+	for {
 		for i := 1; i <= tries; i++ {
-			resp, err = client.Get("http://" + host + "/api")
+			resp, err = client.Do(req)
 			if err != nil {
 				time.Sleep(time.Second)
 			} else {
@@ -483,11 +546,11 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			if existingWigo, ok := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname] ; ok {
 				newWigo := *existingWigo
 				newWigo.Down(fmt.Sprintf("%s",err))
-				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, &newWigo)
+				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(&newWigo)
 			} else {
 				errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
 				errorWigo.SetHostname(Hostname.Hostname)
-				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, errorWigo)
+				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(errorWigo)
 			}
 
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
@@ -503,23 +566,53 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		}
 
 		// Set hostname with config file name
-		wigoObj.SetHostname(Hostname.Hostname)
+		//wigoObj.SetHostname(Hostname.Hostname)
 
 		// Send it to main
-		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, wigoObj)
+		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(wigoObj)
 
 		// Sleep
 		time.Sleep(time.Second * time.Duration(secondsToSleep))
 	}
 }
 
-func threadHttp() {
+func threadHttp(config *wigo.HttpConfig) {
+	apiAddress := config.Address
+	apiPort := config.Port
 
-	apiAddress := wigo.GetLocalWigo().GetConfig().Global.ListenAddress
-	apiPort := wigo.GetLocalWigo().GetConfig().Global.ListenPort
+	m := martini.New()
 
-	m := martini.Classic()
-	m.Get("/api", func() (int, string) {
+	if ( wigo.GetLocalWigo().GetConfig().Global.Debug ) {
+		// Log requests
+		m.Use(martini.Logger())
+	}
+
+	// Compress http responses with gzip
+	if ( config.Gzip ) {
+		log.Println("Http server : gzip compression enabled")
+		m.Use(gzip.All())
+	}
+
+	// Add some basic security checks
+	m.Use(secure.Secure(secure.Options{}));
+
+	// Http basic auth
+	if ( config.Login != "" && config.Password != "" ) {
+		log.Println("Http server : basic auth enabled")
+		m.Use(auth.Basic(config.Login, config.Password))
+	}
+
+	// Serve static files
+	m.Use(martini.Static("public"))
+
+	// Handle errors // TODO is this even working ?
+	m.Use(martini.Recovery())
+
+	// Define the routes.
+
+	r := martini.NewRouter()
+
+	r.Get("/api", func() (int, string) {
 		json, err := wigo.GetLocalWigo().ToJsonString()
 		if err != nil {
 			return 500, fmt.Sprintf("%s", err)
@@ -527,25 +620,87 @@ func threadHttp() {
 		return 200, json
 	})
 
-	m.Get("/api/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
-	m.Get("/api/logs", wigo.HttpLogsHandler)
-	m.Get("/api/logs/indexes", wigo.HttpLogsIndexesHandler)
-	m.Get("/api/groups", wigo.HttpGroupsHandler)
-	m.Get("/api/groups/:group", wigo.HttpGroupsHandler)
-	m.Get("/api/groups/:group/logs",wigo.HttpLogsHandler)
-	m.Get("/api/groups/:group/probes/:probe/logs",wigo.HttpLogsHandler)
-	m.Get("/api/hosts", wigo.HttpRemotesHandler)
-	m.Get("/api/hosts/:hostname", wigo.HttpRemotesHandler)
-	m.Get("/api/hosts/:hostname/status", wigo.HttpRemotesStatusHandler)
-	m.Get("/api/hosts/:hostname/logs", wigo.HttpLogsHandler)
-	m.Get("/api/hosts/:hostname/probes", wigo.HttpRemotesProbesHandler)
-	m.Get("/api/hosts/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
-	m.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
-	m.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
-	m.Get("/api/probes/:probe/logs", wigo.HttpLogsHandler)
+	r.Get("/api/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
+	r.Get("/api/logs", wigo.HttpLogsHandler)
+	r.Get("/api/logs/indexes", wigo.HttpLogsIndexesHandler)
+	r.Get("/api/groups", wigo.HttpGroupsHandler)
+	r.Get("/api/groups/:group", wigo.HttpGroupsHandler)
+	r.Get("/api/groups/:group/logs",wigo.HttpLogsHandler)
+	r.Get("/api/groups/:group/probes/:probe/logs",wigo.HttpLogsHandler)
+	r.Get("/api/hosts", wigo.HttpRemotesHandler)
+	r.Get("/api/hosts/:hostname", wigo.HttpRemotesHandler)
+	r.Get("/api/hosts/:hostname/status", wigo.HttpRemotesStatusHandler)
+	r.Get("/api/hosts/:hostname/logs", wigo.HttpLogsHandler)
+	r.Get("/api/hosts/:hostname/probes", wigo.HttpRemotesProbesHandler)
+	r.Get("/api/hosts/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
+	r.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
+	r.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
+	r.Get("/api/probes/:probe/logs", wigo.HttpLogsHandler)
+	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
+	r.Post("/api/authority/hosts/:uuid/allow",wigo.HttpAuthorityAllowHandler)
+	r.Post("/api/authority/hosts/:uuid/revoke",wigo.HttpAuthorityRevokeHandler)
 
-	err := http.ListenAndServe(apiAddress+":"+strconv.Itoa(apiPort), m)
-	if err != nil {
-		log.Fatalf("Failed to spawn API : %s", err)
+	m.Use(func(c martini.Context, w http.ResponseWriter, r *http.Request) {
+		if ( strings.HasPrefix(r.URL.Path,"/api") ) {
+			w.Header().Set("Content-Type", "application/json")
+		}
+	})
+
+	m.Action(r.Handle)
+
+	// Create a listner and serv connections forever.
+	if ( config.SslEnabled ) {
+		address := apiAddress + ":" + strconv.Itoa(apiPort)
+		log.Println("Http server : starting tls server @ " + address)
+		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+		server := &http.Server{Addr: address, Handler: m, TLSConfig: tlsConfig}
+		err := server.ListenAndServeTLS(config.SslCert, config.SslKey)
+		if err != nil {
+			log.Fatalf("Failed to start http server : %s", err)
+		}
+	} else {
+		address := apiAddress + ":" + strconv.Itoa(apiPort)
+		log.Println("Http server : starting plain http server @ " + address)
+		if err := http.ListenAndServe(address, m) ; err != nil {
+			log.Fatalf("Failed to start http server : %s", err)
+		}
 	}
+}
+
+func threadPush(config *wigo.PushClientConfig) {
+	var pushClient *wigo.PushClient
+	go func(){
+		for {
+			var err error
+
+			if ( pushClient == nil ) {
+				pushClient, err = wigo.NewPushClient(config)
+				if ( err == nil ) {
+					err = pushClient.Hello()
+					if ( err != nil ) {
+						pushClient.Close()
+						pushClient = nil
+						if ( err.Error() != "RECONNECT" ) {
+							time.Sleep(time.Duration(config.PushInterval) * time.Second)
+						}
+						continue
+					}
+				} else {
+					pushClient.Close()
+					pushClient = nil
+					if ( err.Error() != "RECONNECT" ) {
+						time.Sleep(time.Duration(config.PushInterval) * time.Second)
+					}
+					continue
+				}
+			}
+
+			time.Sleep(time.Duration(config.PushInterval) * time.Second)
+			err = pushClient.Update()
+			if ( err != nil ) {
+				pushClient.Close()
+				pushClient = nil
+			}
+		}
+	}()
 }

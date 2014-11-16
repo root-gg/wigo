@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"container/list"
 	"github.com/bodji/gopentsdb"
@@ -15,6 +16,8 @@ import (
 	"github.com/fatih/color"
 	"strings"
 	"path/filepath"
+	"io/ioutil"
+	"runtime"
 )
 
 // Static global object
@@ -31,7 +34,7 @@ type Wigo struct {
 	LocalHost   *Host
 	RemoteWigos map[string]*Wigo
 
-	hostname       string
+	Hostname       string
 	config         *Config
 	locker         *sync.RWMutex
 	logfilehandle  *os.File
@@ -46,39 +49,105 @@ type Wigo struct {
 	logsWigoIndex	map[string][]uint64
 	logsGroupIndex	map[string][]uint64
 	logsOffset		uint64
+
+	push 	        *PushServer
+	LastUpdate		int64
+}
+
+var Version = "##VERSION##"
+func NewWigo(config *Config) (this *Wigo, err error) {
+	this = new(Wigo)
+
+	this.config = config
+
+	this.IsAlive = true
+	this.Version = Version
+	this.GlobalStatus = 100
+	this.GlobalMessage = "OK"
+
+	// Load uuid
+	if _, err = os.Stat(this.config.Global.UuidFile); err == nil {
+		if uuidBytes, err := ioutil.ReadFile(this.config.Global.UuidFile) ; err == nil {
+			this.Uuid = string(uuidBytes)
+		} else {
+			log.Fatalf("Unable to read uuid file : %s", err)
+		}
+	} else {
+		// Create UUID
+		this.uuidObj, err = uuid.NewV4()
+		if err != nil {
+			log.Fatalf("Failed to create uuid : %s", err)
+		} else {
+			this.Uuid = this.uuidObj.String()
+			log.Printf("Wigo uuid is : %s", this.Uuid)
+		}
+
+		// Save UUID
+		uuidFile, err := os.OpenFile(this.config.Global.UuidFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+		if err == nil {
+			uuidFile.Write([]byte(this.Uuid))
+			uuidFile.Close()
+		} else {
+			log.Fatalf("Failed to create uuid file : %s", err)
+		}
+	}
+
+	// Get hostname
+	if ( this.config.Global.Hostname == "" ) {
+		// Get hostname
+		localHostname, err := os.Hostname()
+		if err == nil {
+			this.config.Global.Hostname = localHostname
+		} else {
+			log.Println("Couldn't get hostname for local machine, using localhost")
+			this.config.Global.Hostname = "localhost"
+		}
+	}
+
+	// Get groupname
+	if ( this.config.Global.Group == "" ) {
+		this.config.Global.Group = "local"
+	}
+
+	// Init LocalHost
+	this.Hostname = this.config.Global.Hostname
+	this.LocalHost = NewHost()
+	this.LocalHost.Name = this.config.Global.Hostname
+	this.LocalHost.Group = this.config.Global.Group
+	this.LocalHost.parentWigo = this
+
+	// Init RemoteWigos list
+	this.RemoteWigos = make(map[string]*Wigo)
+
+	// Private vars
+	this.locker = new(sync.RWMutex)
+	this.disabledProbes = new(list.List)
+
+	// Logs
+	this.logs = make([]*Log,0)
+	this.logsLock = new(sync.RWMutex)
+	this.logsFileLock = new(sync.RWMutex)
+	this.logsOffset = 0
+	this.logsGroupIndex = make(map[string][]uint64)
+	this.logsProbeIndex = make(map[string][]uint64)
+	this.logsWigoIndex  = make(map[string][]uint64)
+	
+	return
 }
 
 func InitWigo() (err error) {
+	// Clean temporary files
+	removeFunc := func(path string, f os.FileInfo, err error) (e error) {
+		if strings.HasSuffix(path, ".wigo") {
+			os.Remove(path)
+		}
+		return
+	};
 
-	if LocalWigo == nil {
-		LocalWigo = new(Wigo)
+	filepath.Walk("/tmp", removeFunc)
 
-		LocalWigo.IsAlive = true
-		LocalWigo.Version = "##VERSION##"
-		LocalWigo.GlobalStatus = 100
-		LocalWigo.GlobalMessage = "OK"
-
-
-        // Create UUID
-		LocalWigo.uuidObj, err = uuid.NewV4()
-        if err != nil {
-            log.Printf("Failed to create uuid : %s", err)
-        } else {
-            LocalWigo.Uuid = LocalWigo.uuidObj.String()
-        }
-
-		// Clean temporary files
-		removeFunc := func(path string, f os.FileInfo, err error)(e error) {
-			if strings.HasSuffix(path, ".wigo") {
-				os.Remove(path)
-			}
-			return
-		};
-
-		filepath.Walk("/tmp", removeFunc)
-
-		// Args
-		usage := `wigo
+	// Args
+	usage := `wigo
 
 Usage:
 	wigo
@@ -90,57 +159,46 @@ Options:
 	-c, --config CONFIG		Specify config file
 `
 
-		// Parse args
-		configFile := "/etc/wigo/wigo.conf"
+	// Parse args
+	configFile := "/etc/wigo/wigo.conf"
 
-		arguments, _ := docopt.Parse(usage, nil, true, LocalWigo.Version, false)
+	arguments, _ := docopt.Parse(usage, nil, true, Version, false)
 
-		for key, value := range arguments {
-			if _, ok := value.(string); ok {
-				if key == "--config" {
-					configFile = value.(string)
-				}
+	for key, value := range arguments {
+		if _, ok := value.(string); ok {
+			if key == "--config" {
+				configFile = value.(string)
 			}
 		}
+	}
 
-		// Load config
-		LocalWigo.config = NewConfig( configFile )
+	LocalWigo, err = NewWigo(NewConfig(configFile))
+	if err != nil {
+		return err
+	}
 
-		// Init LocalHost and RemoteWigos list
-		LocalWigo.LocalHost = NewLocalHost()
-		LocalWigo.RemoteWigos = make(map[string]*Wigo)
+	// Log file
+	LocalWigo.InitOrReloadLogger()
 
-		// Private vars
-		LocalWigo.hostname = LocalWigo.LocalHost.Name
-		LocalWigo.locker = new(sync.RWMutex)
-		LocalWigo.disabledProbes = new(list.List)
+	// Test probes directory
+	_, err = os.Stat(LocalWigo.GetConfig().Global.ProbesDirectory)
+	if err != nil {
+		return err
+	}
 
-		// Logs
-		LocalWigo.logs = make([]*Log,0)
-		LocalWigo.logsLock = new(sync.RWMutex)
-		LocalWigo.logsFileLock = new(sync.RWMutex)
-		LocalWigo.logsOffset = 0
-		LocalWigo.logsGroupIndex = make(map[string][]uint64)
-		LocalWigo.logsProbeIndex = make(map[string][]uint64)
-		LocalWigo.logsWigoIndex  = make(map[string][]uint64)
+	// Init channels
+	InitChannels()
 
-		// Log file
-		LocalWigo.InitOrReloadLogger()
+	// Rpc
+	if LocalWigo.config.PushServer.Enabled {
+		runtime.GOMAXPROCS(runtime.NumCPU())
+		LocalWigo.push = NewPushServer(LocalWigo.config.PushServer)
+	}
 
-		// Test probes directory
-		_, err = os.Stat(LocalWigo.GetConfig().Global.ProbesDirectory)
-		if err != nil {
-			return err
-		}
-
-		// Init channels
-		InitChannels()
-
-		// OpenTSDB
-		if LocalWigo.GetConfig().OpenTSDB.Enabled {
-			log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
-			LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.LogVerbose, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
-		}
+	// OpenTSDB
+	if LocalWigo.config.OpenTSDB.Enabled {
+		log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
+		LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.Debug, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
 	}
 
 	return nil
@@ -233,7 +291,7 @@ func (this *Wigo) GetConfig() *Config {
 }
 
 func (this *Wigo) GetHostname() string {
-	return this.hostname
+	return this.Hostname
 }
 
 func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
@@ -243,10 +301,10 @@ func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
 // Setters
 
 func (this *Wigo) SetHostname(hostname string) {
-	this.hostname = hostname
+	this.Hostname = hostname
 }
 
-func (this *Wigo) AddOrUpdateRemoteWigo(wigoName string, remoteWigo *Wigo) {
+func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 
 	this.Lock()
 	defer this.Unlock()
@@ -257,21 +315,16 @@ func (this *Wigo) AddOrUpdateRemoteWigo(wigoName string, remoteWigo *Wigo) {
 		return
 	}
 
-	if oldWigo, ok := this.RemoteWigos[wigoName]; ok {
+	if oldWigo, ok := this.RemoteWigos[remoteWigo.Uuid]; ok {
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo, remoteWigo)
 	}
 
-	this.RemoteWigos[wigoName] = remoteWigo
-	this.RemoteWigos[wigoName].SetHostname(wigoName)
+	this.RemoteWigos[remoteWigo.Uuid] = remoteWigo
+	this.RemoteWigos[remoteWigo.Uuid].LastUpdate = time.Now().Unix()
 	this.RecomputeGlobalStatus()
 }
 
 func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *Wigo) {
-
-	if (newWigo.GlobalStatus != oldWigo.GlobalStatus) || (oldWigo.IsAlive != newWigo.IsAlive) {
-		NewNotificationWigo(oldWigo, newWigo)
-	}
-
 	// Detect changes and deleted probes
 	if oldWigo.LocalHost != nil {
 
@@ -742,27 +795,37 @@ func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, ver
 }
 
 func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
-
 	var foundWigo *Wigo
 
 	if this.GetHostname() == hostname {
 		return this
 	}
 
-	for wigoName := range this.RemoteWigos {
+	for name := range this.RemoteWigos {
 
-		if wigoName == hostname {
-			foundWigo = this.RemoteWigos[wigoName]
+		if name == hostname {
+			foundWigo = this.RemoteWigos[name]
 			return foundWigo
 		}
 
-		foundWigo = this.RemoteWigos[wigoName].FindRemoteWigoByHostname(hostname)
+		foundWigo = this.RemoteWigos[name].FindRemoteWigoByHostname(hostname)
 		if foundWigo != nil {
 			return foundWigo
 		}
 	}
 
 	return foundWigo
+}
+
+func (this *Wigo) FindRemoteWigoByUuid(uuid string) ( *Wigo, bool ) {
+	if wigo, ok := LocalWigo.RemoteWigos[uuid] ; ok {
+		return wigo, true
+	} else {
+		for _, w := range this.RemoteWigos {
+			w.FindRemoteWigoByUuid(uuid)
+		}
+	}
+	return nil, false
 }
 
 func (this *Wigo) ListRemoteWigosNames() []string {

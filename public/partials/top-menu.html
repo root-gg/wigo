@@ -24,18 +24,36 @@
 </ul>
 
 <ul class="nav navbar-top-links navbar-right">
+    <li class="dropdown">
+        <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+            <i class="fa fa-user fa-refresh"></i>  <i class="fa fa-caret-down"></i>
+        </a>
+        <ul class="dropdown-menu dropdown-user">
+            <li><a ng-click="refresh.setRefreshInterval(5)"><i class="fa fa-gear fa-fw"></i> 5 sec</a>
+            </li>
+            <li><a ng-click="refresh.setRefreshInterval(15)"><i class="fa fa-gear fa-fw"></i> 15 sec</a>
+            </li>
+            <li><a ng-click="refresh.setRefreshInterval(30)"><i class="fa fa-gear fa-fw"></i> 30 sec</a>
+            </li>
+            <li><a ng-click="refresh.setRefreshInterval(60)"><i class="fa fa-gear fa-fw"></i> 60 sec</a>
+            </li>
+            <li><a ng-click="refresh.setRefreshInterval(300)"><i class="fa fa-gear fa-fw"></i> 300 sec</a>
+            </li>
+            <li><a ng-click="refresh.setRefreshInterval(0)"><i class="fa fa-gear fa-fw"></i> no</a>
+            </li>
+        </ul>
+    </li>
     <li>
         <a href="#/logs">
             <i class="fa fa-list fa-fw"></i>
         </a>
     </li>
-
     <li class="dropdown">
         <a class="dropdown-toggle" data-toggle="dropdown" href="#">
             <i class="fa fa-user fa-fw"></i>  <i class="fa fa-caret-down"></i>
         </a>
         <ul class="dropdown-menu dropdown-user">
-            <li><a href="#"><i class="fa fa-user fa-fw"></i> User Profile</a>
+            <li><a href="#/authority"><i class="fa fa-user fa-fw"></i> Allowed clients</a>
             </li>
             <li><a href="#"><i class="fa fa-gear fa-fw"></i> Settings</a>
             </li>
