@@ -290,7 +290,7 @@ func threadAliveChecks() {
 		for _, host := range wigo.GetLocalWigo().RemoteWigos {
 			if host.LastUpdate < now - int64(wigo.GetLocalWigo().GetConfig().Global.AliveTimeout) {
 				if ( host.IsAlive ) {
-					message := fmt.Sprintf("Wigo %s DOWN : %s", host.GetHostname(), host.GlobalMessage)
+					message := fmt.Sprintf("Wigo %s DOWN", host.GetHostname())
 					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
 					wigo.GetLocalWigo().AddLog(host, wigo.CRITICAL, message)
 				}
