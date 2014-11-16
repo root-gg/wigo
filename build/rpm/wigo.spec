@@ -23,8 +23,7 @@ WiGo is a monitoring tool that just works
 mkdir -p build
 go build -o build/wigo src/wigo.go
 go build -o build/wigocli src/wigocli.go
-
-
+go build -o build/generate_cert src/generate_cert.go
 
 %install
 
@@ -44,6 +43,7 @@ mkdir -p %{buildroot}/var/lib/wigo
 
 cp build/wigo %{buildroot}/usr/local/wigo/bin/wigo
 cp build/wigocli %{buildroot}/usr/local/bin/wigocli
+cp build/generate_cert %{buildroot}/usr/local/wigo/bin/generate_cert
 
 # Copy lib
 cp -R lib/* %{buildroot}/usr/local/wigo/lib/
