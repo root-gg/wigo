@@ -42,6 +42,33 @@ angular.module('dialog', ['ui.bootstrap']).
         return module;
     });
 
+angular.module('wigo-refresh', []).
+    factory('$refresh', function($timeout) {
+
+        var module = {};
+
+        module.init = function(refresh) {
+            module.refresh = refresh;
+            module.setRefreshInterval(5);
+        }
+
+        module.setRefreshInterval = function(interval) {
+            if ( ! _.isUndefined(module.timeout) ) {
+                $timeout.cancel(module.timeout);
+            }
+            if ( interval ) {
+                module.interval = interval;
+                module.callback = function() {
+                    module.refresh();
+                    module.timeout = $timeout(module.callback, module.interval * 1000);
+                };
+                module.timeout = $timeout(module.callback, module.interval * 1000);
+            }
+        }
+
+        return module;
+    });
+
 angular.module('wigo-navigation', []).
     factory('$goto', function ($route, $location, $anchorScroll) {
 
@@ -69,7 +96,6 @@ angular.module('wigo-navigation', []).
         }
 
         module.anchor = function(anchor){
-            console.log(anchor);
             $location.hash(anchor);
             $anchorScroll();
         }
@@ -164,7 +190,7 @@ angular.module('wigo-filters', [])
         };
     });
 
-angular.module('wigo', ['ngRoute', 'dialog', 'restangular', 'wigo-filters', 'wigo-navigation'])
+angular.module('wigo', ['ngRoute', 'dialog', 'restangular', 'wigo-filters', 'wigo-navigation', 'wigo-refresh'])
 	.config(function($routeProvider) {
 		$routeProvider
 			.when('/',          { controller: HostsCtrl,        templateUrl:'partials/hosts.html',      reloadOnSearch: false })
@@ -194,14 +220,14 @@ function getLevel(status) {
     }
 }
 
-function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
+function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto, $refresh) {
 
     $scope.init = function() {
         $scope.load();
     }
 
-    $scope.groups = [];
     $scope.load = function() {
+        $scope.groups = [];
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -236,18 +262,21 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
     }
 
     $scope.goto = $goto;
+    $scope.refresh = $refresh;
+
     $scope.init();
+    $refresh.init($scope.load);
 }
 
-function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
+function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto, $refresh) {
 
     $scope.init = function() {
         $scope.group = $location.search().name;
         $scope.load();
     }
 
-    $scope.hosts = [];
     $scope.load = function() {
+        $scope.hosts = [];
         if (!$scope.group) return;
         $scope.counts = {
             "OK" : 0,
@@ -278,17 +307,20 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
     }
 
     $scope.goto = $goto;
+    $scope.refresh = $refresh;
+
     $scope.init();
+    $refresh.init($scope.load);
 }
 
-function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto) {
+function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto, $refresh) {
      $scope.init = function() {
         $scope.host = $location.search().name;
         $scope.load();
     }
 
-    $scope.probes = [];
     $scope.load = function() {
+        $scope.probes = [];
         if (!$scope.host) return;
         $scope.counts = {
             "OK" : 0,
@@ -309,10 +341,13 @@ function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll
     }
 
     $scope.goto = $goto;
+    $scope.refresh = $refresh;
+
     $scope.init();
+    $refresh.init($scope.load);
 }
 
-function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto) {
+function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto, $refresh) {
     $scope.logLevels = logLevels;
 
     $scope.menu = {
@@ -320,10 +355,6 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto) {
     };
 
     $scope.load = function() {
-        $scope.menu.group_select = "";
-        $scope.menu.host_select = "";
-        $scope.menu.probe_select = "";
-
         var _logs = Restangular;
         if($scope.menu.host){
             _logs = _logs.one('hosts',  $scope.menu.host)
@@ -397,11 +428,14 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto) {
     }
 
     $scope.goto = $goto;
+    $scope.refresh = $refresh;
+
     $scope.init();
+    $refresh.init($scope.load);
 }
 
 
-function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $q) {
+function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $q,$refresh) {
 
     $scope.init = function() {
         $scope.load();
@@ -417,7 +451,6 @@ function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $
             _.each(hosts.allowed, function(hostname,uuid) {
                 $scope.allowed.push({ uuid : uuid, hostname : hostname });
             });
-            console.log($scope.waiting,$scope.allowed);
         });
     }
 
@@ -438,7 +471,6 @@ function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $
     }
 
     $scope.revoke = function(host) {
-        console.log("revoke",host);
         Restangular.one('authority').one('hosts',host.uuid).one('revoke').post().then(function() {
             $scope.load();
         })
@@ -454,7 +486,10 @@ function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $
         })
     }
 
+    $scope.refresh = $refresh;
+
     $scope.init();
+    $refresh.init($scope.load);
 }
 
 function AlertDialogController($rootScope, $scope, $modalInstance, args) {
