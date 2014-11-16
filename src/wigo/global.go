@@ -321,6 +321,7 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 
 	this.RemoteWigos[remoteWigo.Uuid] = remoteWigo
 	this.RemoteWigos[remoteWigo.Uuid].LastUpdate = time.Now().Unix()
+	this.RemoteWigos[remoteWigo.Uuid].Hostname = remoteWigo.Hostname
 	this.RecomputeGlobalStatus()
 }
 
