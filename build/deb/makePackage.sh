@@ -42,6 +42,7 @@ echo "Compiling wigo && wigocli"
 echo " - Building amd64 versions..."
 go build -o bin/wigo wigo.go || exit
 go build -o bin/wigocli wigocli.go || exit
+go build -o bin/generate_cert generate_cert.go || exit
 
 if [ -e $GOCROSSCOMPILEFILE ] ; then
     source $GOCROSSCOMPILEFILE
@@ -50,12 +51,14 @@ if [ -e $GOCROSSCOMPILEFILE ] ; then
         echo " - Building ARM versions..."
         go-linux-arm build -o bin/wigo_arm wigo.go || exit
         go-linux-arm build -o bin/wigocli_arm wigocli.go || exit
+        go-linux-arm build -o bin/generate_cert generate_cert.go || exit
     fi
 
     if `hash go-linux-386` ; then
         echo " - Building i386 versions..."
         go-linux-386 build -o bin/wigo_386 wigo.go || exit
         go-linux-386 build -o bin/wigocli_386 wigocli.go || exit
+        go-linux-386 build -o bin/generate_cert generate_cert.go || exit
     fi
 fi
 
@@ -65,6 +68,7 @@ git checkout wigo/global.go
 echo "Copying files to package temporary directory"
 cp bin/wigo $PACKAGEROOT/usr/local/wigo/bin
 cp bin/wigocli $PACKAGEROOT/usr/local/bin/wigocli
+cp bin/generate_cert $PACKAGEROOT/usr/local/wigo/bingenerate_cert
 
 # Copy DEBIAN folder
 cp -R $BUILDDIR/DEBIAN $PACKAGEROOT
