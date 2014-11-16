@@ -61,8 +61,8 @@ func NewConfig( configFile string ) (this *Config) {
 	this.Http.SslEnabled = false
 	this.Http.SslCert = "/etc/wigo/ssl/wigo.crt"
 	this.Http.SslKey  = "/etc/wigo/ssl/wigo.key"
-	this.Http.Login = "foo"
-	this.Http.Password = "bar"
+	this.Http.Login = ""
+	this.Http.Password = ""
 	this.Http.Gzip = true
 
 	// Push server
