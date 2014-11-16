@@ -107,6 +107,7 @@ func ( this *Authority ) AddClientToWaitingList(uuid string,hostname string ) (e
 			message := fmt.Sprintf("New client %s", hostname)
 			SendNotification(NewNotificationFromMessage(message))
 			log.Printf("Authority : %s", message)
+			LocalWigo.AddLog(LocalWigo, INFO, message)
 		} else {
 			err = errors.New("Authority : Too many wainting clients")
 		}
@@ -185,7 +186,9 @@ func ( this *Authority ) AllowClient(uuid string) (err error){
 				// Fatal ?
 				log.Println(err)
 			}
-			log.Println("Authority : " + hostname + " added to allowed list")
+			message :=  hostname + " added to allowed list"
+			log.Printf("Authority : %s", message)
+			LocalWigo.AddLog(LocalWigo, INFO, message)
 	} else {
 		err = errors.New("Authority : Invalid uuid " + uuid)
 	}
@@ -205,7 +208,9 @@ func ( this *Authority ) RevokeClient(uuid string) (err error){
 			// Fatal ?
 			log.Println(err)
 		}
-		log.Println("Authority : " + hostname + " removed from allowed list")
+		message :=  hostname + " removed from the allowed list"
+		log.Printf("Authority : %s", message)
+		LocalWigo.AddLog(LocalWigo, INFO, message)
 	}
 	for token, u := range this.Tokens {
 		if uuid == u {

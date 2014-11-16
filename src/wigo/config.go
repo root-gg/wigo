@@ -44,13 +44,15 @@ func NewConfig( configFile string ) (this *Config) {
 	this.Notifications = new(NotificationConfig)
 	this.OpenTSDB = new(OpenTSDBConfig)
 
+	this.Global.Hostname = ""
+	this.Global.Group = "none"
 	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
 	this.Global.LogFile = "/var/log/wigo.log"
 	this.Global.UuidFile = "/var/lib/wigo/uuid"
-	this.Global.Debug = false
 	this.Global.EventLog = "/var/lib/wigo/events.log"
+	this.Global.AliveTimeout = 60
 	this.Global.ConfigFile = configFile
-	this.Global.Group = "none"
+	this.Global.Debug = false
 
 	// Http server
 	this.Http.Enabled = true
@@ -165,6 +167,7 @@ type GeneralConfig struct {
 	ConfigFile      string
 	Group           string
 	EventLog		string
+	AliveTimeout	int
 }
 
 type HttpConfig struct {

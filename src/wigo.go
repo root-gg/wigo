@@ -289,8 +289,9 @@ func threadRemoteChecks(remoteWigos []wigo.AdvancedRemoteWigoConfig) {
 
 func threadAliveChecks() {
 	for {
+		now := time.Now().Unix()
 		for _, host := range wigo.GetLocalWigo().RemoteWigos {
-			if host.LastUpdate < time.Now().Unix()-60 {
+			if host.LastUpdate < now - int64(wigo.GetLocalWigo().GetConfig().Global.AliveTimeout) {
 				if ( host.IsAlive ) {
 					if wigo.GetLocalWigo().GetConfig().Notifications.OnWigoChange {
 						message := fmt.Sprintf("Wigo %s DOWN : %s", host.GetHostname(), host.GlobalMessage)
@@ -299,6 +300,7 @@ func threadAliveChecks() {
 					}
 				}
 				host.IsAlive = false;
+				host.GlobalStatus = 499;
 			} else {
 				if ( !host.IsAlive ) {
 					if wigo.GetLocalWigo().GetConfig().Notifications.OnWigoChange {
@@ -310,7 +312,7 @@ func threadAliveChecks() {
 				host.IsAlive = true;
 			}
 		}
-		time.Sleep(time.Second * time.Duration(5))
+		time.Sleep(time.Second)
 	}
 }
 
@@ -584,22 +586,31 @@ func threadHttp(config *wigo.HttpConfig) {
 
 	m := martini.New()
 
+	// Log requests
 	m.Use(martini.Logger())
 
+	// Compress http responses with gzip
 	if ( config.Gzip ) {
 		log.Println("Http server : gzip compression enabled")
 		m.Use(gzip.All())
 	}
 
+	// Add some basic security checks
 	m.Use(secure.Secure(secure.Options{}));
 
+	// Http basic auth
 	if ( config.Login != "" && config.Password != "" ) {
 		log.Println("Http server : basic auth enabled")
 		m.Use(auth.Basic(config.Login, config.Password))
 	}
 
+	// Serve static files
 	m.Use(martini.Static("public"))
+
+	// Handle errors // TODO is this even working ?
 	m.Use(martini.Recovery())
+
+	// Define the routes.
 
 	r := martini.NewRouter()
 
@@ -637,9 +648,9 @@ func threadHttp(config *wigo.HttpConfig) {
 		}
 	})
 
-	// Add the router action
 	m.Action(r.Handle)
 
+	// Create a listner and serv connections forever.
 	if ( config.SslEnabled ) {
 		address := apiAddress + ":" + strconv.Itoa(apiPort)
 		log.Println("Http server : starting tls server @ " + address)

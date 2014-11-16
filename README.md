@@ -135,5 +135,24 @@ go build src/wigo.go
 go build src/wigocli.go
 ```
 
+PULL
+----
 
-openssl req -x509 -nodes -days 3650 -newkey rsa:4096 -keyout etc/ssl/wigo.key -out etc/ssl/wigo.crt
+The master fetch remote clients over the http api.
+Communications should be secured using firewall rules, TLS and http basic authentication.
+
+PUSH
+----
+
+Clients send their data to a remote master over a persistent tcp connection.
+Communications should be secured using firewall rules and TLS.
+
+TLS
+---
+
+Wigo needs a key pair to enable HTTPS api.
+Wigo needs a key pair to secure PUSH communications.
+You might use the same key pair for both needs.
+
+To generate a self signed key pair one can run the following command : 
+/usr/local/wigo/bin/generate_cert -ca=true -duration=87600h0m0s -host "hostname,ip,..." --rsa-bits=4096

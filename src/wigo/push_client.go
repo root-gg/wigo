@@ -218,6 +218,7 @@ func (this *PushClient) Update() (err error) {
 	}
 
 	log.Println("Push client : Update")
+
 	reply := new(bool)
 	err = this.client.Call("PushServer.Update", NewUpdateRequest(LocalWigo,this.token), reply)
 	if err != nil {
@@ -235,6 +236,7 @@ func (this *PushClient) Goodbye() (err error) {
 	defer this.Close()
 
 	log.Println("Push client : Goodbye")
+
 	reply := new(bool)
 	err = this.client.Call("PushServer.Goodbye", NewUpdateRequest(LocalWigo,this.token), reply)
 	if err != nil {
