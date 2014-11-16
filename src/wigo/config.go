@@ -140,7 +140,7 @@ func NewConfig( configFile string ) (this *Config) {
 			AdvancedRemoteWigo.Hostname = hostname
 			AdvancedRemoteWigo.Port = port
 
-			AdvancedRemoteWigo.SslEnabled = true
+			AdvancedRemoteWigo.SslEnabled = false
 			AdvancedRemoteWigo.Login = ""
 			AdvancedRemoteWigo.Password = ""
 
