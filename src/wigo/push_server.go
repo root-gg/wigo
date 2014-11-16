@@ -74,7 +74,9 @@ func NewPushServer(config *PushServerConfig ) ( this *PushServer ) {
 // verify the identity of the server. To avoid the small window
 // of MITM vulnerability you might copy the certificate by yourself.
 func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) ( err error ) {
-	Dump(req)
+	if LocalWigo.GetConfig().Global.Debug {
+		Dump(req)
+	}
 	log.Println("Push server : Sending server certificate to " + req.Hostname);
 	*cert = this.authority.GetServerCertificate()
 	return
@@ -151,6 +153,7 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 		Dump(req)
 	}
 	if err = this.auth(req.Request) ; err == nil {
+		req.Wigo.SetParentHostsInProbes()
 		// TODO this should return an error
 		LocalWigo.AddOrUpdateRemoteWigo(req.Wigo.GetHostname(), &req.Wigo)
 	} else {

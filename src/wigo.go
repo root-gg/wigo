@@ -615,12 +615,12 @@ func threadHttp(config *wigo.HttpConfig) {
 	r := martini.NewRouter()
 
 	r.Get("/api", func() (int, string) {
-			json, err := wigo.GetLocalWigo().ToJsonString()
-			if err != nil {
-				return 500, fmt.Sprintf("%s", err)
-			}
-			return 200, json
-		})
+		json, err := wigo.GetLocalWigo().ToJsonString()
+		if err != nil {
+			return 500, fmt.Sprintf("%s", err)
+		}
+		return 200, json
+	})
 
 	r.Get("/api/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
 	r.Get("/api/logs", wigo.HttpLogsHandler)
