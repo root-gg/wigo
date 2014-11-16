@@ -49,7 +49,7 @@ angular.module('wigo-refresh', []).
 
         module.init = function(refresh) {
             module.refresh = refresh;
-            module.setRefreshInterval(5);
+            module.setRefreshInterval(60);
         }
 
         module.setRefreshInterval = function(interval) {

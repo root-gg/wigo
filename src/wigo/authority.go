@@ -195,8 +195,9 @@ func ( this *Authority ) AllowClient(uuid string) (err error){
 	return
 }
 
-// Add a client to the allowed list. The client have to be
-// in the waiting list.
+// Remove a client from the allowed list, revoke tokens if any and
+// remove client data.
+// TODO The dedup data in gopentsdb are leaked.
 func ( this *Authority ) RevokeClient(uuid string) (err error){
 	if hostname, ok := this.Waiting[uuid] ; ok {
 		delete(this.Waiting,uuid)
