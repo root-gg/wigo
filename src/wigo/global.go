@@ -110,7 +110,10 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 
 	// Init LocalHost
 	this.Hostname = this.config.Global.Hostname
-	this.LocalHost = NewHost(this.config.Global.Hostname,this.config.Global.Group)
+	this.LocalHost = NewHost()
+	this.LocalHost.Name = this.config.Global.Hostname
+	this.LocalHost.Group = this.config.Global.Group
+	this.LocalHost.parentWigo = this
 
 	// Init RemoteWigos list
 	this.RemoteWigos = make(map[string]*Wigo)

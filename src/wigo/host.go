@@ -18,17 +18,12 @@ type HostSummary struct {
 	Probes				[]map[string]interface {}
 }
 
-func NewHost(hostname string, group string) (this *Host) {
+func NewHost() (this *Host) {
 
 	this = new(Host)
 
-	this.Status = 0
-	this.Name = hostname
-	this.Group = group
+	this.Status = 100
 	this.Probes = make(map[string]*ProbeResult)
-
-	// Set parent wigo
-	this.parentWigo = GetLocalWigo()
 
 	return
 }

@@ -7,6 +7,7 @@ probes/60
 ssl
 var
 wigo.conf.*
+huge
 
 *.log
 
