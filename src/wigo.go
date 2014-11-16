@@ -586,8 +586,10 @@ func threadHttp(config *wigo.HttpConfig) {
 
 	m := martini.New()
 
-	// Log requests
-	m.Use(martini.Logger())
+	if ( wigo.GetLocalWigo().GetConfig().Global.Debug ) {
+		// Log requests
+		m.Use(martini.Logger())
+	}
 
 	// Compress http responses with gzip
 	if ( config.Gzip ) {

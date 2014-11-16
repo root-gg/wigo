@@ -59,7 +59,7 @@ func NewPushServer(config *PushServerConfig ) ( this *PushServer ) {
 	go func() {
 		for {
 			if conn, err := listner.Accept() ; err == nil {
-	 			go rpc.ServeConn(conn)
+	 			go func() { rpc.ServeConn(conn) ; conn.Close() }()
 			} else {
 				log.Printf("Push server : accept connection error %s", err)
 			}
@@ -128,7 +128,7 @@ func (this *PushServer) Hello(req HelloRequest, token *string) ( err error ) {
 	if this.authority.IsAllowed(req.Uuid) {
 		if err = this.authority.VerifyUuidSignature(req.Uuid, req.UuidSignature) ; err == nil {
 			if *token, err = this.authority.GetToken(req.Uuid) ; err == nil{
-				log.Printf("Push server : hello %s", req.Hostname)
+				log.Printf("Push server : Hello %s", req.Hostname)
 			} else {
 				err = errors.New("NOT ALLOWED")
 			}
@@ -153,6 +153,7 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 		Dump(req)
 	}
 	if err = this.auth(req.Request) ; err == nil {
+		log.Printf("Push server : Update %s", req.Wigo.GetHostname())
 		req.Wigo.SetParentHostsInProbes()
 		// TODO this should return an error
 		LocalWigo.AddOrUpdateRemoteWigo(req.Wigo.GetHostname(), &req.Wigo)

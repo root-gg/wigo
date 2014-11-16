@@ -17,6 +17,7 @@ import (
 	"strings"
 	"path/filepath"
 	"io/ioutil"
+	"runtime"
 )
 
 // Static global object
@@ -190,6 +191,7 @@ Options:
 
 	// Rpc
 	if LocalWigo.config.PushServer.Enabled {
+		runtime.GOMAXPROCS(runtime.NumCPU())
 		LocalWigo.push = NewPushServer(LocalWigo.config.PushServer)
 	}
 
