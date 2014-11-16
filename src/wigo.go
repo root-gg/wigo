@@ -1,6 +1,9 @@
 package main
 
 import (
+	_ "net/http/pprof"
+	"strings"
+	"crypto/tls"
 	"container/list"
 	"fmt"
 	"io"
@@ -23,12 +26,6 @@ import (
 	"github.com/codegangsta/martini-contrib/secure"
 
 	"github.com/howeyc/fsnotify"
-)
-
-import (
-	_ "net/http/pprof"
-	"strings"
-	"crypto/tls"
 )
 
 func main() {
