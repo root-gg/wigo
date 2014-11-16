@@ -57,24 +57,6 @@ func SendNotification(notification INotification) {
 	Channels.ChanCallbacks <- notification
 }
 
-func NewNotificationWigo(oldWigo *Wigo, newWigo *Wigo) (this *NotificationWigo) {
-	this = new(NotificationWigo)
-	this.Notification = NewNotification()
-	this.Hostname = oldWigo.GetHostname()
-	this.Type = "Wigo"
-	this.OldWigo = oldWigo
-	this.NewWigo = newWigo
-    this.Message = ""
-
-	if newWigo.GlobalStatus != oldWigo.GlobalStatus {
-		this.Message 	= fmt.Sprintf("Wigo %s status changed from %d to %d", oldWigo.GetHostname(), oldWigo.GlobalStatus, newWigo.GlobalStatus)
-	}
-
-	log.Printf("New Wigo Notification : %s", this.Message)
-
-	return
-}
-
 func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *NotificationProbe) {
 	this = new(NotificationProbe)
 	this.Notification = NewNotification()

@@ -154,11 +154,9 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 	}
 	if err = this.auth(req.Request) ; err == nil {
 		log.Printf("Push server : Update %s", req.Wigo.GetHostname())
-		t := time.Now().Unix()
 		req.Wigo.SetParentHostsInProbes()
 		// TODO this should return an error
 		LocalWigo.AddOrUpdateRemoteWigo(req.Wigo.GetHostname(), &req.Wigo)
-		log.Printf("Push server : Updated %s in %d", req.Wigo.GetHostname(), time.Now().Unix() - t)
 	} else {
 		err = errors.New("NOT ALLOWED")
 	}

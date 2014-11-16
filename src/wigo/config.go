@@ -94,7 +94,6 @@ func NewConfig( configFile string ) (this *Config) {
 	// Notifications
 	this.Notifications.MinLevelToSend = 101
 
-	this.Notifications.OnWigoChange = false
 	this.Notifications.OnHostChange = false
 	this.Notifications.OnProbeChange = false
 
@@ -220,7 +219,6 @@ type NotificationConfig struct {
 	// Noticications
 	MinLevelToSend 	int
 
-	OnWigoChange  	bool
 	OnHostChange  	bool
 	OnProbeChange 	bool
 

@@ -45,9 +45,6 @@ func (this *Host) RecomputeStatus() {
 
 func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
-    oldWigoJson, _  := GetLocalWigo().ToJsonString()
-    oldWigo, _      := NewWigoFromJson([]byte(oldWigoJson), 0)
-
 	// If old probe, test if status is different
 	if oldProbe, ok := GetLocalWigo().GetLocalHost().Probes[probe.Name]; ok {
 
@@ -70,11 +67,6 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
 	// Recompute status
 	GetLocalWigo().RecomputeGlobalStatus()
-
-    // Raise wigo notification if status changed
-    if GetLocalWigo().GlobalStatus != oldWigo.GlobalStatus {
-        NewNotificationWigo(oldWigo,GetLocalWigo())
-    }
 
 	return
 }

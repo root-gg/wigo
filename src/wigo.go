@@ -293,21 +293,17 @@ func threadAliveChecks() {
 		for _, host := range wigo.GetLocalWigo().RemoteWigos {
 			if host.LastUpdate < now - int64(wigo.GetLocalWigo().GetConfig().Global.AliveTimeout) {
 				if ( host.IsAlive ) {
-					if wigo.GetLocalWigo().GetConfig().Notifications.OnWigoChange {
-						message := fmt.Sprintf("Wigo %s DOWN : %s", host.GetHostname(), host.GlobalMessage)
-						wigo.SendNotification(wigo.NewNotificationFromMessage(message))
-						wigo.GetLocalWigo().AddLog(host, wigo.CRITICAL, message)
-					}
+					message := fmt.Sprintf("Wigo %s DOWN : %s", host.GetHostname(), host.GlobalMessage)
+					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
+					wigo.GetLocalWigo().AddLog(host, wigo.CRITICAL, message)
 				}
 				host.IsAlive = false;
 				host.GlobalStatus = 499;
 			} else {
 				if ( !host.IsAlive ) {
-					if wigo.GetLocalWigo().GetConfig().Notifications.OnWigoChange {
-						message := fmt.Sprintf("Wigo %s UP", host.GetHostname())
-						wigo.SendNotification(wigo.NewNotificationFromMessage(message))
-						wigo.GetLocalWigo().AddLog(host, wigo.INFO, message)
-					}
+					message := fmt.Sprintf("Wigo %s UP", host.GetHostname())
+					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
+					wigo.GetLocalWigo().AddLog(host, wigo.INFO, message)
 				}
 				host.IsAlive = true;
 			}
