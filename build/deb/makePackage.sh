@@ -71,7 +71,7 @@ git checkout wigo/global.go
 echo "Copying files to package temporary directory"
 cp bin/wigo $PACKAGEROOT/usr/local/wigo/bin
 cp bin/wigocli $PACKAGEROOT/usr/local/bin/wigocli
-cp bin/generate_cert $PACKAGEROOT/usr/local/wigo/bingenerate_cert
+cp bin/generate_cert $PACKAGEROOT/usr/local/wigo/bin/generate_cert
 
 # Copy DEBIAN folder
 cp -R $BUILDDIR/DEBIAN $PACKAGEROOT
