@@ -294,15 +294,14 @@ func threadAliveChecks() {
 					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
 					wigo.GetLocalWigo().AddLog(host, wigo.CRITICAL, message)
 				}
-				host.IsAlive = false;
-				host.GlobalStatus = 499;
+				host.Down(fmt.Sprintf("DOWN since : %s", time.Unix(host.LastUpdate,0)) )
 			} else {
 				if ( !host.IsAlive ) {
 					message := fmt.Sprintf("Wigo %s UP", host.GetHostname())
 					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
 					wigo.GetLocalWigo().AddLog(host, wigo.INFO, message)
 				}
-				host.IsAlive = true;
+				host.Up()
 			}
 		}
 		time.Sleep(time.Second)

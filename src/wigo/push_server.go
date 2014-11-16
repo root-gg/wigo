@@ -170,9 +170,6 @@ func (this *PushServer) Goodbye(req Request, reply *bool) ( err error ) {
 	}
 	if err = this.auth(&req) ; err == nil {
 		this.authority.RevokeToken(req.Uuid,req.Token)
-		if wigo, ok := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; ok {
-			wigo.IsAlive = false
-		}
 	}
 	return
 }

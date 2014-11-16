@@ -215,7 +215,6 @@ func GetLocalWigo() *Wigo {
 func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 
 	this = new(Wigo)
-	this.IsAlive = true
 
 	err := json.Unmarshal(ba, this)
 	if err != nil {
@@ -252,10 +251,10 @@ func (this *Wigo) Down( reason string ){
 	this.GlobalMessage = reason
 	this.IsAlive = false
 }
+
 func (this *Wigo) Up(){
 	this.GlobalMessage = "OK"
 	this.IsAlive = true
-	this.RecomputeGlobalStatus()
 }
 
 
