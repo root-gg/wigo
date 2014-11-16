@@ -156,7 +156,7 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 		log.Printf("Push server : Update %s", req.Wigo.GetHostname())
 		req.Wigo.SetParentHostsInProbes()
 		// TODO this should return an error
-		LocalWigo.AddOrUpdateRemoteWigo(req.Wigo.GetHostname(), &req.Wigo)
+		LocalWigo.AddOrUpdateRemoteWigo(&req.Wigo)
 	} else {
 		err = errors.New("NOT ALLOWED")
 	}
@@ -170,7 +170,7 @@ func (this *PushServer) Goodbye(req Request, reply *bool) ( err error ) {
 	}
 	if err = this.auth(&req) ; err == nil {
 		this.authority.RevokeToken(req.Uuid,req.Token)
-		if wigo := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; wigo != nil {
+		if wigo, ok := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; ok {
 			wigo.IsAlive = false
 		}
 	}
@@ -218,7 +218,7 @@ func (this *PushServer) auth(req *Request) ( err error ) {
 	}
 	err = this.authority.VerifyToken(req.Uuid,req.Token)
 	if err == nil {
-		if wigo := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; wigo != nil {
+		if wigo, ok := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; ok {
 			// TODO implement anti flood
 			if time.Now().Unix() - wigo.LastUpdate > int64(300) {
 				log.Printf("Push server : session timed out for %s", wigo.GetHostname())

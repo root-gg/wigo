@@ -304,7 +304,7 @@ func (this *Wigo) SetHostname(hostname string) {
 	this.Hostname = hostname
 }
 
-func (this *Wigo) AddOrUpdateRemoteWigo(wigoName string, remoteWigo *Wigo) {
+func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 
 	this.Lock()
 	defer this.Unlock()
@@ -315,13 +315,13 @@ func (this *Wigo) AddOrUpdateRemoteWigo(wigoName string, remoteWigo *Wigo) {
 		return
 	}
 
-	if oldWigo, ok := this.RemoteWigos[wigoName]; ok {
+	if oldWigo, ok := this.RemoteWigos[remoteWigo.Uuid]; ok {
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo, remoteWigo)
 	}
 
-	this.RemoteWigos[wigoName] = remoteWigo
-	this.RemoteWigos[wigoName].SetHostname(wigoName)
-	this.RemoteWigos[wigoName].LastUpdate = time.Now().Unix()
+	this.RemoteWigos[remoteWigo.Uuid] = remoteWigo
+	//this.RemoteWigos[remoteWigo.Uuid].SetHostname(wigoName)
+	this.RemoteWigos[remoteWigo.Uuid].LastUpdate = time.Now().Unix()
 	this.RecomputeGlobalStatus()
 }
 
@@ -795,12 +795,7 @@ func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, ver
 	return
 }
 
-/*
- * TODO shiity : use uuid as the hash key
- */
-
 func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
-
 	var foundWigo *Wigo
 
 	if this.GetHostname() == hostname {
@@ -823,20 +818,15 @@ func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 	return foundWigo
 }
 
-func (this *Wigo) FindRemoteWigoByUuid(uuid string) ( wigo *Wigo ) {
-	for name, w := range this.RemoteWigos {
-
-		if w.Uuid == uuid {
-			wigo = this.RemoteWigos[name]
-			return
-		}
-
-		wigo = this.RemoteWigos[name].FindRemoteWigoByHostname(uuid)
-		if wigo != nil {
-			return
+func (this *Wigo) FindRemoteWigoByUuid(uuid string) ( *Wigo, bool ) {
+	if wigo, ok := LocalWigo.RemoteWigos[uuid] ; ok {
+		return wigo, true
+	} else {
+		for _, w := range this.RemoteWigos {
+			w.FindRemoteWigoByUuid(uuid)
 		}
 	}
-	return
+	return nil, false
 }
 
 func (this *Wigo) ListRemoteWigosNames() []string {

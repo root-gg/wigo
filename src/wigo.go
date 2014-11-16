@@ -546,11 +546,11 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			if existingWigo, ok := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname] ; ok {
 				newWigo := *existingWigo
 				newWigo.Down(fmt.Sprintf("%s",err))
-				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, &newWigo)
+				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(&newWigo)
 			} else {
 				errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
 				errorWigo.SetHostname(Hostname.Hostname)
-				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, errorWigo)
+				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(errorWigo)
 			}
 
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
@@ -569,7 +569,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		//wigoObj.SetHostname(Hostname.Hostname)
 
 		// Send it to main
-		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(Hostname.Hostname, wigoObj)
+		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(wigoObj)
 
 		// Sleep
 		time.Sleep(time.Second * time.Duration(secondsToSleep))
