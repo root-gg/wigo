@@ -54,6 +54,7 @@ func NewNotificationFromMessage(message string) (this *Notification) {
 }
 
 func SendNotification(notification INotification) {
+	log.Printf("New notification : %s", notification.GetMessage())
 	Channels.ChanCallbacks <- notification
 }
 

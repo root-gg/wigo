@@ -52,10 +52,8 @@ func main() {
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
-
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 	go threadRemoteChecks(config.RemoteWigos.AdvancedList)
-	go threadAliveChecks()
 
 	if config.Http.Enabled {
 		go threadHttp(config.Http)
@@ -281,30 +279,6 @@ func threadRemoteChecks(remoteWigos []wigo.AdvancedRemoteWigoConfig) {
 	for _, host := range remoteWigos {
 		log.Printf(" -> Adding %s to the remote check list\n", host.Hostname)
 		go launchRemoteHostCheckRoutine(host)
-	}
-}
-
-func threadAliveChecks() {
-	for {
-		now := time.Now().Unix()
-		for _, host := range wigo.GetLocalWigo().RemoteWigos {
-			if host.LastUpdate < now - int64(wigo.GetLocalWigo().GetConfig().Global.AliveTimeout) {
-				if ( host.IsAlive ) {
-					message := fmt.Sprintf("Wigo %s DOWN", host.GetHostname())
-					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
-					wigo.GetLocalWigo().AddLog(host, wigo.CRITICAL, message)
-				}
-				host.Down(fmt.Sprintf("DOWN since : %s", time.Unix(host.LastUpdate,0)) )
-			} else {
-				if ( !host.IsAlive ) {
-					message := fmt.Sprintf("Wigo %s UP", host.GetHostname())
-					wigo.SendNotification(wigo.NewNotificationFromMessage(message))
-					wigo.GetLocalWigo().AddLog(host, wigo.INFO, message)
-				}
-				host.Up()
-			}
-		}
-		time.Sleep(time.Second)
 	}
 }
 
@@ -537,17 +511,6 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		// Can't connect, give up and create wigo in error
 		if err != nil {
 			log.Printf("Can't connect to %s after %d tries : %s", host, tries, err)
-
-			// Create wigo in error
-			if existingWigo, ok := wigo.GetLocalWigo().RemoteWigos[Hostname.Hostname] ; ok {
-				newWigo := *existingWigo
-				newWigo.Down(fmt.Sprintf("%s",err))
-				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(&newWigo)
-			} else {
-				errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
-				errorWigo.Hostname = Hostname.Hostname
-				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(errorWigo)
-			}
 
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
 			continue
