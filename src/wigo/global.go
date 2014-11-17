@@ -215,9 +215,9 @@ Options:
 						host.Up()
 					}
 				}
-
-				time.Sleep(time.Second)
 			}
+
+			time.Sleep(time.Second)
 		}
 	}()
 
