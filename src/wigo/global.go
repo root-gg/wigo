@@ -131,7 +131,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	this.logsGroupIndex = make(map[string][]uint64)
 	this.logsProbeIndex = make(map[string][]uint64)
 	this.logsWigoIndex  = make(map[string][]uint64)
-	
+
 	return
 }
 
@@ -201,6 +201,26 @@ Options:
 		LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.Debug, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
 	}
 
+	// UP / DOWN
+	go func(){
+		for {
+			now := time.Now().Unix()
+			for _, host := range LocalWigo.RemoteWigos {
+				if host.LastUpdate < now-int64(LocalWigo.GetConfig().Global.AliveTimeout) {
+					if ( host.IsAlive ) {
+						host.Down()
+					}
+				} else {
+					if ( !host.IsAlive ) {
+						host.Up()
+					}
+				}
+			}
+
+			time.Sleep(time.Second)
+		}
+	}()
+
 	return nil
 }
 
@@ -226,35 +246,41 @@ func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 	}
 
 	this.SetParentHostsInProbes()
-	this.SetRemoteWigosHostnames()
+	this.LocalHost.SetParentWigo(this)
+
+	// For backward compatibility
+	if ( this.Hostname == "" ) {
+		this.Hostname = this.LocalHost.Name;
+	}
 
 	return
 }
 
-func NewWigoFromErrorMessage(message string, isAlive bool) (this *Wigo) {
-
-	this = new(Wigo)
-	this.GlobalStatus = 499
-	this.GlobalMessage = message
-	this.IsAlive = isAlive
-	this.RemoteWigos = make(map[string]*Wigo)
-	this.LocalHost = new(Host)
-	this.LocalHost.Status = 499
-	return
-}
 
 
 // Status setters
-func (this *Wigo) Down( reason string ){
+func (this *Wigo) Down(){
 	this.GlobalStatus = 499
 	this.LocalHost.Status = 499
-	this.GlobalMessage = reason
+	this.GlobalMessage = "DOWN"
 	this.IsAlive = false
+
+	// Send notification
+	SendNotification( NewNotificationFromMessage( fmt.Sprintf("Host %s DOWN", this.Hostname) ) )
+
+	// Add a log
+	LocalWigo.AddLog(this, CRITICAL, fmt.Sprintf("Wigo %s DOWN", this.Hostname))
 }
 
 func (this *Wigo) Up(){
-	this.GlobalMessage = "OK"
+	this.GlobalMessage = "UP"
 	this.IsAlive = true
+
+	// Send notification
+	SendNotification( NewNotificationFromMessage( fmt.Sprintf("Host %s UP", this.Hostname) ) )
+
+	// Add a log
+	LocalWigo.AddLog(this, INFO, fmt.Sprintf("Wigo %s UP", this.Hostname))
 }
 
 
@@ -297,12 +323,6 @@ func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
 	return this.gopentsdb
 }
 
-// Setters
-
-func (this *Wigo) SetHostname(hostname string) {
-	this.Hostname = hostname
-}
-
 func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 
 	this.Lock()
@@ -315,12 +335,14 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 	}
 
 	if oldWigo, ok := this.RemoteWigos[remoteWigo.Uuid]; ok {
+		if !oldWigo.IsAlive {
+			remoteWigo.IsAlive = false
+		}
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo, remoteWigo)
 	}
 
 	this.RemoteWigos[remoteWigo.Uuid] = remoteWigo
 	this.RemoteWigos[remoteWigo.Uuid].LastUpdate = time.Now().Unix()
-	this.RemoteWigos[remoteWigo.Uuid].Hostname = remoteWigo.Hostname
 	this.RecomputeGlobalStatus()
 }
 
@@ -388,14 +410,6 @@ func (this *Wigo) SetParentHostsInProbes() {
 
 	for remoteWigo := range this.RemoteWigos {
 		this.RemoteWigos[remoteWigo].SetParentHostsInProbes()
-	}
-}
-
-func (this *Wigo) SetRemoteWigosHostnames() {
-
-	for remoteWigo := range this.RemoteWigos {
-		this.RemoteWigos[remoteWigo].SetHostname(remoteWigo)
-		this.RemoteWigos[remoteWigo].SetRemoteWigosHostnames()
 	}
 }
 

@@ -54,6 +54,7 @@ func NewNotificationFromMessage(message string) (this *Notification) {
 }
 
 func SendNotification(notification INotification) {
+	log.Printf("New notification : %s", notification.GetMessage())
 	Channels.ChanCallbacks <- notification
 }
 
@@ -65,26 +66,22 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 	this.NewProbe = newProbe
 
 	if oldProbe == nil && newProbe != nil {
-		this.Hostname = newProbe.GetHost().Name
-		this.Message  = fmt.Sprintf("New probe %s with status %d detected on host %s", newProbe.Name, newProbe.Status, newProbe.GetHost().Name)
+		this.Hostname = newProbe.GetHost().GetParentWigo().Hostname
+		this.Message  = fmt.Sprintf("New probe %s with status %d detected on host %s", newProbe.Name, newProbe.Status, this.Hostname)
 
-		this.Summary += fmt.Sprintf("A new probe %s has been detected on host %s : \n\n", newProbe.Name, newProbe.GetHost().Name)
+		this.Summary += fmt.Sprintf("A new probe %s has been detected on host %s : \n\n", newProbe.Name, this.Hostname)
 		this.Summary += fmt.Sprintf("\t%s\n", newProbe.Message)
 
 	} else if oldProbe != nil && newProbe == nil {
-		this.Hostname = oldProbe.GetHost().Name
-		this.Message  = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, oldProbe.GetHost().Name, oldProbe.Status)
+		this.Hostname = oldProbe.GetHost().GetParentWigo().Hostname
+		this.Message  = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, this.Hostname, oldProbe.Status)
 
-		this.Summary += fmt.Sprintf("Probe %s has been deleted on host %s : \n\n", oldProbe.Name, oldProbe.GetHost().Name)
+		this.Summary += fmt.Sprintf("Probe %s has been deleted on host %s : \n\n", oldProbe.Name, this.Hostname)
 		this.Summary += fmt.Sprintf("Last message was : \n\n%s\n", oldProbe.Message)
 
 	} else if oldProbe != nil && newProbe != nil {
 		if newProbe.Status != oldProbe.Status {
-			this.Hostname = newProbe.GetHost().Name
-
-			if oldProbe.GetHost() != nil && oldProbe.GetHost().GetParentWigo() != nil {
-				this.Hostname = oldProbe.GetHost().GetParentWigo().GetHostname()
-			}
+			this.Hostname = newProbe.GetHost().GetParentWigo().Hostname
 
 			this.Message  = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, this.Hostname)
 
