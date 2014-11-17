@@ -545,7 +545,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(&newWigo)
 			} else {
 				errorWigo := wigo.NewWigoFromErrorMessage(fmt.Sprint(err), false)
-				errorWigo.SetHostname(Hostname.Hostname)
+				errorWigo.Hostname = Hostname.Hostname
 				wigo.GetLocalWigo().AddOrUpdateRemoteWigo(errorWigo)
 			}
 

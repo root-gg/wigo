@@ -226,7 +226,11 @@ func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 	}
 
 	this.SetParentHostsInProbes()
-	this.SetRemoteWigosHostnames()
+
+	// For backward compatibility
+	if ( this.Hostname == "" ) {
+		this.Hostname = this.LocalHost.Name;
+	}
 
 	return
 }
@@ -297,12 +301,6 @@ func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
 	return this.gopentsdb
 }
 
-// Setters
-
-func (this *Wigo) SetHostname(hostname string) {
-	this.Hostname = hostname
-}
-
 func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 
 	this.Lock()
@@ -320,7 +318,6 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 
 	this.RemoteWigos[remoteWigo.Uuid] = remoteWigo
 	this.RemoteWigos[remoteWigo.Uuid].LastUpdate = time.Now().Unix()
-	this.RemoteWigos[remoteWigo.Uuid].Hostname = remoteWigo.Hostname
 	this.RecomputeGlobalStatus()
 }
 
@@ -388,14 +385,6 @@ func (this *Wigo) SetParentHostsInProbes() {
 
 	for remoteWigo := range this.RemoteWigos {
 		this.RemoteWigos[remoteWigo].SetParentHostsInProbes()
-	}
-}
-
-func (this *Wigo) SetRemoteWigosHostnames() {
-
-	for remoteWigo := range this.RemoteWigos {
-		this.RemoteWigos[remoteWigo].SetHostname(remoteWigo)
-		this.RemoteWigos[remoteWigo].SetRemoteWigosHostnames()
 	}
 }
 
