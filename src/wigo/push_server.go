@@ -8,7 +8,6 @@ import (
 	"errors"
 	"encoding/gob"
 	"crypto/tls"
-	"time"
 )
 
 // Push server expose method to update client's
@@ -214,15 +213,7 @@ func (this *PushServer) auth(req *Request) ( err error ) {
 		Dump(req)
 	}
 	err = this.authority.VerifyToken(req.Uuid,req.Token)
-	if err == nil {
-		if wigo, ok := LocalWigo.FindRemoteWigoByUuid(req.Uuid) ; ok {
-			// TODO implement anti flood
-			if time.Now().Unix() - wigo.LastUpdate > int64(300) {
-				log.Printf("Push server : session timed out for %s", wigo.GetHostname())
-				err = errors.New("NOT ALLOWED")
-			}
-		}
-	} else {
+	if err != nil {
 		err = errors.New("NOT ALLOWED")
 	}
 
