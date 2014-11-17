@@ -281,7 +281,14 @@ sub load_config
             output  1;
         }
 
-        my $json = join '', (<JSON_CONFIG>);
+        my $json;
+        foreach my $line (<JSON_CONFIG>)
+        {
+            if ( $line !~ /^.*?(#|;|\/\/)/ )
+            {
+                $json .= $line;
+            }
+        }
         close JSON_CONFIG;
 
         eval {
@@ -293,6 +300,12 @@ sub load_config
             status  500;
             message "Error while decoding json config: " . $@;
             output  1;
+        }
+
+        if ( ref $config eq HASH and JSON::is_bool($config->{'enabled'}) and ! $config->{'enabled'} )
+        {
+            message "Probe is disabled";
+            output  12;
         }
     }
     else

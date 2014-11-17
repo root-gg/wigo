@@ -422,7 +422,11 @@ func execProbe(probePath string, timeOut int) {
 				}
 			}
 
-			// Test Exit 13
+			if exitCode == 12 {
+				log.Printf(" - Probe %s is disabled\n", probeName)
+				return
+			}
+
 			if exitCode == 13 {
 				log.Printf(" - Probe %s responded with special exit code 13. Discarding result...\n", probeName)
 
