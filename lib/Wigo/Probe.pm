@@ -302,7 +302,7 @@ sub load_config
             output  1;
         }
 
-        if ( ref $config eq HASH and JSON::is_bool($config->{'enabled'}) and ! $config->{'enabled'} )
+        if ( ref $config eq "HASH" and JSON::is_bool($config->{'enabled'}) and ! $config->{'enabled'} )
         {
             message "Probe is disabled";
             output  12;
