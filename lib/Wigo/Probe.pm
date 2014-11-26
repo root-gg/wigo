@@ -284,9 +284,9 @@ sub load_config
         my $json;
         foreach my $line (<JSON_CONFIG>)
         {
-            if ( $line !~ /^.*?(#|;|\/\/)/ )
+            if ( $line =~ /^([^#;]*)([#;].*)?$/ )
             {
-                $json .= $line;
+                $json .= $1;
             }
         }
         close JSON_CONFIG;
