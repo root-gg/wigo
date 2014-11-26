@@ -31,6 +31,12 @@ if ( ! scalar ( keys %{config->{'urls'}} ) )
     output 13;
 }
 
+# Check Ssl ?
+if (config->{'dontCheckSSL'})
+{
+    $UA->ssl_opts( verify_hostname => 0 );
+}
+
 my @down;
 for my $key ( keys %{ config->{'urls'} } )
 {
