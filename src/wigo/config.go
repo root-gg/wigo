@@ -50,6 +50,7 @@ func NewConfig( configFile string ) (this *Config) {
 	this.Global.LogFile = "/var/log/wigo.log"
 	this.Global.UuidFile = "/var/lib/wigo/uuid"
 	this.Global.EventLog = "/var/lib/wigo/events.log"
+	this.Global.Database = "/var/lib/wigo/wigo.db"
 	this.Global.AliveTimeout = 60
 	this.Global.ConfigFile = configFile
 	this.Global.Debug = false
@@ -166,6 +167,7 @@ type GeneralConfig struct {
 	ConfigFile      string
 	Group           string
 	EventLog		string
+	Database		string
 	AliveTimeout	int
 }
 

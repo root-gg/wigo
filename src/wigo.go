@@ -46,9 +46,6 @@ func main() {
 		}()
 	}
 
-	// Loads previous logs
-	go wigo.LoadLogsFromDisk()
-
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
