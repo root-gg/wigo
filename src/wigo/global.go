@@ -45,6 +45,7 @@ type Wigo struct {
 	disabledProbes *list.List
     uuidObj        *uuid.UUID
 	sqlLiteConn		*sql.DB
+	sqlLiteLock		*sync.Mutex
 
 	push 	        *PushServer
 	LastUpdate		int64
@@ -189,6 +190,7 @@ Options:
 	}
 
 	// SqlLite
+	LocalWigo.sqlLiteLock = new(sync.Mutex)
 	LocalWigo.sqlLiteConn, err = sql.Open( "sqlite3", LocalWigo.config.Global.Database )
 	if err != nil {
 		log.Fatalf("Fail to init sqllite database %s : %s", LocalWigo.config.Global.Database, err )
@@ -208,10 +210,12 @@ Options:
 			ts := time.Now().Unix() - 86400*30
 			sqlStmt := `DELETE FROM logs WHERE date < ?;`
 
+			LocalWigo.sqlLiteLock.Lock()
 			_, err = LocalWigo.sqlLiteConn.Exec(sqlStmt, ts)
 			if err != nil {
 				log.Fatalf("Fail to clean logs in database : %s\n", err)
 			}
+			LocalWigo.sqlLiteLock.Unlock()
 
 			time.Sleep( time.Hour )
 		}
@@ -520,6 +524,10 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 }
 
 func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*Log {
+
+	// Lock
+	LocalWigo.sqlLiteLock.Lock()
+	defer LocalWigo.sqlLiteLock.Unlock()
 
 	// Construct SQL Query
 	logs := make([]*Log,0)

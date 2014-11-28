@@ -44,6 +44,9 @@ func ( this *Log ) SetGroup( group string ){
 
 // Persist on disk
 func ( this *Log ) Persist() {
+	LocalWigo.sqlLiteLock.Lock()
+	defer LocalWigo.sqlLiteLock.Unlock()
+
 	sqlStmt := `INSERT INTO logs(date,level,grp,host,probe,message) VALUES(?,?,?,?,?,?);`
 	_, err := LocalWigo.sqlLiteConn.Exec(sqlStmt, this.Timestamp, this.Level, this.Group, this.Host, this.Probe, this.Message)
 	if err != nil {
