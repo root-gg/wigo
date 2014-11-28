@@ -199,7 +199,7 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 	// Queries
 	qP := "SELECT DISTINCT(probe) FROM logs"
 	qH := "SELECT DISTINCT(host) FROM logs"
-	qG := "SELECT DISTINCT(group) FROM logs"
+	qG := "SELECT DISTINCT(grp) FROM logs"
 
 	// Probes
 	if rowsProbes, err := LocalWigo.sqlLiteConn.Query(qP) ; err == nil {
