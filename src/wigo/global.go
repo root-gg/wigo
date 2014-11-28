@@ -202,6 +202,21 @@ Options:
         log.Fatalf("Fail to create table in sqlite database : %s\n", err)
     }
 
+	// Launch cleaning routing
+	go func(){
+		for {
+			ts := time.Now().Unix() - 86400*30
+			sqlStmt := `DELETE FROM logs WHERE date < ?;`
+
+			_, err = LocalWigo.sqlLiteConn.Exec(sqlStmt, ts)
+			if err != nil {
+				log.Fatalf("Fail to clean logs in database : %s\n", err)
+			}
+
+			time.Sleep( time.Hour )
+		}
+	}()
+
 	// UP / DOWN
 	go func(){
 		for {
@@ -499,7 +514,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 		newLog.Group = v
 	}
 
-	newLog.Persist()
+	go newLog.Persist()
 
 	return nil
 }
