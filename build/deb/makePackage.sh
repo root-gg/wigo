@@ -50,19 +50,19 @@ go build -o bin/generate_cert generate_cert.go || exit
 if [ -e $GOCROSSCOMPILEFILE ] ; then
     source $GOCROSSCOMPILEFILE
 
-    if `hash go-linux-arm` ; then
-        echo " - Building ARM versions..."
-        go-linux-arm build -o bin/wigo_arm wigo.go || exit
-        go-linux-arm build -o bin/wigocli_arm wigocli.go || exit
-        go-linux-arm build -o bin/generate_cert generate_cert.go || exit
-    fi
+    #if `hash go-linux-arm` ; then
+    #    echo " - Building ARM versions..."
+    #    go-linux-arm build -o bin/wigo_arm wigo.go || exit
+    #    go-linux-arm build -o bin/wigocli_arm wigocli.go || exit
+    #    go-linux-arm build -o bin/generate_cert generate_cert.go || exit
+    #fi
 
-    if `hash go-linux-386` ; then
-        echo " - Building i386 versions..."
-        go-linux-386 build -o bin/wigo_386 wigo.go || exit
-        go-linux-386 build -o bin/wigocli_386 wigocli.go || exit
-        go-linux-386 build -o bin/generate_cert generate_cert.go || exit
-    fi
+    #if `hash go-linux-386` ; then
+    #    echo " - Building i386 versions..."
+    #    go-linux-386 build -o bin/wigo_386 wigo.go || exit
+    #    go-linux-386 build -o bin/wigocli_386 wigocli.go || exit
+    #    go-linux-386 build -o bin/generate_cert generate_cert.go || exit
+    #fi
 fi
 
 git checkout wigo/global.go
@@ -110,33 +110,33 @@ echo "Building deb packages."
 echo " - Building amd64 deb..."
 dpkg-deb --build $PACKAGEROOT /tmp/wigo.deb
 
-if [ -e $REPOROOT/src/bin/wigo_arm ] ; then
-    echo " - Building arm deb..."
-    sed -i "s/^Architecture:.*/Architecture: armhf/" $PACKAGEROOT/DEBIAN/control
-    cp $REPOROOT/src/bin/wigo_arm $PACKAGEROOT/usr/local/wigo/bin/wigo
-    cp $REPOROOT/src/bin/wigocli_arm $PACKAGEROOT/usr/local/bin/wigocli
-    dpkg-deb --build $PACKAGEROOT /tmp/wigo_arm.deb
-fi
+#if [ -e $REPOROOT/src/bin/wigo_arm ] ; then
+#    echo " - Building arm deb..."
+#    sed -i "s/^Architecture:.*/Architecture: armhf/" $PACKAGEROOT/DEBIAN/control
+#    cp $REPOROOT/src/bin/wigo_arm $PACKAGEROOT/usr/local/wigo/bin/wigo
+#    cp $REPOROOT/src/bin/wigocli_arm $PACKAGEROOT/usr/local/bin/wigocli
+#    dpkg-deb --build $PACKAGEROOT /tmp/wigo_arm.deb
+#fi
 
 
-if [ -e $REPOROOT/src/bin/wigo_386 ] ; then
-    echo " - Building i386 deb..."
-    sed -i "s/^Architecture:.*/Architecture: i386/" $PACKAGEROOT/DEBIAN/control
-    cp $REPOROOT/src/bin/wigo_386 $PACKAGEROOT/usr/local/wigo/bin/wigo
-    cp $REPOROOT/src/bin/wigocli_386 $PACKAGEROOT/usr/local/bin/wigocli
-    dpkg-deb --build $PACKAGEROOT /tmp/wigo_386.deb
-fi
+#if [ -e $REPOROOT/src/bin/wigo_386 ] ; then
+#    echo " - Building i386 deb..."
+#    sed -i "s/^Architecture:.*/Architecture: i386/" $PACKAGEROOT/DEBIAN/control
+#    cp $REPOROOT/src/bin/wigo_386 $PACKAGEROOT/usr/local/wigo/bin/wigo
+#    cp $REPOROOT/src/bin/wigocli_386 $PACKAGEROOT/usr/local/bin/wigocli
+#    dpkg-deb --build $PACKAGEROOT /tmp/wigo_386.deb
+#fi
 
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb squeeze /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo.deb
 
-if [ -e /tmp/wigo_arm.deb ] ; then
-    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_arm.deb
-    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_arm.deb
-fi
+#if [ -e /tmp/wigo_arm.deb ] ; then
+#    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_arm.deb
+#    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_arm.deb
+#fi
 
-if [ -e /tmp/wigo_386.deb ] ; then
-    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_386.deb
-    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_386.deb
-fi
+#if [ -e /tmp/wigo_386.deb ] ; then
+#    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_386.deb
+#    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_386.deb
+#fi

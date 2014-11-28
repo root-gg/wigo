@@ -52,7 +52,7 @@ func NewPushServer(config *PushServerConfig ) ( this *PushServer ) {
 		if err != nil {
 			log.Fatalf("Push server : listen error %s", err)
 		}
-		log.Println("Push server : now listening @ %s ( TLS disabled ! )", address)
+		log.Printf("Push server : now listening @ %s ( TLS disabled ! )", address)
 	}
 
 	go func() {

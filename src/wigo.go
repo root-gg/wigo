@@ -46,9 +46,6 @@ func main() {
 		}()
 	}
 
-	// Loads previous logs
-	go wigo.LoadLogsFromDisk()
-
 	// Launch goroutines
 	go threadWatch(wigo.Channels.ChanWatch)
 	go threadLocalChecks()
@@ -292,7 +289,7 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 		// Serialize notification
 		json, err := notification.ToJson()
 		if err != nil {
-			log.Printf("Fail to decode notification : ", err)
+			log.Printf("Fail to decode notification : %s", err)
 			continue
 		}
 

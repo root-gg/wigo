@@ -1,6 +1,7 @@
 package wigo
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,10 +15,12 @@ import (
 	"github.com/nu7hatch/gouuid"
 	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
+	"github.com/lann/squirrel"
 	"strings"
 	"path/filepath"
 	"io/ioutil"
 	"runtime"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // Static global object
@@ -41,14 +44,8 @@ type Wigo struct {
 	gopentsdb      *gopentsdb.OpenTsdb
 	disabledProbes *list.List
     uuidObj        *uuid.UUID
-
-	logs		    []*Log
-	logsLock		*sync.RWMutex
-	logsFileLock	*sync.RWMutex
-	logsProbeIndex	map[string][]uint64
-	logsWigoIndex	map[string][]uint64
-	logsGroupIndex	map[string][]uint64
-	logsOffset		uint64
+	sqlLiteConn		*sql.DB
+	sqlLiteLock		*sync.Mutex
 
 	push 	        *PushServer
 	LastUpdate		int64
@@ -123,15 +120,6 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	this.locker = new(sync.RWMutex)
 	this.disabledProbes = new(list.List)
 
-	// Logs
-	this.logs = make([]*Log,0)
-	this.logsLock = new(sync.RWMutex)
-	this.logsFileLock = new(sync.RWMutex)
-	this.logsOffset = 0
-	this.logsGroupIndex = make(map[string][]uint64)
-	this.logsProbeIndex = make(map[string][]uint64)
-	this.logsWigoIndex  = make(map[string][]uint64)
-
 	return
 }
 
@@ -200,6 +188,38 @@ Options:
 		log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
 		LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.Debug, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
 	}
+
+	// SqlLite
+	LocalWigo.sqlLiteLock = new(sync.Mutex)
+	LocalWigo.sqlLiteConn, err = sql.Open( "sqlite3", LocalWigo.config.Global.Database )
+	if err != nil {
+		log.Fatalf("Fail to init sqllite database %s : %s", LocalWigo.config.Global.Database, err )
+	}
+
+	sqlStmt := `
+    CREATE TABLE IF NOT EXISTS logs (id integer not null primary key, date timestamp, level int, grp text, host text, probe text, message text) ;
+    `
+    _, err = LocalWigo.sqlLiteConn.Exec(sqlStmt)
+    if err != nil {
+        log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+    }
+
+	// Launch cleaning routing
+	go func(){
+		for {
+			ts := time.Now().Unix() - 86400*30
+			sqlStmt := `DELETE FROM logs WHERE date < ?;`
+
+			LocalWigo.sqlLiteLock.Lock()
+			_, err = LocalWigo.sqlLiteConn.Exec(sqlStmt, ts)
+			if err != nil {
+				log.Fatalf("Fail to clean logs in database : %s\n", err)
+			}
+			LocalWigo.sqlLiteLock.Unlock()
+
+			time.Sleep( time.Hour )
+		}
+	}()
 
 	// UP / DOWN
 	go func(){
@@ -450,31 +470,18 @@ func (this *Wigo) Unlock() {
 // Logs
 func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) ( err error ){
 
-	// Lock
-	LocalWigo.logsLock.Lock()
-	defer LocalWigo.logsLock.Unlock()
-
 	// Instanciate log
-	var newLog *Log
-	var isExisting bool = false
+	newLog := NewLog(level, message)
 
 	if existingLog, ok := ressource.(*Log) ; ok {
-		isExisting = true
 		newLog = existingLog
 	} else {
 		newLog = NewLog(level, message)
 	}
 
-	// Append
-	this.logs = append(this.logs, newLog)
-
-	// Compute index
-	index := uint64( len(this.logs) - 1 ) + this.logsOffset
-
 	// Type assertion on ressource
 	switch v := ressource.(type) {
 	case *ProbeResult :
-
 		newLog.Probe = v.Name
 		newLog.Level = NOTICE
 		newLog.Host  = v.GetHost().GetParentWigo().GetHostname()
@@ -491,36 +498,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			newLog.Level = ERROR
 		}
 
-		// Log probe
-		if newLog.Probe != "" {
-			if this.logsProbeIndex[newLog.Probe] == nil {
-				this.logsProbeIndex[newLog.Probe] = make([]uint64, 0)
-			}
-
-			this.logsProbeIndex[newLog.Probe] = append(this.logsProbeIndex[newLog.Probe], index)
-		}
-
-		// Log Wigo
-		if newLog.Host != "" {
-			if this.logsWigoIndex[newLog.Host] == nil {
-				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
-			}
-
-			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
-		}
-
-		// Log group
-		if newLog.Group != "" {
-			if this.logsGroupIndex[newLog.Group] == nil {
-				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
-			}
-
-			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
-		}
-
-
 	case *Wigo :
-
 		newLog.Host  = v.GetHostname()
 		newLog.Group = v.GetLocalHost().Group
 		newLog.Level = NOTICE
@@ -536,132 +514,55 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			newLog.Level = ERROR
 		}
 
-		// Log Wigo
-		if newLog.Host != "" {
-			if this.logsWigoIndex[newLog.Host] == nil {
-				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
-			}
-
-			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
-		}
-
-		// Log group
-		if newLog.Group != "" {
-			if this.logsGroupIndex[newLog.Group] == nil {
-				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
-			}
-
-			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
-		}
-
-	case *Log :
-		if newLog.Host != "" {
-			if this.logsWigoIndex[newLog.Host] == nil {
-				this.logsWigoIndex[newLog.Host] = make([]uint64, 0)
-			}
-			this.logsWigoIndex[newLog.Host] = append(this.logsWigoIndex[newLog.Host], index)
-		}
-		if newLog.Group != "" {
-			if this.logsGroupIndex[newLog.Group] == nil {
-				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
-			}
-			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
-		}
-		if newLog.Probe != "" {
-			if this.logsProbeIndex[newLog.Probe] == nil {
-				this.logsProbeIndex[newLog.Probe] = make([]uint64, 0)
-			}
-			this.logsProbeIndex[newLog.Probe] = append(this.logsProbeIndex[newLog.Probe], index)
-		}
-
 	case string :
-
 		newLog.Group = v
-
-		// Log group
-		if newLog.Group != "" {
-			if this.logsGroupIndex[newLog.Group] == nil {
-				this.logsGroupIndex[newLog.Group] = make([]uint64, 0)
-			}
-
-			this.logsGroupIndex[newLog.Group] = append(this.logsGroupIndex[newLog.Group], index)
-		}
 	}
 
-	if !isExisting {
-		newLog.Persist()
-	}
+	go newLog.Persist()
 
 	return nil
 }
 
 func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*Log {
 
-	// No params => all logs
-	if probe == "" && hostname == "" && group == "" {
-		return this.logs
-	}
+	// Lock
+	LocalWigo.sqlLiteLock.Lock()
+	defer LocalWigo.sqlLiteLock.Unlock()
 
-	// Params
+	// Construct SQL Query
 	logs := make([]*Log,0)
-	counts := make(map[uint64]uint8)
-	var paramsCount uint8 = 0
-
-	// Ugly but avoid map iteration after
-	// TODO : use array in params
-	if probe != "" {
-		paramsCount++
-	}
-	if hostname != "" {
-		paramsCount++
-	}
-	if group != "" {
-		paramsCount++
-	}
-
-	if group != "" {
-		if LocalWigo.logsGroupIndex[group] != nil {
-			for _,v:= range LocalWigo.logsGroupIndex[group] {
-				if _,ok := counts[v] ; !ok {
-					counts[v] = 0
-				}
-
-				counts[v]++
-				if counts[v] == paramsCount {
-					logs = append( logs , this.logs[v - this.logsOffset])
-				}
-			}
-		}
-	}
-
-	if hostname != "" {
-		if LocalWigo.logsWigoIndex[hostname] != nil {
-			for _,v := range LocalWigo.logsWigoIndex[hostname] {
-				if _,ok := counts[v] ; !ok {
-					counts[v] = 0
-				}
-
-				counts[v]++
-				if counts[v] == paramsCount {
-					logs = append( logs , this.logs[v - this.logsOffset])
-				}
-			}
-		}
-	}
+	logsQuery := squirrel.Select("date,level,grp,host,probe,message").From("logs")
 
 	if probe != "" {
-		if LocalWigo.logsProbeIndex[probe] != nil {
-			for _,v := range LocalWigo.logsProbeIndex[probe] {
-				if _,ok := counts[v] ; !ok {
-					counts[v] = 0
-				}
+		logsQuery.Where( squirrel.Eq{ "probe" : probe })
+	}
+	if hostname != "" {
+		logsQuery.Where( squirrel.Eq{ "hostname" : hostname })
+	}
+	if group != "" {
+		logsQuery.Where( squirrel.Eq{ "grp" : group })
+	}
 
-				counts[v]++
-				if counts[v] == paramsCount {
-					logs = append( logs , this.logs[v - this.logsOffset])
-				}
-			}
-		}
+	// Execute
+	rows, err := logsQuery.RunWith( LocalWigo.sqlLiteConn ).Query()
+	if err != nil {
+		log.Printf("Fail to exec query to fetch logs : %s", err)
+		return logs
+	}
+
+	// Instanciate
+	for rows.Next() {
+        l := new(Log)
+		t := new(time.Time)
+
+        if err := rows.Scan(&t,&l.Level,&l.Group,&l.Host,&l.Probe,&l.Message); err != nil {
+			return logs
+        }
+
+		l.Timestamp = t.Unix()
+		l.Date = t.Format(dateLayout)
+
+		logs = append(logs,l)
 	}
 
 	return logs

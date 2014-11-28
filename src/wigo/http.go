@@ -196,19 +196,39 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 	result["hosts"] 	= make([]string,0)
 	result["groups"] 	= make([]string,0)
 
+	// Queries
+	qP := "SELECT DISTINCT(probe) FROM logs"
+	qH := "SELECT DISTINCT(host) FROM logs"
+	qG := "SELECT DISTINCT(grp) FROM logs"
+
 	// Probes
-	for probeName := range LocalWigo.logsProbeIndex {
-		result["probes"] = append(result["probes"], probeName)
+	if rowsProbes, err := LocalWigo.sqlLiteConn.Query(qP) ; err == nil {
+		for rowsProbes.Next() {
+			var p string
+			if err := rowsProbes.Scan(&p); err == nil {
+				result["probes"] = append(result["probes"], p)
+			}
+		}
 	}
 
 	// Hosts
-	for hostName := range LocalWigo.logsWigoIndex {
-		result["hosts"] = append(result["hosts"], hostName)
+	if rowsHosts, err := LocalWigo.sqlLiteConn.Query(qH) ; err == nil {
+		for rowsHosts.Next() {
+			var h string
+			if err := rowsHosts.Scan(&h); err == nil {
+				result["hosts"] = append(result["hosts"], h)
+			}
+		}
 	}
 
 	// Groups
-	for groupName := range LocalWigo.logsGroupIndex {
-		result["groups"] = append(result["groups"], groupName)
+	if rowsGroup, err := LocalWigo.sqlLiteConn.Query(qG) ; err == nil {
+		for rowsGroup.Next() {
+			var g string
+			if err := rowsGroup.Scan(&g); err == nil {
+				result["groups"] = append(result["groups"], g)
+			}
+		}
 	}
 
 	// Return remotes list
