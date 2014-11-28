@@ -540,7 +540,7 @@ func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*L
 		logsQuery.Where( squirrel.Eq{ "hostname" : hostname })
 	}
 	if group != "" {
-		logsQuery.Where( squirrel.Eq{ "group" : group })
+		logsQuery.Where( squirrel.Eq{ "grp" : group })
 	}
 
 	// Execute
