@@ -155,13 +155,16 @@ func SendMail(summary string, message string) {
     recipients := GetLocalWigo().GetConfig().Notifications.EmailRecipients
     server := GetLocalWigo().GetConfig().Notifications.EmailSmtpServer
     from := mail.Address{
-        GetLocalWigo().GetConfig().Notifications.EmailFromName,
-        GetLocalWigo().GetConfig().Notifications.EmailFromAddress,
+        Name    : GetLocalWigo().GetConfig().Notifications.EmailFromName,
+        Address : GetLocalWigo().GetConfig().Notifications.EmailFromAddress,
     }
 
     for i := range recipients {
 
-        to := mail.Address{"", recipients[i]}
+        to := mail.Address{
+            Name    : "",
+            Address : recipients[i],
+        }
 
         go func() {
             // setup a map for the headers
