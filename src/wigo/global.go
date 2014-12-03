@@ -534,17 +534,13 @@ func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*L
 	logsQuery := squirrel.Select("date,level,grp,host,probe,message").From("logs")
 
 	if probe != "" {
-		logsQuery.Where( squirrel.Eq{ "probe" : probe })
+		logsQuery = logsQuery.Where( squirrel.Eq{ "probe" : probe })
 	}
 	if hostname != "" {
-		logsQuery.Where( squirrel.Eq{ "hostname" : hostname })
+		logsQuery = logsQuery.Where( squirrel.Eq{ "host" : hostname })
 	}
 	if group != "" {
-		logsQuery.Where( squirrel.Eq{ "grp" : group })
-	}
-
-	if queryString, _, err := logsQuery.ToSql() ; err == nil {
-		log.Printf("Debug : %s", queryString)
+		logsQuery = logsQuery.Where( squirrel.Eq{ "grp" : group })
 	}
 
 	// Execute
