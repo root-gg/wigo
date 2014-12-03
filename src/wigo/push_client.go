@@ -71,6 +71,7 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error){
 				this.tlsConfig.InsecureSkipVerify = true
 		}
 
+		log.Printf("Push client : connecting to push server @ %s", address)
 		listner, err = tls.Dial("tcp", address, this.tlsConfig)
 		if err != nil {
 			return
