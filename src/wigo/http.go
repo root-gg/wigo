@@ -5,6 +5,8 @@ import (
 	"github.com/codegangsta/martini"
 	"strconv"
 	"fmt"
+	"net/http"
+	"net/url"
 )
 
 func HttpRemotesHandler(params martini.Params) (int, string) {
@@ -116,11 +118,31 @@ func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
 }
 
 
-func HttpLogsHandler(params martini.Params) (int, string) {
+func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
-	probe := params["probe"]
-	group := params["group"]
+	//Parse url
+	u, err := url.Parse(r.URL.String())
+	if err != nil {
+		return 500,fmt.Sprintf("%s",err)
+	}
+	pq, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return 500,fmt.Sprintf("%s",err)
+	}
+
+	// Get params
+	hostname := ""
+	if len(pq["hostname"]) > 0 {
+		hostname = pq["hostname"][0]
+	}
+	probe := ""
+	if len(pq["probe"]) > 0 {
+		probe = pq["probe"][0]
+	}
+	group := ""
+	if len(pq["group"]) > 0 {
+		group = pq["group"][0]
+	}
 
 	// Test hostname if present
 	var remoteWigo *Wigo
