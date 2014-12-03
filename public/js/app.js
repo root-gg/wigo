@@ -366,7 +366,7 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto, $refre
         }
         _logs = _logs.all('logs');
 
-        _logs.getList().then(function(logs) {
+        _logs.getList({ offset:$scope.offset , limit:$scope.limit }).then(function(logs) {
             $scope.logs = logs;
         });
 
@@ -380,6 +380,8 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto, $refre
         $scope.menu.group    = $location.search().group;
         $scope.menu.host     = $location.search().host;
         $scope.menu.probe    = $location.search().probe;
+        $scope.offset        = 0;
+        $scope.limit         = 100;
         $scope.load();
     }
 
@@ -425,6 +427,17 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto, $refre
         $scope.menu.probe = probe;
         $scope.load();
         $scope.updateUrl();
+    }
+
+    $scope.prev = function() {
+        if ( $scope.offset < $scope.limit ) return;
+        $scope.offset -= $scope.limit;
+        $scope.load();
+    }
+
+    $scope.next = function() {
+        $scope.offset += $scope.limit;
+        $scope.load();
     }
 
     $scope.goto = $goto;

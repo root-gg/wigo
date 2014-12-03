@@ -58,6 +58,12 @@
                                 </tr>
                             </tbody>
                         </table>
+                        <div class="row">
+                            <div class="col-md-1 col-md-offset-11">
+                                <button class="btn btn-xs" ng-show="offset >= limit" ng-click="prev()">prev</button>
+                                <button class="btn btn-xs" ng-click="next()">next</button>
+                            </div>
+                        </div>
                     </div>
                     <!-- /.table-responsive -->
                 </div>
