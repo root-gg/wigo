@@ -33,7 +33,7 @@ RETVAL=0
 
 start() {
     echo -n $"Starting $prog: "
-    nohup ${wigo} --config ${conffile} >/dev/null 2>&1 &
+    nohup ${wigo} --config ${conffile} >/dev/null 2>/var/log/wigo.err &
     echo $! > ${pidfile}
     sleep 1
     RET=$(rh_status)
