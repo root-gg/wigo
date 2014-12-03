@@ -22,7 +22,7 @@ fi
 # Create package subdirs
 mkdir -p $PACKAGEROOT
 mkdir -p $PACKAGEROOT/etc/wigo/conf.d
-mkdir -p $PACKAGEROOT/etc/cron.d
+#mkdir -p $PACKAGEROOT/etc/cron.d
 mkdir -p $PACKAGEROOT/etc/logrotate.d
 mkdir -p $PACKAGEROOT/etc/init.d
 mkdir -p $PACKAGEROOT/usr/local/wigo/lib
@@ -90,7 +90,7 @@ cp $REPOROOT/etc/conf.d/*.conf $PACKAGEROOT/usr/local/wigo/etc/conf.d
 cp $REPOROOT/etc/wigo.init $PACKAGEROOT/etc/init.d/wigo
 
 # Copy cron.d
-cp $REPOROOT/etc/wigo.cron $PACKAGEROOT/etc/cron.d/wigo
+# cp $REPOROOT/etc/wigo.cron $PACKAGEROOT/etc/cron.d/wigo
 
 # Copy logrotate
 cp $REPOROOT/etc/wigo.logrotate $PACKAGEROOT/etc/logrotate.d/wigo
