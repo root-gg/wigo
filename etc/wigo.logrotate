@@ -1,4 +1,5 @@
 /var/log/wigo.log
+/var/log/wigo.err
 {
     rotate 7
     daily
