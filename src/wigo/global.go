@@ -523,7 +523,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 	return nil
 }
 
-func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*Log {
+func (this *Wigo) SearchLogs( probe string, hostname string, group string, limit uint64, offset uint64 ) []*Log {
 
 	// Lock
 	LocalWigo.sqlLiteLock.Lock()
@@ -542,6 +542,11 @@ func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*L
 	if group != "" {
 		logsQuery = logsQuery.Where( squirrel.Eq{ "grp" : group })
 	}
+
+	// Index && Offset
+	logsQuery = logsQuery.OrderBy("id DESC")
+	logsQuery = logsQuery.Limit(limit)
+	logsQuery = logsQuery.Offset(offset)
 
 	// Execute
 	rows, err := logsQuery.RunWith( LocalWigo.sqlLiteConn ).Query()

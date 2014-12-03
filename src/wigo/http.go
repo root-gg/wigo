@@ -144,6 +144,20 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 		group = pq["group"][0]
 	}
 
+	// Index && Offset
+	limit := 100
+	if len(pq["limit"]) > 0 {
+		if iInt, err := strconv.Atoi( pq["limit"][0] ) ; err == nil {
+			limit = iInt
+		}
+	}
+	offset := 0
+	if len(pq["offset"]) > 0 {
+		if oInt, err := strconv.Atoi( pq["offset"][0] ) ; err == nil {
+			offset = oInt
+		}
+	}
+
 	// Test hostname if present
 	var remoteWigo *Wigo
 	if hostname != "" {
@@ -164,7 +178,7 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	}
 
 	// Get logs
-	logs := LocalWigo.SearchLogs(probe,hostname,group)
+	logs := LocalWigo.SearchLogs(probe,hostname,group,uint64(limit),uint64(offset))
 
 	// Json
 	json, err := json.Marshal(logs)
