@@ -543,6 +543,10 @@ func (this *Wigo) SearchLogs( probe string, hostname string, group string ) []*L
 		logsQuery.Where( squirrel.Eq{ "grp" : group })
 	}
 
+	if queryString, _, err := logsQuery.ToSql() ; err == nil {
+		log.Printf("Debug : %s", queryString)
+	}
+
 	// Execute
 	rows, err := logsQuery.RunWith( LocalWigo.sqlLiteConn ).Query()
 	if err != nil {
