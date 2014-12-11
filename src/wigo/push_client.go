@@ -71,8 +71,11 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error){
 				this.tlsConfig.InsecureSkipVerify = true
 		}
 
+		dialer := &net.Dialer{
+			Timeout : 5 * time.Second,
+		}
 		log.Printf("Push client : connecting to push server @ %s", address)
-		listner, err = tls.Dial("tcp", address, this.tlsConfig)
+		listner, err = tls.DialWithDialer(dialer, "tcp", address, this.tlsConfig)
 		if err != nil {
 			return
 		}
@@ -96,7 +99,7 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error){
 		// to true on the push server.
 		log.Println("Push client : Register")
 		b := new(bool) // void response
-		err = this.client.Call("PushServer.Register", NewHelloRequest(nil), b)
+		err = this.CallWithTimeout("PushServer.Register", NewHelloRequest(nil), b, time.Duration(5) * time.Second)
 		if ( err != nil ) {
 			return
 		}
@@ -137,7 +140,7 @@ func (this *PushClient) GetServerCertificate() (err error) {
 
 	log.Println("Push client : Downloading server certificate")
 	var cert []byte
-	err = this.client.Call("PushServer.GetServerCertificate", NewHelloRequest(nil), &cert)
+	err = this.CallWithTimeout("PushServer.GetServerCertificate", NewHelloRequest(nil), &cert, time.Duration(5) * time.Second)
 	if err == nil {
 		certFile, err := os.OpenFile(this.config.SslCert, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 		if err == nil {
@@ -162,7 +165,7 @@ func (this *PushClient) SignUuid() (err error) {
 	log.Println("Push client : Ask for uuid signature!")
 	for {
 		// Check if the client has been allowed and ask the server to sign the client's uuid
-		err = this.client.Call("PushServer.GetUuidSignature", NewHelloRequest(nil), &this.uuidSignature)
+		err = this.CallWithTimeout("PushServer.GetUuidSignature", NewHelloRequest(nil), &this.uuidSignature,time.Duration(5) * time.Second)
 		if  err != nil {
 			if err.Error() == "WAITING" {
 				time.Sleep(time.Duration(this.config.PushInterval) * time.Second)
@@ -198,7 +201,7 @@ func (this *PushClient) Hello() (err error) {
 
 	log.Println("Push client : Hello")
 	for {
-		err = this.client.Call("PushServer.Hello", NewHelloRequest(this.uuidSignature), &this.token)
+		err = this.CallWithTimeout("PushServer.Hello", NewHelloRequest(this.uuidSignature), &this.token, time.Duration(5) * time.Second)
 		if ( err != nil ) {
 			if err.Error() == "WAITING" {
 				time.Sleep(time.Duration(this.config.PushInterval) * time.Second)
@@ -221,7 +224,7 @@ func (this *PushClient) Update() (err error) {
 	log.Println("Push client : Update")
 
 	reply := new(bool)
-	err = this.client.Call("PushServer.Update", NewUpdateRequest(LocalWigo,this.token), reply)
+	err = this.CallWithTimeout("PushServer.Update", NewUpdateRequest(LocalWigo,this.token), reply, time.Duration(5) * time.Second)
 	if err != nil {
 		log.Println("Push client : update error : " + err.Error())
 	}
@@ -239,7 +242,7 @@ func (this *PushClient) Goodbye() (err error) {
 	log.Println("Push client : Goodbye")
 
 	reply := new(bool)
-	err = this.client.Call("PushServer.Goodbye", NewUpdateRequest(LocalWigo,this.token), reply)
+	err = this.CallWithTimeout("PushServer.Goodbye", NewUpdateRequest(LocalWigo,this.token), reply, time.Duration(5) * time.Second)
 	if err != nil {
 		log.Println("Push client : goodbye error : " + err.Error())
 	}
@@ -257,4 +260,16 @@ func (this *PushClient) Close() (err error) {
 	this.client = nil
 
 	return
+}
+
+func (this *PushClient) CallWithTimeout( serviceMethod string, args interface{}, reply interface{}, timeout time.Duration) error{
+	c := make(chan error, 1)
+	go func() { c <- this.client.Call(serviceMethod,args,reply) } ()
+	select {
+	case err := <-c:
+		return err
+	case <-time.After(timeout):
+		log.Printf("Push client : rpc %s timed out after %.3fs", serviceMethod, timeout.Seconds())
+		return errors.New("timeout")
+	}
 }
