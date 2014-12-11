@@ -12,15 +12,15 @@ import (
 
 	"container/list"
 	"github.com/bodji/gopentsdb"
-	"github.com/nu7hatch/gouuid"
 	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
 	"github.com/lann/squirrel"
-	"strings"
-	"path/filepath"
-	"io/ioutil"
-	"runtime"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/nu7hatch/gouuid"
+	"io/ioutil"
+	"path/filepath"
+	"runtime"
+	"strings"
 )
 
 // Static global object
@@ -43,15 +43,16 @@ type Wigo struct {
 	logfilehandle  *os.File
 	gopentsdb      *gopentsdb.OpenTsdb
 	disabledProbes *list.List
-    uuidObj        *uuid.UUID
-	sqlLiteConn		*sql.DB
-	sqlLiteLock		*sync.Mutex
+	uuidObj        *uuid.UUID
+	sqlLiteConn    *sql.DB
+	sqlLiteLock    *sync.Mutex
 
-	push 	        *PushServer
-	LastUpdate		int64
+	push       *PushServer
+	LastUpdate int64
 }
 
 var Version = "##VERSION##"
+
 func NewWigo(config *Config) (this *Wigo, err error) {
 	this = new(Wigo)
 
@@ -64,7 +65,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 
 	// Load uuid
 	if _, err = os.Stat(this.config.Global.UuidFile); err == nil {
-		if uuidBytes, err := ioutil.ReadFile(this.config.Global.UuidFile) ; err == nil {
+		if uuidBytes, err := ioutil.ReadFile(this.config.Global.UuidFile); err == nil {
 			this.Uuid = string(uuidBytes)
 		} else {
 			log.Fatalf("Unable to read uuid file : %s", err)
@@ -90,7 +91,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	}
 
 	// Get hostname
-	if ( this.config.Global.Hostname == "" ) {
+	if this.config.Global.Hostname == "" {
 		// Get hostname
 		localHostname, err := os.Hostname()
 		if err == nil {
@@ -102,7 +103,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	}
 
 	// Get groupname
-	if ( this.config.Global.Group == "" ) {
+	if this.config.Global.Group == "" {
 		this.config.Global.Group = "local"
 	}
 
@@ -130,7 +131,7 @@ func InitWigo() (err error) {
 			os.Remove(path)
 		}
 		return
-	};
+	}
 
 	filepath.Walk("/tmp", removeFunc)
 
@@ -191,21 +192,21 @@ Options:
 
 	// SqlLite
 	LocalWigo.sqlLiteLock = new(sync.Mutex)
-	LocalWigo.sqlLiteConn, err = sql.Open( "sqlite3", LocalWigo.config.Global.Database )
+	LocalWigo.sqlLiteConn, err = sql.Open("sqlite3", LocalWigo.config.Global.Database)
 	if err != nil {
-		log.Fatalf("Fail to init sqllite database %s : %s", LocalWigo.config.Global.Database, err )
+		log.Fatalf("Fail to init sqllite database %s : %s", LocalWigo.config.Global.Database, err)
 	}
 
 	sqlStmt := `
     CREATE TABLE IF NOT EXISTS logs (id integer not null primary key, date timestamp, level int, grp text, host text, probe text, message text) ;
     `
-    _, err = LocalWigo.sqlLiteConn.Exec(sqlStmt)
-    if err != nil {
-        log.Fatalf("Fail to create table in sqlite database : %s\n", err)
-    }
+	_, err = LocalWigo.sqlLiteConn.Exec(sqlStmt)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
 
 	// Launch cleaning routing
-	go func(){
+	go func() {
 		for {
 			ts := time.Now().Unix() - 86400*30
 			sqlStmt := `DELETE FROM logs WHERE date < ?;`
@@ -217,21 +218,21 @@ Options:
 			}
 			LocalWigo.sqlLiteLock.Unlock()
 
-			time.Sleep( time.Hour )
+			time.Sleep(time.Hour)
 		}
 	}()
 
 	// UP / DOWN
-	go func(){
+	go func() {
 		for {
 			now := time.Now().Unix()
 			for _, host := range LocalWigo.RemoteWigos {
 				if host.LastUpdate < now-int64(LocalWigo.GetConfig().Global.AliveTimeout) {
-					if ( host.IsAlive ) {
+					if host.IsAlive {
 						host.Down()
 					}
 				} else {
-					if ( !host.IsAlive ) {
+					if !host.IsAlive {
 						host.Up()
 					}
 				}
@@ -269,40 +270,37 @@ func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 	this.LocalHost.SetParentWigo(this)
 
 	// For backward compatibility
-	if ( this.Hostname == "" ) {
-		this.Hostname = this.LocalHost.Name;
+	if this.Hostname == "" {
+		this.Hostname = this.LocalHost.Name
 	}
 
 	return
 }
 
-
-
 // Status setters
-func (this *Wigo) Down(){
+func (this *Wigo) Down() {
 	this.GlobalStatus = 499
 	this.LocalHost.Status = 499
 	this.GlobalMessage = "DOWN"
 	this.IsAlive = false
 
 	// Send notification
-	SendNotification( NewNotificationFromMessage( fmt.Sprintf("Host %s DOWN", this.Hostname) ) )
+	SendNotification(NewNotificationFromMessage(fmt.Sprintf("Host %s DOWN", this.Hostname)))
 
 	// Add a log
 	LocalWigo.AddLog(this, CRITICAL, fmt.Sprintf("Wigo %s DOWN", this.Hostname))
 }
 
-func (this *Wigo) Up(){
+func (this *Wigo) Up() {
 	this.GlobalMessage = "UP"
 	this.IsAlive = true
 
 	// Send notification
-	SendNotification( NewNotificationFromMessage( fmt.Sprintf("Host %s UP", this.Hostname) ) )
+	SendNotification(NewNotificationFromMessage(fmt.Sprintf("Host %s UP", this.Hostname)))
 
 	// Add a log
 	LocalWigo.AddLog(this, INFO, fmt.Sprintf("Wigo %s UP", this.Hostname))
 }
-
 
 // Recompute statuses
 func (this *Wigo) RecomputeGlobalStatus() {
@@ -468,12 +466,12 @@ func (this *Wigo) Unlock() {
 }
 
 // Logs
-func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) ( err error ){
+func (this *Wigo) AddLog(ressource interface{}, level uint8, message string) (err error) {
 
 	// Instanciate log
 	newLog := NewLog(level, message)
 
-	if existingLog, ok := ressource.(*Log) ; ok {
+	if existingLog, ok := ressource.(*Log); ok {
 		newLog = existingLog
 	} else {
 		newLog = NewLog(level, message)
@@ -481,10 +479,10 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 
 	// Type assertion on ressource
 	switch v := ressource.(type) {
-	case *ProbeResult :
+	case *ProbeResult:
 		newLog.Probe = v.Name
 		newLog.Level = NOTICE
-		newLog.Host  = v.GetHost().GetParentWigo().GetHostname()
+		newLog.Host = v.GetHost().GetParentWigo().GetHostname()
 		newLog.Group = v.GetHost().Group
 
 		// Level
@@ -498,8 +496,8 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			newLog.Level = ERROR
 		}
 
-	case *Wigo :
-		newLog.Host  = v.GetHostname()
+	case *Wigo:
+		newLog.Host = v.GetHostname()
 		newLog.Group = v.GetLocalHost().Group
 		newLog.Level = NOTICE
 
@@ -514,7 +512,7 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 			newLog.Level = ERROR
 		}
 
-	case string :
+	case string:
 		newLog.Group = v
 	}
 
@@ -523,24 +521,24 @@ func (this *Wigo) AddLog( ressource interface {}, level uint8, message string ) 
 	return nil
 }
 
-func (this *Wigo) SearchLogs( probe string, hostname string, group string, limit uint64, offset uint64 ) []*Log {
+func (this *Wigo) SearchLogs(probe string, hostname string, group string, limit uint64, offset uint64) []*Log {
 
 	// Lock
 	LocalWigo.sqlLiteLock.Lock()
 	defer LocalWigo.sqlLiteLock.Unlock()
 
 	// Construct SQL Query
-	logs := make([]*Log,0)
+	logs := make([]*Log, 0)
 	logsQuery := squirrel.Select("date,level,grp,host,probe,message").From("logs")
 
 	if probe != "" {
-		logsQuery = logsQuery.Where( squirrel.Eq{ "probe" : probe })
+		logsQuery = logsQuery.Where(squirrel.Eq{"probe": probe})
 	}
 	if hostname != "" {
-		logsQuery = logsQuery.Where( squirrel.Eq{ "host" : hostname })
+		logsQuery = logsQuery.Where(squirrel.Eq{"host": hostname})
 	}
 	if group != "" {
-		logsQuery = logsQuery.Where( squirrel.Eq{ "grp" : group })
+		logsQuery = logsQuery.Where(squirrel.Eq{"grp": group})
 	}
 
 	// Index && Offset
@@ -549,7 +547,7 @@ func (this *Wigo) SearchLogs( probe string, hostname string, group string, limit
 	logsQuery = logsQuery.Offset(offset)
 
 	// Execute
-	rows, err := logsQuery.RunWith( LocalWigo.sqlLiteConn ).Query()
+	rows, err := logsQuery.RunWith(LocalWigo.sqlLiteConn).Query()
 	if err != nil {
 		log.Printf("Fail to exec query to fetch logs : %s", err)
 		return logs
@@ -557,22 +555,21 @@ func (this *Wigo) SearchLogs( probe string, hostname string, group string, limit
 
 	// Instanciate
 	for rows.Next() {
-        l := new(Log)
+		l := new(Log)
 		t := new(time.Time)
 
-        if err := rows.Scan(&t,&l.Level,&l.Group,&l.Host,&l.Probe,&l.Message); err != nil {
+		if err := rows.Scan(&t, &l.Level, &l.Group, &l.Host, &l.Probe, &l.Message); err != nil {
 			return logs
-        }
+		}
 
 		l.Timestamp = t.Unix()
 		l.Date = t.Format(dateLayout)
 
-		logs = append(logs,l)
+		logs = append(logs, l)
 	}
 
 	return logs
 }
-
 
 // Serialize
 func (this *Wigo) ToJsonString() (string, error) {
@@ -737,8 +734,8 @@ func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 	return foundWigo
 }
 
-func (this *Wigo) FindRemoteWigoByUuid(uuid string) ( *Wigo, bool ) {
-	if wigo, ok := LocalWigo.RemoteWigos[uuid] ; ok {
+func (this *Wigo) FindRemoteWigoByUuid(uuid string) (*Wigo, bool) {
+	if wigo, ok := LocalWigo.RemoteWigos[uuid]; ok {
 		return wigo, true
 	} else {
 		for _, w := range this.RemoteWigos {
@@ -782,18 +779,17 @@ func (this *Wigo) EraseRemoteWigos(depth int) *Wigo {
 
 	if depth == 0 {
 		this.RemoteWigos = make(map[string]*Wigo)
-        this.RecomputeGlobalStatus()
+		this.RecomputeGlobalStatus()
 		return this
 	} else {
-	    for remoteWigo := range this.RemoteWigos {
-		    this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth)
-            this.RemoteWigos[remoteWigo].RecomputeGlobalStatus()
-	    }
-    }
+		for remoteWigo := range this.RemoteWigos {
+			this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth)
+			this.RemoteWigos[remoteWigo].RecomputeGlobalStatus()
+		}
+	}
 
 	return this
 }
-
 
 // Groups
 
@@ -807,14 +803,14 @@ func (this *Wigo) ListGroupsNames() []string {
 	for wigoName := range this.RemoteWigos {
 		group := this.RemoteWigos[wigoName].GetLocalHost().Group
 
-		if !IsStringInArray( group, list ) && group != "" {
+		if !IsStringInArray(group, list) && group != "" {
 			list = append(list, this.RemoteWigos[wigoName].GetLocalHost().Group)
 		}
 
 		remoteList := this.RemoteWigos[wigoName].ListGroupsNames()
 
 		for i := range remoteList {
-			if !IsStringInArray( remoteList[i], list ) {
+			if !IsStringInArray(remoteList[i], list) {
 				list = append(list, remoteList[i])
 			}
 		}
@@ -823,19 +819,19 @@ func (this *Wigo) ListGroupsNames() []string {
 	return list
 }
 
-func (this *Wigo) GroupSummary( groupName string ) ( hs []*HostSummary, status int ){
-	hs = make([]*HostSummary,0)
+func (this *Wigo) GroupSummary(groupName string) (hs []*HostSummary, status int) {
+	hs = make([]*HostSummary, 0)
 
 	status = 0
 
 	if this.GetLocalHost().Group == groupName {
-		summary :=  this.GetLocalHost().GetSummary()
-		summary.Name	= this.GetHostname()
-		summary.Status 	= this.GlobalStatus
+		summary := this.GetLocalHost().GetSummary()
+		summary.Name = this.GetHostname()
+		summary.Status = this.GlobalStatus
 		summary.Message = this.GlobalMessage
 		summary.IsAlive = this.IsAlive
 
-		hs = append( hs, summary )
+		hs = append(hs, summary)
 
 		if this.GetLocalHost().Status > status {
 			status = this.GetLocalHost().Status

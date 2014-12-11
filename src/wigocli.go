@@ -9,9 +9,9 @@ import (
 	"wigo"
 )
 
-var command string 		= ""
-var probe string 		= ""
-var wigoHost string 	= "localhost"
+var command string = ""
+var probe string = ""
+var wigoHost string = "localhost"
 var showOnlyErrors bool = true
 
 func main() {
@@ -76,16 +76,16 @@ Options
 	if probe != "" {
 		if wigoHost == "localhost" {
 			// Find probe
-			if p, ok := wigoObj.GetLocalHost().Probes[probe] ; ok {
+			if p, ok := wigoObj.GetLocalHost().Probes[probe]; ok {
 				fmt.Println(p.Summary())
 			} else {
 				fmt.Printf("Probe %s not found in local wigo\n", probe)
 			}
 		} else {
 			// Find wigo
-			if w, ok := wigoObj.RemoteWigos[wigoHost] ; ok {
+			if w, ok := wigoObj.RemoteWigos[wigoHost]; ok {
 				// Find probe
-				if p, ok := w.GetLocalHost().Probes[probe] ; ok {
+				if p, ok := w.GetLocalHost().Probes[probe]; ok {
 					fmt.Println(p.Summary())
 				} else {
 					fmt.Printf("Probe %s not found on remote wigo %s\n", probe, wigoHost)
@@ -96,7 +96,7 @@ Options
 		}
 	} else if wigoHost != "" && wigoHost != "localhost" {
 		// Find remote
-		if w, ok := wigoObj.RemoteWigos[wigoHost] ; ok {
+		if w, ok := wigoObj.RemoteWigos[wigoHost]; ok {
 			fmt.Printf(w.GenerateSummary(showOnlyErrors))
 		} else {
 			fmt.Printf("Remote wigo %s not found\n", wigoHost)

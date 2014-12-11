@@ -3,11 +3,11 @@ package wigo
 import (
 	"encoding/json"
 	"github.com/bodji/gopentsdb"
+	"github.com/fatih/color"
 	"log"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
-	"github.com/fatih/color"
 )
 
 const dateLayout = "2006-01-02T15:04:05.999999 (MST)"
@@ -121,7 +121,6 @@ func (this *ProbeResult) GraphMetrics() {
 	return
 }
 
-
 func (this *ProbeResult) Summary() string {
 
 	red := color.New(color.FgRed).SprintfFunc()
@@ -134,15 +133,15 @@ func (this *ProbeResult) Summary() string {
 	// Print status
 	summary += " Status 	: "
 	if this.Status >= 300 {
-		summary += red(strconv.Itoa(this.Status))+"\n"
+		summary += red(strconv.Itoa(this.Status)) + "\n"
 	} else if this.Status >= 200 {
-		summary += yellow(strconv.Itoa(this.Status))+"\n"
+		summary += yellow(strconv.Itoa(this.Status)) + "\n"
 	} else {
-		summary += green(strconv.Itoa(this.Status))+"\n"
+		summary += green(strconv.Itoa(this.Status)) + "\n"
 	}
 
 	// Message
-	summary += " Message 	: " + this.Message 	+ "\n"
+	summary += " Message 	: " + this.Message + "\n"
 	summary += " Last execution	: " + this.ProbeDate + "\n\n"
 
 	// Detail

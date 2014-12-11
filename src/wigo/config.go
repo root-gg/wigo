@@ -3,6 +3,7 @@ package wigo
 import (
 	"github.com/BurntSushi/toml"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -32,7 +33,7 @@ type Config struct {
 	OpenTSDB *OpenTSDBConfig
 }
 
-func NewConfig( configFile string ) (this *Config) {
+func NewConfig(configFile string) (this *Config) {
 
 	// General params
 	this = new(Config)
@@ -47,6 +48,7 @@ func NewConfig( configFile string ) (this *Config) {
 	this.Global.Hostname = ""
 	this.Global.Group = "none"
 	this.Global.ProbesDirectory = "/usr/local/wigo/probes"
+	this.Global.ProbesConfigDirectory = "/etc/wigo/conf.d"
 	this.Global.LogFile = "/var/log/wigo.log"
 	this.Global.UuidFile = "/var/lib/wigo/uuid"
 	this.Global.Database = "/var/lib/wigo/wigo.db"
@@ -60,7 +62,7 @@ func NewConfig( configFile string ) (this *Config) {
 	this.Http.Port = 4000
 	this.Http.SslEnabled = false
 	this.Http.SslCert = "/etc/wigo/ssl/wigo.crt"
-	this.Http.SslKey  = "/etc/wigo/ssl/wigo.key"
+	this.Http.SslKey = "/etc/wigo/ssl/wigo.key"
 	this.Http.Login = ""
 	this.Http.Password = ""
 	this.Http.Gzip = true
@@ -71,7 +73,7 @@ func NewConfig( configFile string ) (this *Config) {
 	this.PushServer.Port = 4001
 	this.PushServer.SslEnabled = true
 	this.PushServer.SslCert = "/etc/wigo/ssl/wigo.crt"
-	this.PushServer.SslKey  = "/etc/wigo/ssl/wigo.key"
+	this.PushServer.SslKey = "/etc/wigo/ssl/wigo.key"
 	this.PushServer.AllowedClientsFile = "/var/lib/wigo/allowed"
 	this.PushServer.MaxWaitingClients = 100
 	this.PushServer.AutoAcceptClients = false
@@ -84,7 +86,7 @@ func NewConfig( configFile string ) (this *Config) {
 	this.PushClient.SslCert = "/etc/wigo/ssl/wigo.crt"
 	this.PushClient.UuidSig = "/etc/wigo/ssl/uuid.sig"
 	this.PushClient.PushInterval = 15
-	
+
 	// Remote Wigos
 	this.RemoteWigos.List = nil
 	this.RemoteWigos.CheckInterval = 10
@@ -152,54 +154,57 @@ func NewConfig( configFile string ) (this *Config) {
 	this.RemoteWigos.AdvancedList = this.AdvancedList
 	this.AdvancedList = nil
 
+	os.Setenv("WIGO_PROBE_CONFIG_ROOT", this.Global.ProbesConfigDirectory)
+
 	return
 }
 
 type GeneralConfig struct {
-	Hostname		string
-	ListenPort      int
-	ListenAddress   string
-	ProbesDirectory string
-	UuidFile		string
-	LogFile         string
-	Debug			bool
-	ConfigFile      string
-	Group           string
-	Database		string
-	AliveTimeout	int
+	Hostname              string
+	ListenPort            int
+	ListenAddress         string
+	ProbesDirectory       string
+	ProbesConfigDirectory string
+	UuidFile              string
+	LogFile               string
+	Debug                 bool
+	ConfigFile            string
+	Group                 string
+	Database              string
+	AliveTimeout          int
 }
 
 type HttpConfig struct {
-	Enabled      bool
-	Address      string
-	Port         int
-	SslEnabled	 bool
-	SslCert		 string
-	SslKey	     string
-	Login		 string
-	Password	 string
-	Gzip	     bool
+	Enabled    bool
+	Address    string
+	Port       int
+	SslEnabled bool
+	SslCert    string
+	SslKey     string
+	Login      string
+	Password   string
+	Gzip       bool
 }
 
 type PushServerConfig struct {
-	Enabled      		bool
-	Address      		string
-	Port         		int
-	SslEnabled	 		bool
-	SslCert		 		string
-	SslKey	     		string
-	AllowedClientsFile  string
-	AutoAcceptClients	bool
-	MaxWaitingClients 	int
+	Enabled            bool
+	Address            string
+	Port               int
+	SslEnabled         bool
+	SslCert            string
+	SslKey             string
+	AllowedClientsFile string
+	AutoAcceptClients  bool
+	MaxWaitingClients  int
 }
 
 type PushClientConfig struct {
 	Enabled      bool
 	Address      string
 	Port         int
-	SslEnabled	 bool
-	SslCert		 string
-	UuidSig		 string
+	SslEnabled   bool
+	SslCert      string
+	UuidSig      string
 	PushInterval int
 }
 
@@ -207,9 +212,9 @@ type RemoteWigoConfig struct {
 	CheckInterval int
 	CheckTries    int
 
-	SslEnabled		  bool
-	Login			  string
-	Password		  string
+	SslEnabled bool
+	Login      string
+	Password   string
 
 	List         []string
 	AdvancedList []AdvancedRemoteWigoConfig
@@ -217,13 +222,13 @@ type RemoteWigoConfig struct {
 
 type NotificationConfig struct {
 	// Noticications
-	MinLevelToSend 	int
+	MinLevelToSend int
 
-	OnHostChange  	bool
-	OnProbeChange 	bool
+	OnHostChange  bool
+	OnProbeChange bool
 
-	HttpEnabled 	int
-	HttpUrl     	string
+	HttpEnabled int
+	HttpUrl     string
 
 	EmailEnabled     int
 	EmailSmtpServer  string
@@ -238,15 +243,15 @@ type AdvancedRemoteWigoConfig struct {
 	CheckRemotesDepth int
 	CheckInterval     int
 	CheckTries        int
-	SslEnabled		  bool
-	Login			  string
-	Password		  string
+	SslEnabled        bool
+	Login             string
+	Password          string
 }
 
 type OpenTSDBConfig struct {
 	Enabled      bool
 	Address      string
 	Port         int
-	SslEnabled	 bool
+	SslEnabled   bool
 	MetricPrefix string
 }

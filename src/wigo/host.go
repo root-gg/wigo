@@ -11,11 +11,11 @@ type Host struct {
 }
 
 type HostSummary struct {
-	Name				string
-	Message				string
-	Status				int
-	IsAlive				bool
-	Probes				[]map[string]interface {}
+	Name    string
+	Message string
+	Status  int
+	IsAlive bool
+	Probes  []map[string]interface{}
 }
 
 func NewHost() (this *Host) {
@@ -98,21 +98,20 @@ func (this *Host) SetParentWigo(w *Wigo) {
 	this.parentWigo = w
 }
 
-
-func (this *Host) GetSummary()( hs *HostSummary ){
-	hs 					= new(HostSummary)
-	hs.Name 			= this.Name
-	hs.Status 			= this.Status
-	hs.Probes 			= make([]map[string] interface {},0)
+func (this *Host) GetSummary() (hs *HostSummary) {
+	hs = new(HostSummary)
+	hs.Name = this.Name
+	hs.Status = this.Status
+	hs.Probes = make([]map[string]interface{}, 0)
 
 	for probeName := range this.Probes {
 
-		probe := make(map[string] interface {})
+		probe := make(map[string]interface{})
 		probe["Name"] = this.Probes[probeName].Name
 		probe["Status"] = this.Probes[probeName].Status
 		probe["Message"] = this.Probes[probeName].Message
 
-		hs.Probes = append( hs.Probes, probe )
+		hs.Probes = append(hs.Probes, probe)
 	}
 
 	return hs

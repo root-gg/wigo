@@ -2,11 +2,11 @@ package wigo
 
 import (
 	"encoding/json"
-	"github.com/codegangsta/martini"
-	"strconv"
 	"fmt"
+	"github.com/codegangsta/martini"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 func HttpRemotesHandler(params martini.Params) (int, string) {
@@ -117,17 +117,16 @@ func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
 	return 200, strconv.Itoa(remoteWigo.LocalHost.Probes[probe].Status)
 }
 
-
 func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 
 	//Parse url
 	u, err := url.Parse(r.URL.String())
 	if err != nil {
-		return 500,fmt.Sprintf("%s",err)
+		return 500, fmt.Sprintf("%s", err)
 	}
 	pq, err := url.ParseQuery(u.RawQuery)
 	if err != nil {
-		return 500,fmt.Sprintf("%s",err)
+		return 500, fmt.Sprintf("%s", err)
 	}
 
 	// Get params
@@ -147,13 +146,13 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	// Index && Offset
 	limit := 100
 	if len(pq["limit"]) > 0 {
-		if iInt, err := strconv.Atoi( pq["limit"][0] ) ; err == nil {
+		if iInt, err := strconv.Atoi(pq["limit"][0]); err == nil {
 			limit = iInt
 		}
 	}
 	offset := 0
 	if len(pq["offset"]) > 0 {
-		if oInt, err := strconv.Atoi( pq["offset"][0] ) ; err == nil {
+		if oInt, err := strconv.Atoi(pq["offset"][0]); err == nil {
 			offset = oInt
 		}
 	}
@@ -163,7 +162,7 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	if hostname != "" {
 		remoteWigo = GetLocalWigo().FindRemoteWigoByHostname(hostname)
 		if remoteWigo == nil {
-			return 404, "Remote wigo "+hostname+" not found"
+			return 404, "Remote wigo " + hostname + " not found"
 		}
 	}
 
@@ -178,7 +177,7 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	}
 
 	// Get logs
-	logs := LocalWigo.SearchLogs(probe,hostname,group,uint64(limit),uint64(offset))
+	logs := LocalWigo.SearchLogs(probe, hostname, group, uint64(limit), uint64(offset))
 
 	// Json
 	json, err := json.Marshal(logs)
@@ -189,12 +188,11 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	return 200, string(json)
 }
 
-
 func HttpGroupsHandler(params martini.Params) (int, string) {
 
 	group := params["group"]
 
-	result := make(map[string] interface {})
+	result := make(map[string]interface{})
 	result["Name"] = group
 
 	if group != "" {
@@ -202,11 +200,11 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 		if gs != nil {
 
 			result["Status"] = status
-			result["Hosts"]  = gs
+			result["Hosts"] = gs
 
 			json, err := json.Marshal(result)
 			if err != nil {
-				return 500, fmt.Sprintf("Fail to encode summary : %s" ,err)
+				return 500, fmt.Sprintf("Fail to encode summary : %s", err)
 			} else {
 				return 200, string(json)
 			}
@@ -228,9 +226,9 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 
 	result := make(map[string][]string)
-	result["probes"] 	= make([]string,0)
-	result["hosts"] 	= make([]string,0)
-	result["groups"] 	= make([]string,0)
+	result["probes"] = make([]string, 0)
+	result["hosts"] = make([]string, 0)
+	result["groups"] = make([]string, 0)
 
 	// Queries
 	qP := "SELECT DISTINCT(probe) FROM logs"
@@ -238,7 +236,7 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 	qG := "SELECT DISTINCT(grp) FROM logs"
 
 	// Probes
-	if rowsProbes, err := LocalWigo.sqlLiteConn.Query(qP) ; err == nil {
+	if rowsProbes, err := LocalWigo.sqlLiteConn.Query(qP); err == nil {
 		for rowsProbes.Next() {
 			var p string
 			if err := rowsProbes.Scan(&p); err == nil {
@@ -248,7 +246,7 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 	}
 
 	// Hosts
-	if rowsHosts, err := LocalWigo.sqlLiteConn.Query(qH) ; err == nil {
+	if rowsHosts, err := LocalWigo.sqlLiteConn.Query(qH); err == nil {
 		for rowsHosts.Next() {
 			var h string
 			if err := rowsHosts.Scan(&h); err == nil {
@@ -258,7 +256,7 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 	}
 
 	// Groups
-	if rowsGroup, err := LocalWigo.sqlLiteConn.Query(qG) ; err == nil {
+	if rowsGroup, err := LocalWigo.sqlLiteConn.Query(qG); err == nil {
 		for rowsGroup.Next() {
 			var g string
 			if err := rowsGroup.Scan(&g); err == nil {

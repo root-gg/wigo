@@ -1,43 +1,43 @@
 package wigo
 
 import (
-	"log"
 	"errors"
+	"log"
 
-	"crypto/x509"
+	"bufio"
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
-	"crypto/rsa"
-	"crypto"
 	"os"
-	"bufio"
 	"regexp"
 
-	"github.com/nu7hatch/gouuid"
 	"fmt"
+	"github.com/nu7hatch/gouuid"
 )
 
 // The Authority is responsible to handle the security
 // of the push system. The server certificate is used to
 // allow the clients to verify the server identity and
-// the private key is used to sign the clients uuid 
+// the private key is used to sign the clients uuid
 // to allow the server to verify the clients identities.
 //
 // Allowed client are stored in an allowed list persisted
 // on the file system, so one can easily revoke clients.
 type Authority struct {
-	key				[]byte
-	privateKey  	*rsa.PrivateKey
-	
-	cert			[]byte
-	certificate     *x509.Certificate
+	key        []byte
+	privateKey *rsa.PrivateKey
 
-	config			*PushServerConfig
+	cert        []byte
+	certificate *x509.Certificate
 
-	Waiting  	 	map[string]string
-	Allowed			map[string]string
-	Tokens  		map[string]string
+	config *PushServerConfig
+
+	Waiting map[string]string
+	Allowed map[string]string
+	Tokens  map[string]string
 }
 
 func NewAuthority(config *PushServerConfig) (this *Authority) {
@@ -46,9 +46,9 @@ func NewAuthority(config *PushServerConfig) (this *Authority) {
 
 	// Load CA certificate
 	var err error
-    if this.cert, err = ioutil.ReadFile(this.config.SslCert) ; err == nil {
-		if block, _ := pem.Decode(this.cert) ; block != nil {
-			if this.certificate, err = x509.ParseCertificate(block.Bytes) ; err != nil {
+	if this.cert, err = ioutil.ReadFile(this.config.SslCert); err == nil {
+		if block, _ := pem.Decode(this.cert); block != nil {
+			if this.certificate, err = x509.ParseCertificate(block.Bytes); err != nil {
 				log.Fatal("Authority : Unable to parse x509 certificate")
 			}
 		} else {
@@ -59,9 +59,9 @@ func NewAuthority(config *PushServerConfig) (this *Authority) {
 	}
 
 	// Load CA private key
-	if this.key, err = ioutil.ReadFile(this.config.SslKey) ; err == nil {
-		if block, _ := pem.Decode(this.key) ; block != nil {
-			if this.privateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes) ; err != nil {
+	if this.key, err = ioutil.ReadFile(this.config.SslKey); err == nil {
+		if block, _ := pem.Decode(this.key); block != nil {
+			if this.privateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
 				err = errors.New("Authority : Unable to read decode x509 private key")
 				log.Println(err)
 			}
@@ -74,34 +74,34 @@ func NewAuthority(config *PushServerConfig) (this *Authority) {
 		log.Println(err)
 	}
 
-	this.Waiting 	= make(map[string]string)
-	this.Allowed	= make(map[string]string)
-	this.Tokens 	= make(map[string]string)
+	this.Waiting = make(map[string]string)
+	this.Allowed = make(map[string]string)
+	this.Tokens = make(map[string]string)
 	this.LoadAllowedList()
 
 	return
 }
 
 // Check is a given uuid is in the waiting list
-func ( this *Authority) IsWaiting(uuid string) bool {
+func (this *Authority) IsWaiting(uuid string) bool {
 	_, ok := this.Waiting[uuid]
 	return ok
 }
 
 // Check is a given uuid is in the allowed list
-func ( this *Authority) IsAllowed(uuid string) bool {
+func (this *Authority) IsAllowed(uuid string) bool {
 	_, ok := this.Allowed[uuid]
 	return ok
 }
 
 // Return the server certificate
-func ( this *Authority) GetServerCertificate() []byte {
+func (this *Authority) GetServerCertificate() []byte {
 	return this.cert
 }
 
 // Add a client to the waiting list
-func ( this *Authority ) AddClientToWaitingList(uuid string,hostname string ) (err error){
-	if _, ok := this.Waiting[uuid] ; ! ok {
+func (this *Authority) AddClientToWaitingList(uuid string, hostname string) (err error) {
+	if _, ok := this.Waiting[uuid]; !ok {
 		if len(this.Waiting) < this.config.MaxWaitingClients {
 			this.Waiting[uuid] = hostname
 			message := fmt.Sprintf("New client %s", hostname)
@@ -119,7 +119,7 @@ func ( this *Authority ) AddClientToWaitingList(uuid string,hostname string ) (e
 // Load the allowed clients list from the file system
 // The file format is one "uuid hostname" per line,
 // every non matching line will be ignored
-func ( this *Authority ) LoadAllowedList() (err error) {
+func (this *Authority) LoadAllowedList() (err error) {
 	if _, err = os.Stat(this.config.AllowedClientsFile); err == nil {
 		file, err := os.Open(this.config.AllowedClientsFile)
 		if err != nil {
@@ -154,7 +154,7 @@ func ( this *Authority ) LoadAllowedList() (err error) {
 		}
 
 		if err := scanner.Err(); err != nil {
-			log.Fatalf("Authority : Error while loading allowed clients file %s",err)
+			log.Fatalf("Authority : Error while loading allowed clients file %s", err)
 		}
 	}
 	return
@@ -163,12 +163,12 @@ func ( this *Authority ) LoadAllowedList() (err error) {
 // Persist the allowed clients list on the file system
 // The file format is one "uuid hostname" per line,
 // every non matching line will be ignored
-func ( this *Authority ) SaveAllowedList() (err error) {
+func (this *Authority) SaveAllowedList() (err error) {
 	allowedClientsFile, err := os.OpenFile(this.config.AllowedClientsFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err == nil {
 		defer allowedClientsFile.Close()
 		for uuid, hostname := range this.Allowed {
-			allowedClientsFile.Write([]byte( uuid + " " + hostname + "\n" ))
+			allowedClientsFile.Write([]byte(uuid + " " + hostname + "\n"))
 		}
 	} else {
 		log.Fatalf("Authority : Failed to create uuid file : %s", err)
@@ -178,17 +178,17 @@ func ( this *Authority ) SaveAllowedList() (err error) {
 
 // Add a client to the allowed list. The client have to be
 // in the waiting list. // TODO remove this limitation
-func ( this *Authority ) AllowClient(uuid string) (err error){
-	if hostname, ok := this.Waiting[uuid] ; ok {
-			delete(this.Waiting,uuid)
-			this.Allowed[uuid] = hostname
-			if err := this.SaveAllowedList() ; err != nil {
-				// Fatal ?
-				log.Println(err)
-			}
-			message :=  hostname + " added to allowed list"
-			log.Printf("Authority : %s", message)
-			LocalWigo.AddLog(LocalWigo, INFO, message)
+func (this *Authority) AllowClient(uuid string) (err error) {
+	if hostname, ok := this.Waiting[uuid]; ok {
+		delete(this.Waiting, uuid)
+		this.Allowed[uuid] = hostname
+		if err := this.SaveAllowedList(); err != nil {
+			// Fatal ?
+			log.Println(err)
+		}
+		message := hostname + " added to allowed list"
+		log.Printf("Authority : %s", message)
+		LocalWigo.AddLog(LocalWigo, INFO, message)
 	} else {
 		err = errors.New("Authority : Invalid uuid " + uuid)
 	}
@@ -198,36 +198,36 @@ func ( this *Authority ) AllowClient(uuid string) (err error){
 // Remove a client from the allowed list, revoke tokens if any and
 // remove client data.
 // TODO The dedup data in gopentsdb are leaked.
-func ( this *Authority ) RevokeClient(uuid string) (err error){
-	if hostname, ok := this.Waiting[uuid] ; ok {
-		delete(this.Waiting,uuid)
+func (this *Authority) RevokeClient(uuid string) (err error) {
+	if hostname, ok := this.Waiting[uuid]; ok {
+		delete(this.Waiting, uuid)
 		log.Println("Authority : " + hostname + " removed from waiting list")
 	}
-	if hostname, ok := this.Allowed[uuid] ; ok {
-		delete(this.Allowed,uuid)
-		if err := this.SaveAllowedList() ; err != nil {
+	if hostname, ok := this.Allowed[uuid]; ok {
+		delete(this.Allowed, uuid)
+		if err := this.SaveAllowedList(); err != nil {
 			// Fatal ?
 			log.Println(err)
 		}
-		message :=  hostname + " removed from the allowed list"
+		message := hostname + " removed from the allowed list"
 		log.Printf("Authority : %s", message)
 		LocalWigo.AddLog(LocalWigo, INFO, message)
 	}
 	for token, u := range this.Tokens {
 		if uuid == u {
-			delete(this.Tokens,token)
+			delete(this.Tokens, token)
 			log.Println("Authority : token " + token + " revoked")
 		}
 	}
-	if wigo, ok := LocalWigo.RemoteWigos[uuid] ; ok {
-		delete(LocalWigo.RemoteWigos,uuid)
+	if wigo, ok := LocalWigo.RemoteWigos[uuid]; ok {
+		delete(LocalWigo.RemoteWigos, uuid)
 		log.Println("Authority : " + wigo.Hostname + " removed")
 	}
 	return
 }
 
 // Sign a client's uuid with the server's private key
-func ( this *Authority ) GetUuidSignature(uuid string, hostname string) (uuidSignature []byte, err error) {
+func (this *Authority) GetUuidSignature(uuid string, hostname string) (uuidSignature []byte, err error) {
 	hash := crypto.SHA256.New()
 	hash.Write([]byte(uuid))
 	digest := hash.Sum(nil)
@@ -240,7 +240,7 @@ func ( this *Authority ) GetUuidSignature(uuid string, hostname string) (uuidSig
 }
 
 // Verify the validity of an uuid signature
-func ( this *Authority ) VerifyUuidSignature(uuid string, uuidSignature []byte) (err error){
+func (this *Authority) VerifyUuidSignature(uuid string, uuidSignature []byte) (err error) {
 	hash := crypto.SHA256.New()
 	hash.Write([]byte(uuid))
 	digest := hash.Sum(nil)
@@ -249,12 +249,12 @@ func ( this *Authority ) VerifyUuidSignature(uuid string, uuidSignature []byte) 
 }
 
 // Generate a token to use as a proof of identity for all subsequent requests
-func ( this  *Authority ) GetToken(clientUuid string) (token string, err error) {
-	if t, err := uuid.NewV4() ; err == nil {
+func (this *Authority) GetToken(clientUuid string) (token string, err error) {
+	if t, err := uuid.NewV4(); err == nil {
 		token = t.String()
 		for t, u := range this.Tokens {
 			if clientUuid == u {
-				delete(this.Tokens,t)
+				delete(this.Tokens, t)
 			}
 		}
 		this.Tokens[token] = clientUuid
@@ -267,8 +267,8 @@ func ( this  *Authority ) GetToken(clientUuid string) (token string, err error) 
 }
 
 // Verify the validity of a token
-func ( this  *Authority ) VerifyToken(uuid string, token string) (err error) {
-	if u, ok := this.Tokens[token] ; ok {
+func (this *Authority) VerifyToken(uuid string, token string) (err error) {
+	if u, ok := this.Tokens[token]; ok {
 		if uuid != u {
 			err = errors.New("Authority : Invalid token " + token + " for client with uuid " + uuid)
 			log.Println(err)
@@ -282,8 +282,8 @@ func ( this  *Authority ) VerifyToken(uuid string, token string) (err error) {
 }
 
 // Revoke a token
-func ( this  *Authority ) RevokeToken(uuid string, token string) (err error) {
-	if u, ok := this.Tokens[token] ; ok {
+func (this *Authority) RevokeToken(uuid string, token string) (err error) {
+	if u, ok := this.Tokens[token]; ok {
 		if uuid == u {
 			delete(this.Tokens, token)
 		} else {

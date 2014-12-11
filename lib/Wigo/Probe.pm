@@ -16,7 +16,7 @@ our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 # VARS
 ###
 
-my $CONFIG_PATH     = "/etc/wigo/conf.d";
+my $CONFIG_PATH     = $ENV{"WIGO_PROBE_CONFIG_ROOT"} || "/etc/wigo/conf.d";
 my $PERSIST_PATH    = "/tmp";
 
 my $version    = "0.10";

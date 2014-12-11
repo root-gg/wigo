@@ -61,7 +61,7 @@ func ToJson(data interface{}) string {
 	return string(json)
 }
 
-func StatusToString( status int ) string {
+func StatusToString(status int) string {
 	str := "OK"
 
 	if status > 100 && status < 200 {
@@ -77,7 +77,7 @@ func StatusToString( status int ) string {
 	return str
 }
 
-func IsStringInArray( str string, l []string ) bool {
+func IsStringInArray(str string, l []string) bool {
 
 	for i := range l {
 		if l[i] == str {
