@@ -612,7 +612,7 @@ func threadHttp(config *wigo.HttpConfig) {
 	if ( config.SslEnabled ) {
 		address := apiAddress + ":" + strconv.Itoa(apiPort)
 		log.Println("Http server : starting tls server @ " + address)
-		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS10}
 		server := &http.Server{Addr: address, Handler: m, TLSConfig: tlsConfig}
 		err := server.ListenAndServeTLS(config.SslCert, config.SslKey)
 		if err != nil {
