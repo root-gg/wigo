@@ -1,4 +1,5 @@
 %undefine _missing_build_ids_terminate_build
+%define debug_package %{nil}
 Name:		wigo
 Version:	##VERSION##
 Release:	1%{?dist}
