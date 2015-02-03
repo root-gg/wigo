@@ -1,3 +1,4 @@
+%undefine _missing_build_ids_terminate_build
 Name:		wigo
 Version:	##VERSION##
 Release:	1%{?dist}
