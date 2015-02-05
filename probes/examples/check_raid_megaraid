@@ -18,8 +18,6 @@ my $conf = {
 
 init( config => $conf );
 
-Wigo::Probe::save_config("check_raid_megaraid.conf");
-
 if ( ! ( config->{'volumes'} and ref(config->{'volumes'}) eq 'ARRAY' and scalar @{ config->{'volumes'} } > 0 ) )
 {
     message "no megaraid array to check";
