@@ -89,6 +89,15 @@ foreach my $line ( @mdstat )
             result->{'Message'} .= $currentdevice . " is resyncing ( $2 ). ";
         }
     }
+    elsif ( $line =~ /resync=DELAYED/ )
+    {
+        $mdFaultydevices++;
+
+        raise 300;
+
+        detail->{ $currentdevice }->{'State'} = 'resync delayed';
+        result->{'Message'} .= $currentdevice . " resync delayed. ";
+    }
     elsif ( $line =~ /\[([U_]+)\]/ )
     {
         my @countFaultyDevices = ($1 =~ /_/g);
