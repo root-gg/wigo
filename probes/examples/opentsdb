@@ -81,6 +81,7 @@ for my $name ( keys %{ config->{'tsds'} } )
                         $tags = { map { split "=" } split /\s+/, $tags };
                         delete $tags->{'host'};
                         $tags->{'metric'} = $metric;
+                        $tags->{'tsd'} = $name;
                         add_metric { 'Tags' => $tags , 'Value' => $value };
                     }
                 }
@@ -159,6 +160,7 @@ for my $name ( keys %{ config->{'tsds'} } )
 
                     delete $value->{'tags'}->{'host'};
                     $value->{'tags'}->{'metric'} = $value->{'metric'};
+                    $value->{'tags'}->{'tsd'} = $name;
                     add_metric { 'Tags' => $value->{'tags'} , 'Value' => $value->{'value'} };
                 }
             }
