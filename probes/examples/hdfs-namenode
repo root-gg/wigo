@@ -82,8 +82,8 @@ for my $name ( keys %{ config->{'servers'} } )
 
             elsif ( $bean->{'name'} eq 'Hadoop:service=NameNode,name=FSNamesystem' )
             {
-                detail->{$name}->{'CapacityUsed'}   = sprintf "%.3f TB", $bean->{'CapacityUsed'} / (1024 ** 4);
-                detail->{$name}->{'CapacityTotal'}  = sprintf "%.3f TB", $bean->{'CapacityTotal'} / (1024 ** 4);
+                $bean->{'CapacityUsed'} and detail->{$name}->{'CapacityUsed'}   = sprintf "%.3f TB", $bean->{'CapacityUsed'} / (1024 ** 4); 
+                $bean->{'CapacityTotal'} and detail->{$name}->{'CapacityTotal'}  = sprintf "%.3f TB", $bean->{'CapacityTotal'} / (1024 ** 4);
                 detail->{$name}->{'FilesTotal'}     = $bean->{'FilesTotal'};
                 detail->{$name}->{'BlocksTotal'}    = $bean->{'BlocksTotal'};
 
