@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"container/list"
-	"github.com/bodji/gopentsdb"
+	"github.com/camathieu/gopentsdb"
 	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
 	"github.com/lann/squirrel"
@@ -166,11 +166,13 @@ Options:
 		return err
 	}
 
+	config := LocalWigo.GetConfig()
+
 	// Log file
 	LocalWigo.InitOrReloadLogger()
 
 	// Test probes directory
-	_, err = os.Stat(LocalWigo.GetConfig().Global.ProbesDirectory)
+	_, err = os.Stat(config.Global.ProbesDirectory)
 	if err != nil {
 		return err
 	}
@@ -186,8 +188,10 @@ Options:
 
 	// OpenTSDB
 	if LocalWigo.config.OpenTSDB.Enabled {
-		log.Printf("OpenTSDB params detected in config file : %s:%d", LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port)
-		LocalWigo.gopentsdb = gopentsdb.NewOpenTsdb(LocalWigo.GetConfig().OpenTSDB.Address, LocalWigo.GetConfig().OpenTSDB.Port, LocalWigo.GetConfig().Global.Debug, true, LocalWigo.GetConfig().OpenTSDB.SslEnabled)
+		if LocalWigo.gopentsdb, err = gopentsdb.NewOpenTsdb(config.OpenTSDB.Address, config.OpenTSDB.SslEnabled, config.OpenTSDB.Deduplication, config.OpenTSDB.BufferSize); err != nil {
+			log.Fatal(err)
+		}
+		gopentsdb.Verbose(config.Global.Debug)
 	}
 
 	// SqlLite
@@ -227,7 +231,7 @@ Options:
 		for {
 			now := time.Now().Unix()
 			for _, host := range LocalWigo.RemoteWigos {
-				if host.LastUpdate < now-int64(LocalWigo.GetConfig().Global.AliveTimeout) {
+				if host.LastUpdate < now-int64(config.Global.AliveTimeout) {
 					if host.IsAlive {
 						host.Down()
 					}
