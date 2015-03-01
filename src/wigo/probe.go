@@ -2,7 +2,7 @@ package wigo
 
 import (
 	"encoding/json"
-	"github.com/bodji/gopentsdb"
+	"github.com/camathieu/gopentsdb"
 	"github.com/fatih/color"
 	"log"
 	"strconv"
@@ -109,7 +109,7 @@ func (this *ProbeResult) GraphMetrics() {
 
 					// Push
 					put := gopentsdb.NewPut(GetLocalWigo().GetConfig().OpenTSDB.MetricPrefix+"."+this.Name, putTags, putValue)
-					_, err := GetLocalWigo().GetOpenTsdb().Put(put)
+					err := GetLocalWigo().GetOpenTsdb().Put(put)
 					if err != nil {
 						log.Printf("Error while pushing to OpenTSDB : %s", err)
 					}

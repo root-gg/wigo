@@ -110,10 +110,11 @@ func NewConfig(configFile string) (this *Config) {
 
 	// OpenTSDB
 	this.OpenTSDB.Enabled = false
-	this.OpenTSDB.Address = ""
-	this.OpenTSDB.Port = 0
+	this.OpenTSDB.Address = nil
 	this.OpenTSDB.SslEnabled = false
 	this.OpenTSDB.MetricPrefix = "wigo"
+	this.OpenTSDB.Deduplication = 600
+	this.OpenTSDB.BufferSize = 10000
 
 	// Override with config file
 	if _, err := toml.DecodeFile(this.Global.ConfigFile, &this); err != nil {
@@ -249,9 +250,10 @@ type AdvancedRemoteWigoConfig struct {
 }
 
 type OpenTSDBConfig struct {
-	Enabled      bool
-	Address      string
-	Port         int
-	SslEnabled   bool
-	MetricPrefix string
+	Enabled       bool
+	Address       []string
+	SslEnabled    bool
+	MetricPrefix  string
+	Deduplication int
+	BufferSize    int
 }

@@ -73,9 +73,9 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 // verify the identity of the server. To avoid the small window
 // of MITM vulnerability you might copy the certificate by yourself.
 func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) (err error) {
-	if LocalWigo.GetConfig().Global.Debug {
-		Dump(req)
-	}
+	//	if LocalWigo.GetConfig().Global.Debug {
+	//		Dump(req)
+	//	}
 	log.Println("Push server : Sending server certificate to " + req.Hostname)
 	*cert = this.authority.GetServerCertificate()
 	return
@@ -86,9 +86,9 @@ func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) (er
 // to grant the client to the allowed list. You may accept
 // new clients automatically with the AutoAcceptClient setting.
 func (this *PushServer) Register(req HelloRequest, reply *bool) (err error) {
-	if LocalWigo.GetConfig().Global.Debug {
-		Dump(req)
-	}
+	//	if LocalWigo.GetConfig().Global.Debug {
+	//		Dump(req)
+	//	}
 	if !this.authority.IsAllowed(req.Uuid) {
 		this.authority.AddClientToWaitingList(req.Uuid, req.Hostname)
 		if this.config.AutoAcceptClients {
@@ -102,9 +102,9 @@ func (this *PushServer) Register(req HelloRequest, reply *bool) (err error) {
 // The client will have to provide this as a proof of
 // his identity at every new connection.
 func (this *PushServer) GetUuidSignature(req HelloRequest, sig *[]byte) (err error) {
-	if LocalWigo.GetConfig().Global.Debug {
-		Dump(req)
-	}
+	//	if LocalWigo.GetConfig().Global.Debug {
+	//		Dump(req)
+	//	}
 	if this.authority.IsAllowed(req.Uuid) {
 		log.Println("Push server : Sending uuid signature to " + req.Hostname)
 		*sig, err = this.authority.GetUuidSignature(req.Uuid, req.Hostname)
@@ -121,9 +121,9 @@ func (this *PushServer) GetUuidSignature(req HelloRequest, sig *[]byte) (err err
 // Verify the validity of the client's uuid signature. This is done
 // once for every connection then a token then a token is used.
 func (this *PushServer) Hello(req HelloRequest, token *string) (err error) {
-	if LocalWigo.GetConfig().Global.Debug {
-		Dump(req)
-	}
+	//	if LocalWigo.GetConfig().Global.Debug {
+	//		Dump(req)
+	//	}
 	if this.authority.IsAllowed(req.Uuid) {
 		if err = this.authority.VerifyUuidSignature(req.Uuid, req.UuidSignature); err == nil {
 			if *token, err = this.authority.GetToken(req.Uuid); err == nil {
@@ -148,9 +148,9 @@ func (this *PushServer) Hello(req HelloRequest, token *string) (err error) {
 
 // Update a client's data
 func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
-	if LocalWigo.GetConfig().Global.Debug {
-		Dump(req)
-	}
+	//	if LocalWigo.GetConfig().Global.Debug {
+	//		Dump(req)
+	//	}
 	if err = this.auth(req.Request); err == nil {
 		log.Printf("Push server : Update %s", req.Wigo.GetHostname())
 		req.Wigo.SetParentHostsInProbes()
@@ -164,9 +164,9 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 
 // Disconnect the client gracefully
 func (this *PushServer) Goodbye(req Request, reply *bool) (err error) {
-	if LocalWigo.GetConfig().Global.Debug {
-		Dump(req)
-	}
+	//	if LocalWigo.GetConfig().Global.Debug {
+	//		Dump(req)
+	//	}
 	if err = this.auth(&req); err == nil {
 		this.authority.RevokeToken(req.Uuid, req.Token)
 	}
@@ -209,9 +209,9 @@ func NewRequest(uuid string, token string) (this *Request) {
 // expire within 300 seconds hence forcing the client
 // to reconnect. Here we also check for flooding clients.
 func (this *PushServer) auth(req *Request) (err error) {
-	if LocalWigo.GetConfig().Global.Debug {
-		Dump(req)
-	}
+	//	if LocalWigo.GetConfig().Global.Debug {
+	//		Dump(req)
+	//	}
 	err = this.authority.VerifyToken(req.Uuid, req.Token)
 	if err != nil {
 		err = errors.New("NOT ALLOWED")
