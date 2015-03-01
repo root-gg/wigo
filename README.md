@@ -152,8 +152,13 @@ TLS
 ---
 
 Wigo needs a key pair to enable HTTPS api.
-Wigo needs a key pair to secure PUSH communications.
-You might use the same key pair for both needs.
+One can generate a self signed key pair by running this command :
+```
+/usr/local/wigo/bin/generate_cert -ca=false -duration=87600h0m0s -host "hostnames,ips,..." --rsa-bits=4096
+```
 
-To generate a self signed key pair one can run the following command : 
-/usr/local/wigo/bin/generate_cert -ca=true -duration=87600h0m0s -host "hostname,ip,..." --rsa-bits=4096
+Wigo needs a CA key pair to secure PUSH communications.
+One can generate a CA self signed key pair by running this command :
+```
+/usr/local/wigo/bin/generate_cert -ca=true -duration=87600h0m0s -host "hostnames,ips,..." --rsa-bits=4096
+```
