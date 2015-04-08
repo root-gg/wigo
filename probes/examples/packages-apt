@@ -15,18 +15,19 @@ if ( ! `which apt-get` )
 }
 
 my $now = time;
-my $new = {
-    'last_update' => $now,
-};
 
+init( config => {} );
 persist or persist({});
-my $delta_update = $now - persist->{'last_update'} if persist->{'last_update'};
+
+my $persist      = persist;
+my $delta_update = $now - $persist->{'last_update'} if $persist->{'last_update'};
+my $update_tries = $persist->{'update_tries'} || 0;
 
 ###
 # Update
 ###
 
-if ( !$delta_update or $delta_update > 30 * 60 )
+if ( !$delta_update or $delta_update > 30 * 60 or $update_tries )
 {
     my $errorOnUpdate;
     my $fnret = `LANGUAGE=C apt-get update 2>&1`;
@@ -71,10 +72,28 @@ if ( !$delta_update or $delta_update > 30 * 60 )
         }
 
         message "No security packages availables";
+
+        # If errors on update, we raise to 101, then to 200
         if ( $errorOnUpdate )
         {
-            raise   200;
+            $persist->{'update_tries'}++;
+
+            if ( $persist->{'update_tries'} >= 3 )
+            {
+                raise 200;
+            }
+            else
+            {
+                raise 101;
+            }
+
             message "An error happened when doing apt-get update. ";
+        }
+        else
+        {
+            # Reset counter with successfull update
+            $persist->{'last_update'}   = time;
+            $persist->{'update_tries'}  = 0;
         }
 
         if ( $update )
@@ -94,8 +113,18 @@ if ( !$delta_update or $delta_update > 30 * 60 )
     }
     else
     {
-        status 500;
-        message "unable to get update list";
+        $persist->{'update_tries'} = $update_tries + 1;
+
+        if( $persist->{'update_tries'} >= 3 )
+        { 
+            status 500;
+            message "unable to get update list after a long time";
+        }
+        else
+        {
+            status 101;
+            message "unable to get update list after " . $persist->{'update_tries'} . " tries.";
+        }
     }
 }
 
@@ -106,5 +135,5 @@ if ( $? == 0 )
     add_metric { 'Tags' => { 'metric' => 'installed' },         'Value' => $packagesInstalled };
 }
 
-persist $new;
+persist $persist;
 output 0;
