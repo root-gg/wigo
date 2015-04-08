@@ -110,7 +110,7 @@ foreach my $line ( @mdstat )
     }
 }
 
-if ( scalar( keys( detail() ) ) == 0 )
+if ( scalar( keys( %{ detail() } ) ) == 0 )
 {
     message "No mdadm raid";
     output 13;
