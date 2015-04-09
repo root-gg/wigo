@@ -22,6 +22,8 @@ persist or persist({});
 my $persist      = persist;
 my $delta_update = $now - $persist->{'last_update'} if $persist->{'last_update'};
 my $update_tries = $persist->{'update_tries'} || 0;
+my $errorOnUpdate;
+
 
 ###
 # Update
@@ -29,7 +31,6 @@ my $update_tries = $persist->{'update_tries'} || 0;
 
 if ( !$delta_update or $delta_update > 30 * 60 or $update_tries )
 {
-    my $errorOnUpdate;
     my $fnret = `LANGUAGE=C apt-get update 2>&1`;
     if ( $? == 0)
     {
@@ -48,92 +49,116 @@ if ( !$delta_update or $delta_update > 30 * 60 or $update_tries )
                 push @{ detail->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
             }
         }
-
-        ###
-        # Upgrade
-        # Even if update fail, we want to test if there is no package to update anyway
-        ###
-
-        my $packagesToUpdate = {};
-        $fnret = `LANGUAGE=C apt-get upgrade -s 2>&1`;
-        chomp $fnret;
-
-        my $update = 0;
-        my $securityUpdate = 0;
-        foreach my $line ( split "\n" , $fnret )
-        {
-            if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)\s+(\[(\S+)\])?/ )
-            {
-                detail->{'Apt-Get-Upgrade'}->{$repo} ||= [];
-                push @{detail->{'Apt-Get-Upgrade'}->{$repo}}, $name;
-                $update++;
-                $securityUpdate++ if $repo =~ /(security|lts)/i;
-            }
-        }
-
-        message "No security packages availables";
-
-        # If errors on update, we raise to 101, then to 200
-        if ( $errorOnUpdate )
-        {
-            $persist->{'update_tries'}++;
-
-            if ( $persist->{'update_tries'} >= 3 )
-            {
-                raise 200;
-            }
-            else
-            {
-                raise 101;
-            }
-
-            message "An error happened when doing apt-get update. ";
-        }
-        else
-        {
-            # Reset counter with successfull update
-            $persist->{'last_update'}   = time;
-            $persist->{'update_tries'}  = 0;
-        }
-
-        if ( $update )
-        {
-            raise 101;
-            message "There is $update packages to update. ";
-        }
-
-        if( $securityUpdate )
-        {
-            raise 300 + ( $securityUpdate < 200 ? $securityUpdate : 199 );
-            message "There is $securityUpdate security updates to do. ";
-        }
-
-        add_metric { 'Tags' => { 'metric' => 'to_update' },             'Value' => $update };
-        add_metric { 'Tags' => { 'metric' => 'to_update_security' },    'Value' => $securityUpdate };
     }
     else
     {
-        $persist->{'update_tries'} = $update_tries + 1;
-
-        if( $persist->{'update_tries'} >= 3 )
-        { 
-            status 500;
-            message "unable to get update list after a long time";
-        }
-        else
-        {
-            status 101;
-            message "unable to get update list after " . $persist->{'update_tries'} . " tries.";
-        }
+        $errorOnUpdate = 1;
     }
 }
 
+
+###
+# Upgrade
+# Even if update fail, we want to test if there is no package to update anyway
+###
+
+my $packagesToUpdate = {};
+my $fnret = `LANGUAGE=C apt-get upgrade -s 2>&1`;
+chomp $fnret;
+
+my $update = 0;
+my $securityUpdate = 0;
+foreach my $line ( split "\n" , $fnret )
+{
+    if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)\s+(\[(\S+)\])?/ )
+    {
+        print "Repo : $repo\n";
+        detail->{'Apt-Get-Upgrade'}->{$repo} ||= [];
+        push @{detail->{'Apt-Get-Upgrade'}->{$repo}}, $name;
+        $update++;
+        $securityUpdate++ if $repo =~ /(security|lts)/i;
+    }
+}
+
+
+# If errors on update, we raise to 101, then to 200
+if ( $errorOnUpdate )
+{
+    $persist->{'update_tries'}++;
+
+    if ( $persist->{'update_tries'} >= 3 )
+    {
+        raise 200;
+    }
+    else
+    {
+        raise 101;
+    }
+
+    message "An error happened when doing apt-get update (try " . $persist->{'update_tries'} . ")";
+}
+else
+{
+    # Reset counter with successfull update
+    $persist->{'last_update'}   = time;
+    $persist->{'update_tries'}  = 0;
+}
+
+
+
+###
+# Packages installed
+###
 my $packagesInstalled = `dpkg -l | wc -l`;
 if ( $? == 0 )
 {
     chomp $packagesInstalled;
-    add_metric { 'Tags' => { 'metric' => 'installed' },         'Value' => $packagesInstalled };
 }
 
+
+###
+# Results
+###
+
+my $message;
+
+if ( $update )
+{
+    if( $securityUpdate )
+    {
+        raise 300 + ( $securityUpdate < 200 ? $securityUpdate : 199 );
+        $message .= "There is $securityUpdate security updates to do. ";
+    }
+    else
+    {
+        raise 101;
+        $message .= "There is $update packages to update. ";
+    }
+}
+else
+{
+    $message .= "No security packages availables";
+}
+
+if ( $errorOnUpdate )
+{
+    $message .= "There was errors on updating package list!";
+    
+    if ( $persist->{'update_tries'} >= 3 )
+    {
+        raise 200;
+    }
+    else
+    {
+        raise 101;
+    }
+}
+
+add_metric { 'Tags' => { 'metric' => 'to_update' },             'Value' => $update };
+add_metric { 'Tags' => { 'metric' => 'to_update_security' },    'Value' => $securityUpdate };
+add_metric { 'Tags' => { 'metric' => 'installed' },             'Value' => $packagesInstalled };
+
+message $message;
 persist $persist;
+
 output 0;
