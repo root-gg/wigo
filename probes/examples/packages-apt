@@ -72,7 +72,6 @@ foreach my $line ( split "\n" , $fnret )
 {
     if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)\s+(\[(\S+)\])?/ )
     {
-        print "Repo : $repo\n";
         detail->{'Apt-Get-Upgrade'}->{$repo} ||= [];
         push @{detail->{'Apt-Get-Upgrade'}->{$repo}}, $name;
         $update++;
