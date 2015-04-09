@@ -70,7 +70,7 @@ my $update = 0;
 my $securityUpdate = 0;
 foreach my $line ( split "\n" , $fnret )
 {
-    if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)\s+(\[(\S+)\])?/ )
+    if ( my ($name,$version,$repo,$arch) = $line =~ /^Inst\s+(\S+)\s+\[(\S+)\]\s+\(\S+\s+(\S+)(\s+\[(\S+)\])?/ )
     {
         detail->{'Apt-Get-Upgrade'}->{$repo} ||= [];
         push @{detail->{'Apt-Get-Upgrade'}->{$repo}}, $name;
@@ -136,7 +136,7 @@ if ( $update )
 }
 else
 {
-    $message .= "No security packages availables";
+    $message .= "No security packages availables. ";
 }
 
 if ( $errorOnUpdate )
