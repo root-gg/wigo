@@ -49,6 +49,9 @@ if ( !$delta_update or $delta_update > 30 * 60 or $update_tries )
                 push @{ detail->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
             }
         }
+
+        # Update last_update
+        $persist->{'last_update'}   = time;
     }
     else
     {
@@ -99,7 +102,6 @@ if ( $errorOnUpdate )
 else
 {
     # Reset counter with successfull update
-    $persist->{'last_update'}   = time;
     $persist->{'update_tries'}  = 0;
 }
 
