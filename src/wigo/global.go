@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"errors"
 )
 
 // Static global object
@@ -345,14 +346,38 @@ func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
 	return this.gopentsdb
 }
 
+func (this *Wigo) Deduplicate(remoteWigo *Wigo) (err error) {
+	for uuid, wigo := range remoteWigo.RemoteWigos {
+		if(uuid != wigo.Uuid) {
+			return errors.New(fmt.Sprintf("Remote wigo %s uuid mismatch ...", wigo.GetHostname()))
+		}
+		if wigo.Uuid != "" && this.Uuid == wigo.Uuid {
+			log.Printf("Try to add a remote wigo %s with same uuid as me, Discarding.", wigo.GetHostname())
+			delete(remoteWigo.RemoteWigos,uuid)
+		}
+		if _, ok := this.RemoteWigos[uuid]; ok {
+			log.Printf("Found a duplicate wigo %s, Discarding.", wigo.GetHostname())
+			delete(remoteWigo.RemoteWigos,uuid)
+		}
+		if err := this.Deduplicate(wigo) ; err != nil {
+			return err
+		}
+	}
+	return
+}
+
 func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 
 	this.Lock()
 	defer this.Unlock()
 
-	// Test is remote is not me :D
+	// Test if remote is not me :D
 	if remoteWigo.Uuid != "" && this.Uuid == remoteWigo.Uuid {
 		log.Printf("Try to add a remote wigo %s with same uuid as me.. Discarding..", remoteWigo.GetHostname())
+		return
+	}
+	if err := this.Deduplicate(remoteWigo) ; err != nil {
+		log.Println(err)
 		return
 	}
 
@@ -412,13 +437,6 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *W
 		oldWigo := oldWigo.RemoteWigos[wigoName]
 
 		if wigoStillExistInNew, ok := newWigo.RemoteWigos[wigoName]; ok {
-
-			// Test if a remote wigo is not me
-			if wigoStillExistInNew.Uuid != "" && this.Uuid == wigoStillExistInNew.Uuid {
-				log.Printf("Detected myself in remote wigo %s. Discarding.", wigoStillExistInNew.GetHostname())
-				return
-			}
-
 			// Recursion
 			this.CompareTwoWigosAndRaiseNotifications(oldWigo, wigoStillExistInNew)
 		}
