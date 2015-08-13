@@ -110,6 +110,12 @@ foreach my $line ( @mdstat )
     }
 }
 
+if ( scalar( keys( %{ detail() } ) ) == 0 )
+{
+    message "No mdadm raid";
+    output 13;
+}
+
 if ( $mdFaultydevices == 0 )
 {
     message "All arrays ( ". join( " ", keys %{detail()} ). " ) are OK";
