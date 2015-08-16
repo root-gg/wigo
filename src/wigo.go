@@ -478,9 +478,13 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		tries = Hostname.CheckTries
 	}
 
-	// TODO handle ssl and basic auth
-	var protocol string
+	sslEnabled := wigo.GetLocalWigo().GetConfig().RemoteWigos.SslEnabled
 	if Hostname.SslEnabled {
+		sslEnabled = Hostname.SslEnabled
+	}
+
+	var protocol string
+	if sslEnabled {
 		protocol = "https://"
 	} else {
 		protocol = "http://"
@@ -493,8 +497,18 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		return
 	}
 
-	if Hostname.Login != "" && Hostname.Password != "" {
-		req.SetBasicAuth("<username>", "<password>")
+	login := wigo.GetLocalWigo().GetConfig().RemoteWigos.Login
+	if Hostname.Login != "" {
+		login = Hostname.Login
+	}
+
+	password := wigo.GetLocalWigo().GetConfig().RemoteWigos.Password
+	if Hostname.Password != "" {
+		password = Hostname.Password
+	}
+
+	if login != "" && password != "" {
+		req.SetBasicAuth(login, password)
 	}
 
 	for {
@@ -520,7 +534,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		// Instanciate object from remote return
 		wigoObj, err := wigo.NewWigoFromJson(body, Hostname.CheckRemotesDepth)
 		if err != nil {
-			log.Printf("Failed to parse return from host %s : %s", host, err)
+			log.Printf("Failed to parse return from host %s : %s\nReturn was : %s", host, err, body)
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
 			continue
 		}
