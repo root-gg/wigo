@@ -532,10 +532,9 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 		}
 
 		// Instanciate object from remote return
-		log.Printf("Lol %s", body)
 		wigoObj, err := wigo.NewWigoFromJson(body, Hostname.CheckRemotesDepth)
 		if err != nil {
-			log.Printf("Failed to parse return from host %s : %s", host, err)
+			log.Printf("Failed to parse return from host %s : %s\nReturn was : %s", host, err, body)
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
 			continue
 		}
