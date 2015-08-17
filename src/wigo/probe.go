@@ -93,6 +93,9 @@ func (this *ProbeResult) GraphMetrics() {
 					// Tags
 					putTags := make(map[string]string)
 					putTags["hostname"] = this.GetHost().GetParentWigo().GetHostname()
+					for tagk,tagv := range GetLocalWigo().GetConfig().OpenTSDB.Tags {
+						putTags[tagk] = tagv
+					}
 
 					// Group ?
 					if this.GetHost().Group != "" {

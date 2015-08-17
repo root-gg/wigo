@@ -115,6 +115,7 @@ func NewConfig(configFile string) (this *Config) {
 	this.OpenTSDB.MetricPrefix = "wigo"
 	this.OpenTSDB.Deduplication = 600
 	this.OpenTSDB.BufferSize = 10000
+	this.OpenTSDB.Tags = make(map[string]string)
 
 	// Override with config file
 	if _, err := toml.DecodeFile(this.Global.ConfigFile, &this); err != nil {
@@ -256,4 +257,5 @@ type OpenTSDBConfig struct {
 	MetricPrefix  string
 	Deduplication int
 	BufferSize    int
+	Tags          map[string]string
 }
