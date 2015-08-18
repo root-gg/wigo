@@ -93,9 +93,6 @@ func (this *ProbeResult) GraphMetrics() {
 					// Tags
 					putTags := make(map[string]string)
 					putTags["hostname"] = this.GetHost().GetParentWigo().GetHostname()
-					for tagk,tagv := range GetLocalWigo().GetConfig().OpenTSDB.Tags {
-						putTags[tagk] = tagv
-					}
 
 					// Group ?
 					if this.GetHost().Group != "" {
@@ -110,7 +107,11 @@ func (this *ProbeResult) GraphMetrics() {
 						}
 					}
 
-					// Push
+					for tagk,tagv := range GetLocalWigo().GetConfig().OpenTSDB.Tags {
+						putTags[tagk] = tagv
+					}
+					
+                    // Push
 					put := gopentsdb.NewPut(GetLocalWigo().GetConfig().OpenTSDB.MetricPrefix+"."+this.Name, putTags, putValue)
 					err := GetLocalWigo().GetOpenTsdb().Put(put)
 					if err != nil {
