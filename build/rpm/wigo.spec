@@ -94,7 +94,7 @@ rm -rf %{buildroot}
 %post
 WIGOPATH="/usr/local/wigo"
 EXAMPLEPROBES60=( hardware_load_average hardware_disks hardware_memory ifstat supervisord check_mdadm check_process haproxy lm-sensors iostat check_uptime)
-EXAMPLEPROBES300=( smart check_ntp packages-apt )
+EXAMPLEPROBES300=( smart check_ntp packages-yum )
 
 # Enabling default probes on 60 directory
 echo "Enabling default probes.."
