@@ -29,7 +29,7 @@ my $delta_update = $now - persist->{'last_update'} if persist->{'last_update'};
 if ( !$delta_update or $delta_update > 30 * 60 )
 {
     my $errorOnUpdate;
-    my $fnret = `LANGUAGE=C yum clean all 2>&1`;
+    my $fnret = `LANGUAGE=C yum clean expire-cache 2>&1`;
     if ( $? == 0)
     {
         chomp($fnret);
