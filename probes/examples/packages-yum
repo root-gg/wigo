@@ -39,12 +39,12 @@ if ( !$delta_update or $delta_update > 30 * 60 )
             if ( $line =~ /^E:\s(.*)/ )
             {
                 $errorOnUpdate = 1;
-                push @{ detail->{'Yum-Clean-All'}->{'Errors'} } , $1;
+                push @{ detail->{'Yum-Clean'}->{'Errors'} } , $1;
             }
             elsif ( $line =~ /^W:\s(.*)/ )
             {
                 $errorOnUpdate = 1;
-                push @{ detail->{'Yum-Clean-All'}->{'Warnings'} } , $1 ;
+                push @{ detail->{'Yum-Clean'}->{'Warnings'} } , $1 ;
             }
         }
 
