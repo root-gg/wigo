@@ -14,7 +14,7 @@ use Wigo::Probe qw/:all/;
 my $conf = {
     'warnLevel'             => 80,
     'critLevel'             => 95,
-    'excludedPartitions'    => ['rootfs','tmpfs','udev','none'],
+    'excludedPartitions'    => ['rootfs','tmpfs','cgmfs','devtmpfs','udev','none'],
 };
 
 init( config => $conf );
