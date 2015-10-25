@@ -85,6 +85,7 @@ rm -rf %{buildroot}
 /etc/init.d/wigo
 /etc/wigo
 %config(noreplace) /etc/wigo/wigo.conf
+%config(noreplace) /etc/wigo/conf.d/
 %config(noreplace) /etc/wigo/conf.d/*
 /etc/logrotate.d/wigo
 /etc/cron.d/wigo
