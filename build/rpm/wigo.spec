@@ -60,6 +60,7 @@ cp probes/examples/* %{buildroot}/usr/local/wigo/probes/examples
 cp etc/wigo.conf %{buildroot}/etc/wigo/wigo.conf
 cp etc/wigo.conf %{buildroot}/usr/local/wigo/etc/wigo.conf.sample
 cp etc/conf.d/*.conf %{buildroot}/usr/local/wigo/etc/conf.d
+cp etc/conf.d/*.conf %{buildroot}/etc/conf.d
 
 # Copy init script
 cp build/rpm/wigo.init %{buildroot}/etc/init.d/wigo
