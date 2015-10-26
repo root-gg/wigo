@@ -14,7 +14,7 @@ use Wigo::Probe qw/:all/;
 my $conf = {
     'warnLevel'             => 80,
     'critLevel'             => 95,
-    'excludedPartitions'    => ['rootfs','tmpfs','udev','none'],
+    'excludedPartitions'    => ['rootfs','tmpfs','cgmfs','devtmpfs','udev','none'],
 };
 
 init( config => $conf );
@@ -31,7 +31,7 @@ if($? != 0)
 
 shift @df;
 my $max = 0;
-foreach my $line ( @df )
+PARTITION: foreach my $line ( @df )
 {
     my @splits = split( /\s+/, $line );
  
@@ -42,9 +42,12 @@ foreach my $line ( @df )
     my $usage       = $splits[4];
     my $usageRaw    = $1 if ( $usage =~ /(\d+)/ ); 
 
-    if ( grep { $_ eq $partition } @{ config->{'excludedPartitions'} } )
+    foreach my $excludedPartition (@{ config->{'excludedPartitions'} })
     {
-        next;
+        if($partition =~ /^$excludedPartition$/)
+        {
+            next PARTITION;
+        }
     }
 
     $partitionFound++;

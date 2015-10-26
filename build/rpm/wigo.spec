@@ -60,6 +60,7 @@ cp probes/examples/* %{buildroot}/usr/local/wigo/probes/examples
 cp etc/wigo.conf %{buildroot}/etc/wigo/wigo.conf
 cp etc/wigo.conf %{buildroot}/usr/local/wigo/etc/wigo.conf.sample
 cp etc/conf.d/*.conf %{buildroot}/usr/local/wigo/etc/conf.d
+cp etc/conf.d/*.conf %{buildroot}/etc/wigo/conf.d
 
 # Copy init script
 cp build/rpm/wigo.init %{buildroot}/etc/init.d/wigo
@@ -85,7 +86,8 @@ rm -rf %{buildroot}
 /etc/init.d/wigo
 /etc/wigo
 %config(noreplace) /etc/wigo/wigo.conf
-%config(noreplace) /etc/wigo/conf.d
+%config(noreplace) /etc/wigo/conf.d/
+%config(noreplace) /etc/wigo/conf.d/*.conf
 /etc/logrotate.d/wigo
 /etc/cron.d/wigo
 /usr/local/wigo
@@ -94,7 +96,7 @@ rm -rf %{buildroot}
 %post
 WIGOPATH="/usr/local/wigo"
 EXAMPLEPROBES60=( hardware_load_average hardware_disks hardware_memory ifstat supervisord check_mdadm check_process haproxy lm-sensors iostat check_uptime)
-EXAMPLEPROBES300=( smart check_ntp packages-apt )
+EXAMPLEPROBES300=( smart check_ntp packages-yum )
 
 # Enabling default probes on 60 directory
 echo "Enabling default probes.."
