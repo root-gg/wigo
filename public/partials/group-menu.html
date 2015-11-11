@@ -1,26 +1,18 @@
-<!--
-  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
-  -->
-
-<div class="navbar-default sidebar" role="navigation">
+<div class="sidebar" role="navigation">
     <div class="sidebar-nav navbar-collapse">
-        <ul class="nav" id="side-menu">
-            <li ng-repeat="host in hosts | orderBy:['-Status','Name']">
-                <a ng-click="goto.anchor(host.Name)">
-                    <span ng-click="goto.host(host.Name)" class="menuHover" class="text-capitalize" style="font-size:16px;">
-                        {{host.Name}}
-                    </span>
-                    <button ng-show="host.counts['WARNING']" type="button" class="btn btn-warning btn-circle countLabelRight">
-                        {{host.counts['WARNING']}}
-                    </button>
-                    <button ng-show="host.counts['CRITICAL']" type="button" class="btn btn-danger btn-circle countLabelRight">
-                        {{host.counts['CRITICAL']}}
-                    </button>
-                    <div style="clear: both;"></div>
-                </a>
-            </li>
-        </ul>
+        <div class="nav list-group" id="side-menu">
+            <div href="#" class="list-group-item">
+                <h4 class="list-group-item-heading">Group</h4>
+                <p class="list-group-item-text">{{group}}</p>
+            </div>
+            <a ng-repeat="host in hosts | orderBy:['-Status','Name']" class="list-group-item" ng-click="goto.anchor(host.Name)">
+                <span ng-click="goto.host(host.Name)">
+                    {{host.Name}}
+                </span>
+                <span ng-repeat="(countName, count) in host.counts" ng-show="count && (countName == 'WARNING' || countName == 'CRITICAL' || countName == 'ERROR')" class="badge {{ countName | badgeLevelCssFilter }}">
+                    {{count}}
+                </span>
+            </a>
+        </div>
     </div>
-    <!-- /.sidebar-collapse -->
 </div>
-<!-- /.navbar-static-side -->

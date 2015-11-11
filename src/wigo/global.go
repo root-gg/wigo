@@ -284,8 +284,8 @@ func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 
 // Status setters
 func (this *Wigo) Down() {
-	this.GlobalStatus = 499
-	this.LocalHost.Status = 499
+	this.GlobalStatus = 999
+	this.LocalHost.Status = 999
 	this.GlobalMessage = "DOWN"
 	this.IsAlive = false
 
@@ -319,14 +319,7 @@ func (this *Wigo) RecomputeGlobalStatus() {
 		}
 	}
 
-	// Remote wigos statuses
-	for wigoName := range this.RemoteWigos {
-		if this.RemoteWigos[wigoName].GlobalStatus > this.GlobalStatus {
-			this.GlobalStatus = this.RemoteWigos[wigoName].GlobalStatus
-		}
-	}
-
-	return
+    return
 }
 
 // Getters

@@ -24,6 +24,7 @@
     "angular-bootstrap": "~0.11.0",
     "angular-route": "~1.2.21",
     "angular-resource": "~1.2.26",
-    "restangular": "~1.4.0"
+    "restangular": "~1.4.0",
+    "Bootflat": "~2.0.4"
   }
 }

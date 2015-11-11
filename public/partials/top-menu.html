@@ -1,65 +1,55 @@
-<!--
-  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
-  -->
-
-<ul class="nav navbar-top-links navbar-center">
-    <li class="page-title" ng-show="title">
-        {{ title }}
-    </li>
-    <li class="page-title" ng-show="group">
-        Group : {{ group }}
-    </li>
-    <li class="page-title" ng-show="host">
-        Host : {{ host }}
-    </li>
-    <li ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']"  ng-show="counts">
-        <button type="button" class="btn {{level | btnLevelCssFilter }} top-counter">{{level}} : {{counts[level]}}</button>
-    </li>
-</ul>
-
-<ul class="nav navbar-top-links navbar-left">
-    <li>
+<nav class="navbar navbar-top-links navbar-inverse navbar-fixed-top">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-8">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </button>
         <a class="navbar-brand" href="#" ng-click="windown.location.reload()">W I G O Dashboard</a>
-    </li>
-</ul>
-
-<ul class="nav navbar-top-links navbar-right">
-    <li class="dropdown">
-        <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-            <i class="fa fa-user fa-refresh"></i>  <i class="fa fa-caret-down"></i>
-        </a>
-        <ul class="dropdown-menu dropdown-user">
-            <li><a ng-click="refresh.setRefreshInterval(5)"><i class="fa fa-gear fa-fw"></i> 5 sec</a>
-            </li>
-            <li><a ng-click="refresh.setRefreshInterval(15)"><i class="fa fa-gear fa-fw"></i> 15 sec</a>
-            </li>
-            <li><a ng-click="refresh.setRefreshInterval(30)"><i class="fa fa-gear fa-fw"></i> 30 sec</a>
-            </li>
-            <li><a ng-click="refresh.setRefreshInterval(60)"><i class="fa fa-gear fa-fw"></i> 60 sec</a>
-            </li>
-            <li><a ng-click="refresh.setRefreshInterval(300)"><i class="fa fa-gear fa-fw"></i> 300 sec</a>
-            </li>
-            <li><a ng-click="refresh.setRefreshInterval(0)"><i class="fa fa-gear fa-fw"></i> no</a>
-            </li>
-        </ul>
-    </li>
-    <li>
-        <a href="#/logs">
-            <i class="fa fa-list fa-fw"></i>
-        </a>
-    </li>
-    <li class="dropdown">
-        <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-            <i class="fa fa-user fa-fw"></i>  <i class="fa fa-caret-down"></i>
-        </a>
-        <ul class="dropdown-menu dropdown-user">
-            <li><a href="#/authority"><i class="fa fa-user fa-fw"></i> Allowed clients</a>
-            </li>
-            <li><a href="#"><i class="fa fa-gear fa-fw"></i> Settings</a>
-            </li>
-            <li class="divider"></li>
-            <li><a href="login.html"><i class="fa fa-sign-out fa-fw"></i> Logout</a>
-            </li>
-        </ul>
-    </li>
-</ul>
+    </div>
+    <p class="navbar-text" ng-show="title">
+        {{ title }}
+    </p>
+    <ul class="nav navbar-top-links navbar-nav">
+        <li ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']"  ng-show="counts">
+            <button type="button" class="btn {{level | btnLevelCssFilter }} top-counter">{{level}} : {{counts[level]}}</button>
+        </li>
+    </ul>
+    <ul class="nav navbar-top-links navbar-nav navbar-right">
+        <li class="dropdown">
+            <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                <i class="fa fa-user fa-refresh"></i>  <i class="fa fa-caret-down"></i>
+            </a>
+            <ul class="dropdown-menu dropdown-user">
+                <li><a ng-click="refresh.setRefreshInterval(5)"><i class="fa fa-gear fa-fw"></i> 5 sec</a>
+                </li>
+                <li><a ng-click="refresh.setRefreshInterval(15)"><i class="fa fa-gear fa-fw"></i> 15 sec</a>
+                </li>
+                <li><a ng-click="refresh.setRefreshInterval(30)"><i class="fa fa-gear fa-fw"></i> 30 sec</a>
+                </li>
+                <li><a ng-click="refresh.setRefreshInterval(60)"><i class="fa fa-gear fa-fw"></i> 60 sec</a>
+                </li>
+                <li><a ng-click="refresh.setRefreshInterval(300)"><i class="fa fa-gear fa-fw"></i> 300 sec</a>
+                </li>
+                <li><a ng-click="refresh.setRefreshInterval(0)"><i class="fa fa-gear fa-fw"></i> no</a>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <a href="#/logs">
+                <i class="fa fa-list fa-fw"></i>
+            </a>
+        </li>
+        <li class="dropdown">
+            <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                <i class="fa fa-user fa-fw"></i>  <i class="fa fa-caret-down"></i>
+            </a>
+            <ul class="dropdown-menu dropdown-user">
+                <li>
+                    <a href="#/authority"><i class="fa fa-user fa-fw"></i> Allowed clients</a>
+                </li>
+            </ul>
+        </li>
+    </ul>
+</nav>
