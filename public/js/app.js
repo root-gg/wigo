@@ -285,14 +285,14 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
 function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto, $refresh) {
 
     $scope.init = function() {
-        $scope.group = $location.search().name;
-        $scope.title = 'Group: '+$scope.group;
+        $scope.groupName = $location.search().name;
+        $scope.title = 'Group: '+$scope.groupName;
         $scope.load();
     }
 
     $scope.load = function() {
         $scope.hosts = [];
-        if (!$scope.group) return;
+        if (!$scope.groupName) return;
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -300,7 +300,9 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
             "CRITICAL" : 0,
             "ERROR" : 0
         };
-        Restangular.one('groups',$scope.group).get().then(function(group) {
+        Restangular.one('groups',$scope.groupName).get().then(function(group) {
+            group.Level = getLevel(group.Status);
+            $scope.group = group;
             _.each(group.Hosts,function(host){
                 host.counts = {
                     "OK" : 0,
@@ -330,14 +332,14 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
 
 function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto, $refresh) {
      $scope.init = function() {
-        $scope.host = $location.search().name;
-        $scope.title = 'Host: '+$scope.host;
+        $scope.hostName = $location.search().name;
+        $scope.title = 'Host: '+$scope.hostName;
         $scope.load();
     }
 
     $scope.load = function() {
         $scope.probes = [];
-        if (!$scope.host) return;
+        if (!$scope.hostName) return;
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -345,7 +347,10 @@ function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll
             "CRITICAL" : 0,
             "ERROR" : 0
         };
-        Restangular.one('hosts',$scope.host).get().then(function(host) {
+        Restangular.one('hosts',$scope.hostName).get().then(function(host) {
+            host.LocalHost.Level = getLevel(host.LocalHost.Status);
+            host.GlobalLevel = getLevel(host.GlobalStatus);
+            $scope.host = host;
             _.each(host.LocalHost.Probes,function(probe){
                 probe.Level = getLevel(probe.Status)
                 $scope.counts[probe.Level]++;

@@ -1,13 +1,19 @@
 <div class="sidebar" role="navigation">
     <div class="sidebar-nav navbar-collapse">
         <div class="nav list-group" id="side-menu">
-            <div href="#" class="list-group-item">
+            <div href="#" class="list-group-item {{ group.Status | statusTableRowCssFilter }}">
                 <h4 class="list-group-item-heading">Group</h4>
-                <p class="list-group-item-text">{{group}}</p>
+                <span class="badge {{ group.Level | badgeLevelCssFilter }}">
+                    {{group.Status}}
+                </span>
+                <p class="list-group-item-text">{{groupName}}</p>
             </div>
             <a ng-repeat="host in hosts | orderBy:['-Status','Name']" class="list-group-item" ng-click="goto.anchor(host.Name)">
                 <span ng-click="goto.host(host.Name)">
                     {{host.Name}}
+                    <strong style="color:red;" ng-show="!host.IsAlive">
+                        {{host.Message}}
+                    </strong>
                 </span>
                 <span ng-repeat="(countName, count) in host.counts" ng-show="count && (countName == 'WARNING' || countName == 'CRITICAL' || countName == 'ERROR')" class="badge {{ countName | badgeLevelCssFilter }}">
                     {{count}}
