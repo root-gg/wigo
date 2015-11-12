@@ -33,7 +33,9 @@ apt-get install wigo
 ```
 
 ### Configuration
+
 Wigo configuration is in /etc/wigo/wigo.conf
+
 Probes configurations are in /etc/wigo/conf.d/
 
 ### Default probes 
