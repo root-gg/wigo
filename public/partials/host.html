@@ -1,26 +1,11 @@
-<!--
-  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
-  -->
-
-<!-- Navigation -->
-<nav class="navbar navbar-default navbar-static-top hidden-xs hidden-sm" role="navigation" style="margin-bottom: 0">
-    <div ng-include="'partials/top-menu.html'"></div>
-</nav>
+<div ng-include="'partials/top-menu.html'"></div>
 <div ng-include="'partials/host-menu.html'"></div>
 
-<!-- Page Content -->
 <div id="page-wrapper">
-    <div class="row">
-        <p></p>
-    </div>
     <div class="row" ng-repeat="probe in probes | orderBy:['-Status','Name']">
         <div class="panel {{ probe.Level | panelLevelCssFilter }}">
             <div id="{{probe.Name}}" class="panel-heading">
-                <div class="row">
-                    <div>
-                        <strong>{{probe.Name}}</strong>
-                    </div>
-                </div>
+                <strong>{{probe.Name}}</strong>
             </div>
             <div class="panel-body">
                 <p>
@@ -33,4 +18,3 @@
         </div>
     </div>
 </div>
-<!-- /#page-wrapper -->

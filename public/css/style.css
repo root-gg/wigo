@@ -2,6 +2,69 @@
  * Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
  */
 
+body {
+    padding-top: 50px;
+}
+
+#page-wrapper {
+    padding-top: 10px;
+}
+
+.badge-error, .label-error {
+    background-color: #434A54;
+    border-color: #434A54;
+}
+
+.btn-error, .btn-error .open .dropdown-toggle.btn, .btn-error.active, .btn-error.disabled, .btn-error:active, .btn-error[disabled] {
+    background-color: #434A54;
+    border-color: #434A54;
+}
+
+.btn-error:hover, .btn-error:focus {
+    background-color: #535B67;
+    border-color: #535B67;
+}
+
+.alert-error {
+    background-color: #848484;
+    border: #6D6D6D;
+    color: #444444;
+    border-color: #D8D8D8;
+}
+
+.panel-error>.panel-heading {
+    color: #fff;
+    background-color: #434A54;
+    border-color: #434A54;
+}
+
+.panel>.panel-heading .badge {
+    color: #ffffff;
+    background-color: inherit;
+    margin-right: 5px;
+}
+.panel>.panel-heading .badge-default {
+    background-color: #333;
+}
+.panel>.panel-heading .badge-primary {
+    background-color: #4275A9;
+}
+.panel>.panel-heading .badge-success {
+    background-color: #3c763d;
+}
+.panel>.panel-heading .badge-info {
+    background-color: #31708f;
+}
+.panel>.panel-heading .badge-warning {
+    background-color: #8a6d3b;
+}
+.panel>.panel-heading .badge-danger {
+    background-color: #a94442;
+}
+.panel>.panel-heading .badge-error {
+    background-color: #232323;
+}
+
 .countLabel {
     display: inline-block;
     margin-left: 3px;

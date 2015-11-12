@@ -1,26 +1,18 @@
-<!--
-  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
-  -->
-
-<div class="navbar-default sidebar" role="navigation">
+<div class="sidebar" role="navigation">
     <div class="sidebar-nav navbar-collapse">
-        <ul class="nav" id="side-menu">
-            <li ng-repeat="group in groups | orderBy:['-Status','Name']">
-                <a ng-click="goto.anchor(group.Name)">
-                    <span ng-click="goto.group(group.Name)" class="menuHover" class="text-capitalize" style="font-size:16px;">
-                        {{group.Name}}
-                    </span>
-                    <button ng-show="group.counts['WARNING']" type="button" class="btn btn-warning btn-circle countLabelRight">
-                        {{group.counts['WARNING']}}
-                    </button>
-                    <button ng-show="group.counts['CRITICAL']" type="button" class="btn btn-danger btn-circle countLabelRight">
-                        {{group.counts['CRITICAL']}}
-                    </button>
-                    <div style="clear: both;"></div>
-                </a>
-            </li>
-        </ul>
+        <div class="nav list-group" id="side-menu">
+            <div href="#" class="list-group-item">
+                <h4 class="list-group-item-heading">Hosts</h4>
+                <p class="list-group-item-text">All hosts & groups</p>
+            </div>
+            <a ng-repeat="group in groups |orderBy:['-Status','Name']" class="list-group-item" ng-click="goto.anchor(group.Name)">
+                <span ng-click="goto.group(group.Name)">
+                    {{group.Name}}
+                </span>
+                <span ng-repeat="(countName, count) in group.counts" ng-show="count && (countName == 'WARNING' || countName == 'CRITICAL' || countName == 'ERROR')" class="badge {{ countName | badgeLevelCssFilter }}">
+                    {{count}}
+                </span>
+            </a>
+        </div>
     </div>
-    <!-- /.sidebar-collapse -->
 </div>
-<!-- /.navbar-static-side -->

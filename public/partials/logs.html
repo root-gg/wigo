@@ -1,25 +1,13 @@
-<!--
-  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
-  -->
-
-<nav class="navbar navbar-default navbar-static-top hidden-xs hidden-sm" role="navigation" style="margin-bottom: 0">
-    <div ng-include="'partials/top-menu.html'"></div>
-</nav>
-<!-- Navigation -->
+<div ng-include="'partials/top-menu.html'"></div>
 <div ng-include="'partials/logs-menu.html'"></div>
 
-<!-- Page Content -->
 <div id="page-wrapper">
-    <div class="row">
-        <p></p>
-    </div>
     <div class="row">
         <div class="col-lg-12">
             <div class="panel panel-default">
                 <div class="panel-heading">
                     <strong>Logs</strong>
                 </div>
-                <!-- /.panel-heading -->
                 <div class="panel-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">
@@ -40,17 +28,17 @@
                                 | orderBy:'-Timestamp'">
                                     <td>{{ log.Timestamp * 1000 | date:'short' }}</td>
                                     <td ng-click="set_group(log.Group)">
-                                        <span ng-click="goto.group(log.Group)" class="linkHover">
+                                        <span ng-click="goto.group(log.Group)">
                                             {{ log.Group }}
                                         </span>
                                     </td>
                                     <td ng-click="set_host(log.Host)">
-                                        <span ng-click="goto.host(log.Host)" class="linkHover">
+                                        <span ng-click="goto.host(log.Host)">
                                             {{ log.Host }}
                                         </span>
                                     </td>
                                     <td ng-click="set_probe(log.Probe)">
-                                        <span ng-click="goto.probe(log.Host,log.Probe)" class="linkHover">
+                                        <span ng-click="goto.probe(log.Host,log.Probe)">
                                             {{ log.Probe }}
                                         </span>
                                     </td>
@@ -65,13 +53,8 @@
                             </div>
                         </div>
                     </div>
-                    <!-- /.table-responsive -->
                 </div>
-                <!-- /.panel-body -->
             </div>
         </div>
-        <!-- /.col-lg-12 -->
     </div>
-    <!-- /.row -->
 </div>
-<!-- /#page-wrapper -->

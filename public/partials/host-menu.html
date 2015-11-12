@@ -1,23 +1,28 @@
-<!--
-  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
-  -->
-
-<div class="navbar-default sidebar" role="navigation">
+<div class="sidebar" role="navigation">
     <div class="sidebar-nav navbar-collapse">
-        <ul class="nav" id="side-menu">
-            <li ng-repeat="probe in probes | orderBy:['-Status','Name']">
-                <a ng-click="goto.anchor(probe.Name)">
-                    <span class="text-capitalize" style="font-size:16px;">
-                        {{probe.Name}}
-                    </span>
-                    <button ng-show="probe.Status != 100" type="button" class="btn {{ probe.Level | btnLevelCssFilter }} btn-circle countLabelRight">
-                        {{probe.Status}}
-                    </button>
-                    <div style="clear: both;"></div>
-                </a>
-            </li>
-        </ul>
+        <div class="nav list-group" id="side-menu">
+            <div href="#" class="list-group-item {{ host.GlobalStatus | statusTableRowCssFilter }}">
+                <h4 class="list-group-item-heading">
+                    Host
+                    <strong style="color:red;" ng-show="!host.IsAlive">
+                        {{host.GlobalMessage}}
+                    </strong>
+                </h4>
+                <span class="badge {{ host.GlobalLevel | badgeLevelCssFilter }}">
+                    {{host.GlobalStatus}}
+                </span>
+                <p class="list-group-item-text">
+                    {{hostName}}
+                </p>
+            </div>
+            <a ng-repeat="probe in probes | orderBy:['-Status','Name']" class="list-group-item" ng-click="goto.anchor(probe.Name)">
+                <span>
+                    {{probe.Name}}
+                </span>
+                <span class="badge {{ probe.Level | badgeLevelCssFilter }}">
+                    {{probe.Status}}
+                </span>
+            </a>
+        </div>
     </div>
-    <!-- /.sidebar-collapse -->
 </div>
-<!-- /.navbar-static-side -->

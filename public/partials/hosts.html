@@ -1,42 +1,18 @@
-<!--
-  ~ Charles-Antoine Mathieu <charles-antoine.mathieu@ovh.net>
-  -->
-
-<!-- Navigation -->
-<nav class="navbar navbar-default navbar-static-top hidden-xs hidden-sm" role="navigation" style="margin-bottom: 0">
-    <div ng-include="'partials/top-menu.html'"></div>
-</nav>
+<div ng-include="'partials/top-menu.html'"></div>
 <div ng-include="'partials/hosts-menu.html'"></div>
 
-<!-- Page Content -->
 <div id="page-wrapper">
-    <div class="row">
-        <p></p>
-    </div>
     <div class="row" ng-repeat="group in groups | orderBy:['-Status','Name']">
         <div class="col-lg-12">
             <div class="panel {{ group.Level | panelLevelCssFilter }}">
                 <div id="{{group.Name}}"class="panel-heading">
-                    <span ng-click="goto.group(group.Name)" class="linkHover" style="font-weight:bold;">
+                    <span ng-click="goto.group(group.Name)" style="font-weight:bold;">
                         {{group.Name}}
                     </span>
-                    <button ng-show="group.counts['ERROR']" type="button" class="btn btn-default btn-circle countLabel">
-                        {{group.counts['ERROR']}}
-                    </button>
-                    <button ng-show="group.counts['CRITICAL']" type="button" class="btn btn-danger btn-circle countLabel">
-                        {{group.counts['CRITICAL']}}
-                    </button>
-                    <button ng-show="group.counts['WARNING']" type="button" class="btn btn-warning btn-circle countLabel">
-                        {{group.counts['WARNING']}}
-                    </button>
-                    <button ng-show="group.counts['INFO']" type="button" class="btn btn-primary btn-circle countLabel">
-                        {{group.counts['INFO']}}
-                    </button>
-                    <button ng-show="group.counts['OK']" type="button" class="btn btn-success btn-circle countLabel">
-                        {{group.counts['OK']}}
-                    </button>
+                    <span ng-repeat="(countName, count) in group.counts" ng-show="count" class="badge {{ countName | badgeLevelCssFilter }}">
+                        {{count}}
+                    </span>
                 </div>
-                <!-- /.panel-heading -->
                 <div class="panel-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">
@@ -47,14 +23,13 @@
                             </tr>
                             </thead>
                             <tbody>
-                            <tr class="{{ host.Status | statusTableRowCssFilter }}"
-                            ng-repeat="host in group.Hosts | orderBy:['-Status','Name']">
+                            <tr class="{{ host.Status | statusTableRowCssFilter }}" ng-repeat="host in group.Hosts | orderBy:['-Status','Name']">
                                 <td>
-                                    <span ng-click="goto.host(host.Name)" class="linkHover">
+                                    <span ng-click="goto.host(host.Name)">
                                         {{host.Name}}
                                     </span>
-                                    <strong style="color:red" ng-show="!host.IsAlive">
-                                        &nbsp;DOWN
+                                    <strong style="color:red;" ng-show="!host.IsAlive">
+                                        {{host.Message}}
                                     </strong>
                                 </td>
                                 <td>
@@ -70,13 +45,8 @@
                             </tbody>
                         </table>
                     </div>
-                    <!-- /.table-responsive -->
                 </div>
-                <!-- /.panel-body -->
             </div>
         </div>
-        <!-- /.col-lg-12 -->
     </div>
-    <!-- /.row -->
 </div>
-<!-- /#page-wrapper -->

@@ -104,11 +104,11 @@ angular.module('wigo-navigation', []).
     });
 
 var panelLevels = {
-    "OK"        : "panel-green",
+    "OK"        : "panel-success",
     "INFO"      : "panel-primary",
-    "WARNING"   : "panel-yellow",
-    "CRITICAL"  : "panel-red",
-    "ERROR"     : "panel-default"
+    "WARNING"   : "panel-warning",
+    "CRITICAL"  : "panel-danger",
+    "ERROR"     : "panel-error"
 }
 
 var labelLevels = {
@@ -116,7 +116,15 @@ var labelLevels = {
     "INFO"      : "label-primary",
     "WARNING"   : "label-warning",
     "CRITICAL"  : "label-danger",
-    "ERROR"     : "label-default"
+    "ERROR"     : "label-error"
+}
+
+var badgeLevels = {
+    "OK"        : "badge-success",
+    "INFO"      : "badge-primary",
+    "WARNING"   : "badge-warning",
+    "CRITICAL"  : "badge-danger",
+    "ERROR"     : "badge-error"
 }
 
 var btnLevels = {
@@ -124,15 +132,15 @@ var btnLevels = {
     "INFO"      : "btn-primary",
     "WARNING"   : "btn-warning",
     "CRITICAL"  : "btn-danger",
-    "ERROR"     : "btn-default"
+    "ERROR"     : "btn-error"
 }
 
 var statusRowLevels = {
-    "OK"        : "success",
-    "INFO"      : "info",
-    "WARNING"   : "warning",
-    "CRITICAL"  : "danger",
-    "ERROR"     : "active"
+    "OK"        : "alert-success",
+    "INFO"      : "alert-info",
+    "WARNING"   : "alert-warning",
+    "CRITICAL"  : "alert-danger",
+    "ERROR"     : "alert-error"
 }
 
 var logLevels = [
@@ -147,12 +155,12 @@ var logLevels = [
 
 var logRowLevels = {
     "DEBUG"     : "",
-    "OK"        : "success",
-    "INFO"      : "info",
-    "ERROR"     : "active",
-    "WARNING"   : "warning",
-    "CRITICAL"  : "danger",
-    "EMERGENCY" : "dancer"
+    "OK"        : "alert-success",
+    "INFO"      : "alert-info",
+    "WARNING"   : "alert-warning",
+    "CRITICAL"  : "alert-danger",
+    "ERROR"     : "alert-error",
+    "EMERGENCY" : "alert-error"
 }
 
 angular.module('wigo-filters', [])
@@ -169,6 +177,11 @@ angular.module('wigo-filters', [])
     .filter('btnLevelCssFilter', function() {
             return function(level) {
                 return btnLevels[level];
+            };
+    })
+    .filter('badgeLevelCssFilter', function() {
+            return function(level) {
+                return badgeLevels[level];
             };
     })
     .filter('statusTableRowCssFilter', function() {
@@ -224,6 +237,7 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
 
     $scope.init = function() {
         $scope.load();
+        $scope.title = "Hosts";
     }
 
     $scope.load = function() {
@@ -271,13 +285,14 @@ function HostsCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
 function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto, $refresh) {
 
     $scope.init = function() {
-        $scope.group = $location.search().name;
+        $scope.groupName = $location.search().name;
+        $scope.title = 'Group: '+$scope.groupName;
         $scope.load();
     }
 
     $scope.load = function() {
         $scope.hosts = [];
-        if (!$scope.group) return;
+        if (!$scope.groupName) return;
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -285,7 +300,9 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
             "CRITICAL" : 0,
             "ERROR" : 0
         };
-        Restangular.one('groups',$scope.group).get().then(function(group) {
+        Restangular.one('groups',$scope.groupName).get().then(function(group) {
+            group.Level = getLevel(group.Status);
+            $scope.group = group;
             _.each(group.Hosts,function(host){
                 host.counts = {
                     "OK" : 0,
@@ -315,13 +332,14 @@ function GroupCtrl($scope, Restangular, $dialog, $route, $location, $anchorScrol
 
 function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll, $timeout, $goto, $refresh) {
      $scope.init = function() {
-        $scope.host = $location.search().name;
+        $scope.hostName = $location.search().name;
+        $scope.title = 'Host: '+$scope.hostName;
         $scope.load();
     }
 
     $scope.load = function() {
         $scope.probes = [];
-        if (!$scope.host) return;
+        if (!$scope.hostName) return;
         $scope.counts = {
             "OK" : 0,
             "INFO" : 0,
@@ -329,7 +347,10 @@ function HostCtrl($scope, Restangular, $dialog, $route, $location, $anchorScroll
             "CRITICAL" : 0,
             "ERROR" : 0
         };
-        Restangular.one('hosts',$scope.host).get().then(function(host) {
+        Restangular.one('hosts',$scope.hostName).get().then(function(host) {
+            host.LocalHost.Level = getLevel(host.LocalHost.Status);
+            host.GlobalLevel = getLevel(host.GlobalStatus);
+            $scope.host = host;
             _.each(host.LocalHost.Probes,function(probe){
                 probe.Level = getLevel(probe.Status)
                 $scope.counts[probe.Level]++;
@@ -377,6 +398,7 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto, $refre
     }
 
     $scope.init = function() {
+        $scope.title = 'Logs';
         $scope.menu.group    = $location.search().group;
         $scope.menu.host     = $location.search().host;
         $scope.menu.probe    = $location.search().probe;
@@ -451,6 +473,7 @@ function LogsCtrl($scope, Restangular, $dialog, $route, $location, $goto, $refre
 function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $q,$refresh) {
 
     $scope.init = function() {
+        $scope.title = "Allowed clients";
         $scope.load();
     }
 
