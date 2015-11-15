@@ -11,28 +11,34 @@ Main features
   - Graphing probes metrics to OpenTSDB instances
 
 
-Version
-----
-0.51
-
-
 Installation
 --------------
 
-On Debian Wheezy : 
+### Installation :
 
-##### Add repository and install package
+#### Debian Jessie :
 ```sh
-echo "deb http://mir.root.gg wheezy main" > /etc/apt/sources.list.d/mir.root.gg.list
-apt-get update
+echo "deb http://mir.root.gg jessie main" > /etc/apt/sources.list.d/mir.root.gg.list
 wget -O- http://mir.root.gg/gg.key | apt-key add -
+apt-get update
 apt-get install wigo
 ```
 
-##### Configuration
-Edit /etc/wigo.conf
+#### Debian Wheezy :
+```sh
+echo "deb http://mir.root.gg wheezy main" > /etc/apt/sources.list.d/mir.root.gg.list
+wget -O- http://mir.root.gg/gg.key | apt-key add -
+apt-get update
+apt-get install wigo
+```
 
-##### Default probes 
+### Configuration
+
+Wigo configuration is in /etc/wigo/wigo.conf
+
+Probes configurations are in /etc/wigo/conf.d/
+
+### Default probes 
 
 The directory name is the interval of check in seconds
 
@@ -53,7 +59,8 @@ The directory name is the interval of check in seconds
 
 ```
 
-##### Get status
+Get status
+-----------
 
 ```sh
 # wigocli
@@ -122,18 +129,55 @@ Status codes :
 Building from sources
 ---------------------
 
-```
-go get github.com/BurntSushi/toml
-go get github.com/bodji/gopentsdb  
-go get github.com/codegangsta/martini
-go get github.com/fatih/color
-go get github.com/howeyc/fsnotify
-go get github.com/nu7hatch/gouuid
-go get github.com/docopt/docopt-go
-
+### Environment
+```sh
 export GOPATH="$GOPATH:..../wigo/src"
+```
+
+### Dependencies
+```sh
+go get github.com/docopt/docopt-go
+go get github.com/camathieu/gopentsdb
+go get github.com/fatih/color
+go get github.com/nu7hatch/gouuid
+go get github.com/BurntSushi/toml
+go get github.com/codegangsta/martini
+go get github.com/camathieu/gopentsdb
+go get github.com/docopt/docopt-go
+go get github.com/fatih/color
+go get github.com/lann/squirrel
+go get github.com/mattn/go-sqlite3
+go get github.com/nu7hatch/gouuid
+go get github.com/codegangsta/martini
+go get github.com/codegangsta/martini-contrib/auth
+go get github.com/codegangsta/martini-contrib/gzip
+go get github.com/codegangsta/martini-contrib/secure
+go get github.com/howeyc/fsnotify
+```
+or (the ugly way)
+```sh
+go install -v src/wigo.go 2>&1 | grep "cannot find package" | grep -Po '"github.com.*"' | sed 's/"//g' | while read line; do go get "$line"; done
+go install -v src/wigocli.go 2>&1 | grep "cannot find package" | grep -Po '"github.com.*"' | sed 's/"//g' | while read line; do go get "$line"; done
+```
+
+### Building
+```sh
 go build src/wigo.go
 go build src/wigocli.go
+```
+
+### Build DEB (deb-building tools required)
+
+```sh
+cd build/deb/
+./makePackege.sh
+```
+
+### Build RPM (rpm-building tools required)
+
+```sh
+cd build/rpm/
+./makePackege.sh
 ```
 
 PULL
