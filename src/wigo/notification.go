@@ -174,7 +174,7 @@ func SendMail(summary string, message string) {
 			header["Subject"] = title
 
 			// setup the message
-            content := message
+			content := message
 			content += "\r\n"
 			for k, v := range header {
 				content += fmt.Sprintf("%s: %s\r\n", k, v)
