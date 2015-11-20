@@ -171,15 +171,16 @@ func SendMail(summary string, message string) {
 			header := make(map[string]string)
 			header["From"] = from.String()
 			header["To"] = to.String()
-			header["Subject"] = message
+			header["Subject"] = title
 
 			// setup the message
-			message += "\r\n"
+            content := message
+			content += "\r\n"
 			for k, v := range header {
-				message += fmt.Sprintf("%s: %s\r\n", k, v)
+				content += fmt.Sprintf("%s: %s\r\n", k, v)
 			}
-			message += "\r\n"
-			message += summary
+			content += "\r\n"
+			content += summary
 
 			// Connect to the remote SMTP server.
 			c, err := smtp.Dial(server)
@@ -199,7 +200,7 @@ func SendMail(summary string, message string) {
 				return
 			}
 
-			buf := bytes.NewBufferString(message)
+			buf := bytes.NewBufferString(content)
 			if _, err = buf.WriteTo(wc); err != nil {
 				log.Printf("Fail to send notification to %s : %s", to.String(), err)
 				return
