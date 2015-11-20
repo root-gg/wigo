@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"container/list"
+	"errors"
 	"github.com/camathieu/gopentsdb"
 	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
@@ -21,7 +22,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"errors"
 )
 
 // Static global object
@@ -319,7 +319,7 @@ func (this *Wigo) RecomputeGlobalStatus() {
 		}
 	}
 
-    return
+	return
 }
 
 // Getters
@@ -341,18 +341,18 @@ func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
 
 func (this *Wigo) Deduplicate(remoteWigo *Wigo) (err error) {
 	for uuid, wigo := range remoteWigo.RemoteWigos {
-		if(uuid != wigo.Uuid) {
+		if uuid != wigo.Uuid {
 			return errors.New(fmt.Sprintf("Remote wigo %s uuid mismatch ...", wigo.GetHostname()))
 		}
 		if wigo.Uuid != "" && this.Uuid == wigo.Uuid {
 			log.Printf("Try to add a remote wigo %s with same uuid as me, Discarding.", wigo.GetHostname())
-			delete(remoteWigo.RemoteWigos,uuid)
+			delete(remoteWigo.RemoteWigos, uuid)
 		}
 		if _, ok := this.RemoteWigos[uuid]; ok {
 			log.Printf("Found a duplicate wigo %s, Discarding.", wigo.GetHostname())
-			delete(remoteWigo.RemoteWigos,uuid)
+			delete(remoteWigo.RemoteWigos, uuid)
 		}
-		if err := this.Deduplicate(wigo) ; err != nil {
+		if err := this.Deduplicate(wigo); err != nil {
 			return err
 		}
 	}
@@ -369,7 +369,7 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 		log.Printf("Try to add a remote wigo %s with same uuid as me.. Discarding..", remoteWigo.GetHostname())
 		return
 	}
-	if err := this.Deduplicate(remoteWigo) ; err != nil {
+	if err := this.Deduplicate(remoteWigo); err != nil {
 		log.Println(err)
 		return
 	}
