@@ -107,11 +107,11 @@ func (this *ProbeResult) GraphMetrics() {
 						}
 					}
 
-					for tagk,tagv := range GetLocalWigo().GetConfig().OpenTSDB.Tags {
+					for tagk, tagv := range GetLocalWigo().GetConfig().OpenTSDB.Tags {
 						putTags[tagk] = tagv
 					}
-					
-                    // Push
+
+					// Push
 					put := gopentsdb.NewPut(GetLocalWigo().GetConfig().OpenTSDB.MetricPrefix+"."+this.Name, putTags, putValue)
 					err := GetLocalWigo().GetOpenTsdb().Put(put)
 					if err != nil {
