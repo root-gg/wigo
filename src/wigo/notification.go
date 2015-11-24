@@ -180,7 +180,7 @@ func SendMail(summary string, message string) {
 				content += fmt.Sprintf("%s: %s\r\n", k, v)
 			}
 			content += "\r\n"
-			content := title
+			content += title
 			content += "\r\n"
 			content += summary
 
