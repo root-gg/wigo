@@ -167,6 +167,7 @@ func SendMail(summary string, message string) {
 		}
 
 		go func() {
+			title := message
 			// setup a map for the headers
 			header := make(map[string]string)
 			header["From"] = from.String()
