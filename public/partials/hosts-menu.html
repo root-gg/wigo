@@ -9,7 +9,7 @@
                 <span ng-click="goto.group(group.Name)">
                     {{group.Name}}
                 </span>
-                <span ng-repeat="(countName, count) in group.counts" ng-show="count && (countName == 'WARNING' || countName == 'CRITICAL' || countName == 'ERROR')" class="badge {{ countName | badgeLevelCssFilter }}">
+                <span ng-repeat="(countName, count) in group.counts" ng-hide="!count || (countName == 'OK')" class="badge {{ countName | badgeLevelCssFilter }}">
                     {{count}}
                 </span>
             </a>
