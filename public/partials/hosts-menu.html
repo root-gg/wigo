@@ -1,5 +1,5 @@
 <div class="sidebar" role="navigation">
-    <div class="sidebar-nav navbar-collapse">
+    <div class="sidebar-nav">
         <div class="nav list-group" id="side-menu">
             <div href="#" class="list-group-item">
                 <h4 class="list-group-item-heading">Hosts</h4>
@@ -9,7 +9,7 @@
                 <span ng-click="goto.group(group.Name)">
                     {{group.Name}}
                 </span>
-                <span ng-repeat="(countName, count) in group.counts" ng-show="count && (countName == 'WARNING' || countName == 'CRITICAL' || countName == 'ERROR')" class="badge {{ countName | badgeLevelCssFilter }}">
+                <span ng-repeat="(countName, count) in group.counts" ng-hide="!count || (countName == 'OK')" class="badge {{ countName | badgeLevelCssFilter }}">
                     {{count}}
                 </span>
             </a>
