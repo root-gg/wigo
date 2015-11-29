@@ -8,10 +8,12 @@
                 <span class="icon-bar"></span>
             </button>
             <a class="navbar-brand" href="#" ng-click="windown.location.reload()">W I G O</a>
-            <span class="navbar-text visible-md-inline visible-lg-inline" ng-show="title">
-            {{ title }}
+            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts" class="visible-xs-inline">
+                <button type="button" class="btn {{level | btnLevelCssFilter }} navbar-btn">{{counts[level]}}</button>
             </span>
-            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts" class="visible-xs-inline visible-sm-inline">
+        </div>
+        <div class="navbar-header visible-sm-inline">
+            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts">
                 <button type="button" class="btn {{level | btnLevelCssFilter }} navbar-btn">{{counts[level]}}</button>
             </span>
         </div>
