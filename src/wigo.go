@@ -472,12 +472,6 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 	// Create http client
 	client := http.Client{Timeout: time.Duration(time.Second)}
 
-	// Try
-	tries := wigo.GetLocalWigo().GetConfig().RemoteWigos.CheckTries
-	if Hostname.CheckTries != 0 {
-		tries = Hostname.CheckTries
-	}
-
 	sslEnabled := wigo.GetLocalWigo().GetConfig().RemoteWigos.SslEnabled
 	if Hostname.SslEnabled {
 		sslEnabled = Hostname.SslEnabled
@@ -512,7 +506,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 	}
 
 	for {
-		for i := 1; i <= tries; i++ {
+		for i := 1; i <= 3; i++ {
 			resp, err = client.Do(req)
 			if err != nil {
 				time.Sleep(time.Second)
@@ -523,10 +517,9 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			}
 		}
 
-		// Can't connect, give up and create wigo in error
+		// Can't connect to remote wigo
 		if err != nil {
-			log.Printf("Can't connect to %s after %d tries : %s", host, tries, err)
-
+			log.Printf("Can't connect to %s : %s", host, err)
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
 			continue
 		}
@@ -538,9 +531,6 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			time.Sleep(time.Second * time.Duration(secondsToSleep))
 			continue
 		}
-
-		// Set hostname with config file name
-		//wigoObj.SetHostname(Hostname.Hostname)
 
 		// Send it to main
 		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(wigoObj)
