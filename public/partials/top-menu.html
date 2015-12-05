@@ -8,10 +8,12 @@
                 <span class="icon-bar"></span>
             </button>
             <a class="navbar-brand" href="#" ng-click="windown.location.reload()">W I G O</a>
-            <span class="navbar-text" ng-show="title">
-            {{ title }}
+            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts" class="visible-xs-inline">
+                <button type="button" class="btn {{level | btnLevelCssFilter }} navbar-btn">{{counts[level]}}</button>
             </span>
-            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts" class="visible-xs-inline visible-sm-inline">
+        </div>
+        <div class="navbar-header visible-sm-inline">
+            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts">
                 <button type="button" class="btn {{level | btnLevelCssFilter }} navbar-btn">{{counts[level]}}</button>
             </span>
         </div>
@@ -40,19 +42,10 @@
                     </ul>
                 </li>
                 <li>
-                    <a href="#/logs">
-                        <i class="fa fa-list fa-fw"></i>
-                    </a>
+                    <a href="#/logs"><i class="fa fa-list fa-fw"></i></a>
                 </li>
-                <li class="dropdown">
-                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-                        <i class="fa fa-user fa-fw"></i>  <i class="fa fa-caret-down"></i>
-                    </a>
-                    <ul class="dropdown-menu dropdown-user">
-                        <li>
-                            <a href="#/authority"><i class="fa fa-user fa-fw"></i> Allowed clients</a>
-                        </li>
-                    </ul>
+                <li>
+                    <a href="#/authority"><i class="fa fa-user fa-fw"></i></a>
                 </li>
             </ul>
         </div>

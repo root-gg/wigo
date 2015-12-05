@@ -1,6 +1,10 @@
 src/bin
 wigocli
 generate_cert
+src/github.com
+uuid
+wigo
+wigo.*
 
 # dev
 probes/60
