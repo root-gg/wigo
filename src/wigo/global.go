@@ -491,6 +491,7 @@ func (this *Wigo) AddLog(ressource interface{}, level uint8, message string) (er
 	} else {
 		newLog = NewLog(level, message)
 	}
+	log.Printf("%s", message)
 
 	// Type assertion on ressource
 	switch v := ressource.(type) {

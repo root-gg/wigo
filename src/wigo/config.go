@@ -90,7 +90,6 @@ func NewConfig(configFile string) (this *Config) {
 	// Remote Wigos
 	this.RemoteWigos.List = nil
 	this.RemoteWigos.CheckInterval = 10
-	this.RemoteWigos.CheckTries = 3
 	this.AdvancedList = nil
 
 	// Notifications
@@ -212,7 +211,6 @@ type PushClientConfig struct {
 
 type RemoteWigoConfig struct {
 	CheckInterval int
-	CheckTries    int
 
 	SslEnabled bool
 	Login      string
@@ -244,7 +242,6 @@ type AdvancedRemoteWigoConfig struct {
 	Port              int
 	CheckRemotesDepth int
 	CheckInterval     int
-	CheckTries        int
 	SslEnabled        bool
 	Login             string
 	Password          string

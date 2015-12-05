@@ -183,6 +183,8 @@ func SendMail(summary string, message string) {
 			content += title
 			content += "\r\n"
 			content += summary
+			content += "\r\n"
+			content += fmt.Sprintf("Sent from %s on %s", LocalWigo.GetLocalHost().Name, time.Now().Format(time.RFC3339))
 
 			// Connect to the remote SMTP server.
 			c, err := smtp.Dial(server)
