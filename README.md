@@ -18,18 +18,26 @@ Installation
 
 #### Debian Jessie :
 ```sh
-echo "deb http://mir.root.gg jessie main" > /etc/apt/sources.list.d/mir.root.gg.list
-wget -O- http://mir.root.gg/gg.key | apt-key add -
+echo "deb http://deb.carsso.com jessie main" > /etc/apt/sources.list.d/deb.carsso.com.list
+wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
 apt-get update
 apt-get install wigo
 ```
 
 #### Debian Wheezy :
 ```sh
-echo "deb http://mir.root.gg wheezy main" > /etc/apt/sources.list.d/mir.root.gg.list
-wget -O- http://mir.root.gg/gg.key | apt-key add -
+echo "deb http://deb.carsso.com wheezy main" > /etc/apt/sources.list.d/deb.carsso.com.list
+wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
 apt-get update
 apt-get install wigo
+```
+
+
+#### Centos 6 & 7 :
+```sh
+echo -e "[carsso]\nname=Carsso\nbaseurl=http://rpm.carsso.com\ngpgcheck=0" > /etc/yum.repos.d/carsso.repo
+yum clean all
+yum install wigo yum-plugin-security
 ```
 
 ### Configuration
@@ -59,8 +67,15 @@ The directory name is the interval of check in seconds
 
 ```
 
-Get status
------------
+### Get status
+
+### Wigo web interface
+
+`http://[your-ip]:4000/` (by default)
+
+
+#### Wigo CLI
+
 
 ```sh
 # wigocli
