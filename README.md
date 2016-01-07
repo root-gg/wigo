@@ -10,6 +10,11 @@ Main features
   - Proxy mode for hosts behind NAT/Gateways
   - Graphing probes metrics to OpenTSDB instances
 
+Screenshots:
+  - [Web interface index view](https://plik.root.gg/file/HApNEbal3B4cg6Gg/sLJ2AEMdiDDFcfiB/wigo_index.png)
+  - [Web interface group view](https://plik.root.gg/file/HApNEbal3B4cg6Gg/l3Lp6PcIC8qE4lEH/wigo_group.png)
+  - [Web interface host view](https://plik.root.gg/file/HApNEbal3B4cg6Gg/bq9CAK7HCrNmOCns/wigo_host.png)
+
 
 Installation
 --------------
@@ -67,7 +72,8 @@ The directory name is the interval of check in seconds
 
 ```
 
-### Get status
+Get status
+-----------
 
 ### Wigo web interface
 
