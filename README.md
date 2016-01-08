@@ -11,9 +11,9 @@ Main features
   - Graphing probes metrics to OpenTSDB instances
 
 Screenshots:
-  - [Web interface index view](https://plik.root.gg/file/HApNEbal3B4cg6Gg/sLJ2AEMdiDDFcfiB/wigo_index.png)
-  - [Web interface group view](https://plik.root.gg/file/HApNEbal3B4cg6Gg/l3Lp6PcIC8qE4lEH/wigo_group.png)
-  - [Web interface host view](https://plik.root.gg/file/HApNEbal3B4cg6Gg/bq9CAK7HCrNmOCns/wigo_host.png)
+[[ http://pix.toile-libre.org/upload/original/1452263131.png | height = 100px ]]
+[[ http://pix.toile-libre.org/upload/original/1452263323.png | height = 100px ]]
+[[ http://pix.toile-libre.org/upload/original/1452263238.png | height = 100px ]]
 
 
 Installation
