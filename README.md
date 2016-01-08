@@ -12,8 +12,13 @@ Main features
 
 Screenshots:
 
+Web UI Main view:
 ![Main view](http://pix.toile-libre.org/upload/original/1452263131.png)
+
+Web UI Group view:
 ![Group view](http://pix.toile-libre.org/upload/original/1452263323.png)
+
+Web UI Host view:
 ![Host view](http://pix.toile-libre.org/upload/original/1452263238.png)
 
 
