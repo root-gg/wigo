@@ -11,9 +11,10 @@ Main features
   - Graphing probes metrics to OpenTSDB instances
 
 Screenshots:
-[[ http://pix.toile-libre.org/upload/original/1452263131.png | height = 100px ]]
-[[ http://pix.toile-libre.org/upload/original/1452263323.png | height = 100px ]]
-[[ http://pix.toile-libre.org/upload/original/1452263238.png | height = 100px ]]
+
+![Main view](http://pix.toile-libre.org/upload/original/1452263131.png)
+![Group view](http://pix.toile-libre.org/upload/original/1452263323.png)
+![Host view](http://pix.toile-libre.org/upload/original/1452263238.png)
 
 
 Installation
