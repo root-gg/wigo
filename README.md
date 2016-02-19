@@ -164,12 +164,11 @@ export GOPATH="$GOPATH:..../wigo/src"
 ### Dependencies
 ```sh
 go get github.com/docopt/docopt-go
-go get github.com/camathieu/gopentsdb
+go get github.com/root-gg/gopentsdb
 go get github.com/fatih/color
 go get github.com/nu7hatch/gouuid
 go get github.com/BurntSushi/toml
 go get github.com/codegangsta/martini
-go get github.com/camathieu/gopentsdb
 go get github.com/docopt/docopt-go
 go get github.com/fatih/color
 go get github.com/lann/squirrel

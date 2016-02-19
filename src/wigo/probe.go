@@ -2,8 +2,8 @@ package wigo
 
 import (
 	"encoding/json"
-	"github.com/camathieu/gopentsdb"
 	"github.com/fatih/color"
+	"github.com/root-gg/gopentsdb"
 	"log"
 	"strconv"
 	"strings"
