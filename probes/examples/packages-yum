@@ -36,16 +36,17 @@ if ( !$delta_update or $delta_update > 30 * 60 )
 
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( $line =~ /^E:\s(.*)/ )
+            if ( $line =~ /^Error:\s(.*)/ )
             {
                 $errorOnUpdate = 1;
                 push @{ detail->{'Yum-Clean'}->{'Errors'} } , $1;
             }
-            elsif ( $line =~ /^W:\s(.*)/ )
-            {
-                $errorOnUpdate = 1;
-                push @{ detail->{'Yum-Clean'}->{'Warnings'} } , $1 ;
-            }
+        }
+        
+        if ( $errorOnUpdate )
+        {
+            raise   200;
+            message "An error happened when doing yum clean. ";
         }
 
         ###
@@ -56,13 +57,20 @@ if ( !$delta_update or $delta_update > 30 * 60 )
         my $packagesToUpdate = {};
         $fnret = `LANGUAGE=C yum --quiet --security check-update 2>&1`;
         chomp $fnret;
-
+        
         my $update = 0;
         my $securityUpdate = 0;
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S+)/ )
+            if ( $line =~ /^Error:\s(.*)/ )
             {
+                $errorOnUpdate = 1;
+                push @{ detail->{'Yum-List-Security-Updates'}->{'Errors'} } , $1;
+            }
+            elsif ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S*)$/ )
+            {
+                detail->{'Yum-List-Security-Updates'}->{$repo} ||= [];
+                push @{detail->{'Yum-List-Security-Updates'}->{$repo}}, $name;
                 $securityUpdate++;
             }
         }
@@ -71,15 +79,19 @@ if ( !$delta_update or $delta_update > 30 * 60 )
         if ( $errorOnUpdate )
         {
             raise   200;
-            message "An error happened when doing apt-get update. ";
+            message "An error happened when doing yum --security check-update. ";
         }
 
-    $fnret = `LANGUAGE=C yum --quiet check-update 2>&1`;
+        $fnret = `LANGUAGE=C yum --quiet check-update 2>&1`;
         chomp $fnret;
-
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S+)/ )
+            if ( $line =~ /^Error:\s(.*)/ )
+            {
+                $errorOnUpdate = 1;
+                push @{ detail->{'Yum-List-Updates'}->{'Errors'} } , $1;
+            }
+            elsif ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S*$)/ )
             {
                 detail->{'Yum-List-Updates'}->{$repo} ||= [];
                 push @{detail->{'Yum-List-Updates'}->{$repo}}, $name;
@@ -90,7 +102,7 @@ if ( !$delta_update or $delta_update > 30 * 60 )
         if ( $errorOnUpdate )
         {
             raise   200;
-            message "An error happened when doing apt-get update. ";
+            message "An error happened when doing yum check-update. ";
         }
 
         if ( $update )
