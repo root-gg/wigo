@@ -38,15 +38,19 @@ if ( !$delta_update or $delta_update > 30 * 60 or $update_tries )
 
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( $line =~ /^E:\s(.*)/ )
+            if ( $line =~ /^([WE]):\s(.*)/ )
             {
-                $errorOnUpdate = 1;
-                push @{ detail->{'Apt-Get-Update'}->{'Errors'} } , $1;
-            }
-            elsif ( $line =~ /^W:\s(.*)/ )
-            {
-                $errorOnUpdate = 1;
-                push @{ detail->{'Apt-Get-Update'}->{'Warnings'} } , $1 ;
+                my $msg = $2;
+                my $level = 'Unknown';
+                $level = 'Errors'   if $1 eq 'E';
+                $level = 'Warnings' if $1 eq 'W';
+                my $ignored = 0;
+                foreach my $regex (@{ config->{'lines_to_ignore'} || [] })
+                {
+                    $ignored = 1 if ($msg =~ /$regex/);
+                }
+                push @{ detail->{'Apt-Get-Update'}->{ $ignored ? "$level-Ignored" : $level } } , $msg;
+                $errorOnUpdate = 1 if not $ignored;
             }
         }
 
