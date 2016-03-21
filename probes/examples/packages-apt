@@ -45,6 +45,9 @@ if ( !$delta_update or $delta_update > 30 * 60 or $update_tries )
                 $level = 'Errors'   if $1 eq 'E';
                 $level = 'Warnings' if $1 eq 'W';
                 my $ignored = 0;
+                # lines_to_ignore: array of strings, these will be used as regexes by the perl probe
+                # to tell which warnings/errors of apt should be ignored (they'll still be logged in details)
+                # this is useful for broken remote repositories you can't fix yourself anyway
                 foreach my $regex (@{ config->{'lines_to_ignore'} || [] })
                 {
                     $ignored = 1 if ($msg =~ /$regex/);
