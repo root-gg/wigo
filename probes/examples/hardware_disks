@@ -72,11 +72,23 @@ PARTITION: foreach my $line ( @df )
 
     add_metric { "Tags" => { "Partition" => $partition, "MountPoint" => $mountPoint }, "Value" => $usageRaw };
 
-    if ( $usageRaw > config->{'critLevel'} )
+    # default global values
+    my $critLevel = config->{'critLevel'};
+    my $warnLevel = config->{'warnLevel'};
+
+    # maybe we have an override for the partition name or the mountpoint ?
+    my $override = config->{'levelOverrides'}->{$partition} || config->{'levelOverrides'}->{$mountPoint};
+    if ( defined $override )
+    {
+        $warnLevel = $override->{'warnLevel'} if defined $override->{'warnLevel'};
+        $critLevel = $override->{'critLevel'} if defined $override->{'critLevel'};
+    }
+
+    if ( $usageRaw > $critLevel )
     {
         raise 300;
     }
-    elsif ( $usageRaw > config->{'warnLevel'} )
+    elsif ( $usageRaw > $warnLevel )
     {
         raise 250;
     }
