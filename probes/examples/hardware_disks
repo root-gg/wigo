@@ -70,7 +70,7 @@ PARTITION: foreach my $line ( @df )
         MountPoint  => $mountPoint,
     };
 
-    add_metric { "Tags" => { "Partition" => $partition }, "Value" => $usageRaw };
+    add_metric { "Tags" => { "Partition" => $partition, "MountPoint" => $mountPoint }, "Value" => $usageRaw };
 
     if ( $usageRaw > config->{'critLevel'} )
     {
