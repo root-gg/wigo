@@ -20,7 +20,7 @@ my $conf = {
 init( config => $conf );
 
 # Number of cores
-my $cores = `grep '^processor' /proc/cpuinfo | sort -u | wc -l`;
+my $cores = `grep -c '^processor' /proc/cpuinfo`;
 chomp $cores;
 $cores ||= 1;
 
@@ -36,22 +36,24 @@ chomp $loadavg;
 
 if ( $loadavg =~ /^([\d\.]+)\s([\d\.]+)\s([\d\.]+)/ )
 {
-    my $rawValue5 = $1;
-    my $rawValue10 = $2;
+    my $rawValue1  = $1;
+    my $rawValue5  = $2;
     my $rawValue15 = $3;
 
-    message "$rawValue5 $rawValue10 $rawValue15";
+    message "$rawValue1 $rawValue5 $rawValue15";
 
     metrics [
+        { Tags => { "load" => "load1" },  Value => $rawValue1 },
         { Tags => { "load" => "load5" },  Value => $rawValue5 },
-        { Tags => { "load" => "load10" }, Value => $rawValue10 },
         { Tags => { "load" => "load15" }, Value => $rawValue15 },
     ];
 
     my $toCheck;
-    if ( config->{'toCheck'} == 2 or config->{'toCheck'} == 10 )
+    # == 10: keeping this due to previous in incorrect version of the probe
+    # to avoid breaking preexisting configs
+    if ( config->{'toCheck'} == 2 or config->{'toCheck'} == 10 or config->{'toCheck'} == 5 )
     {
-        $toCheck = $rawValue10;
+        $toCheck = $rawValue5;
     }
     elsif ( config->{'toCheck'} == 3 or config->{'toCheck'} == 15 )
     {
@@ -59,7 +61,7 @@ if ( $loadavg =~ /^([\d\.]+)\s([\d\.]+)\s([\d\.]+)/ )
     }
     else
     {
-        $toCheck = $rawValue5;
+        $toCheck = $rawValue1;
     }
 
     my $percentage = $toCheck * 100 / $cores;

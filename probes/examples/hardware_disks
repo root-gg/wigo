@@ -40,6 +40,7 @@ PARTITION: foreach my $line ( @df )
     my $occupation  = $splits[2];
     my $free        = $splits[3];
     my $usage       = $splits[4];
+    my $mountPoint  = $splits[5];
     my $usageRaw    = $1 if ( $usage =~ /(\d+)/ ); 
 
     foreach my $excludedPartition (@{ config->{'excludedPartitions'} })
@@ -50,6 +51,15 @@ PARTITION: foreach my $line ( @df )
         }
     }
 
+    if (exists detail->{$partition})
+    {
+        # some fs types can be mounted at several places (btrfs)
+        # in that case, the first mountpoint reported by df will
+        # often be the "main" one, hence don't overwrite it with
+        # the potential next ones (only the mountpoint is different).
+        next;
+    }
+
     $partitionFound++;
 
     detail->{$partition} = {
@@ -57,15 +67,28 @@ PARTITION: foreach my $line ( @df )
         Used        => $occupation,
         Free        => $free,
         Percentage  => $usage,
+        MountPoint  => $mountPoint,
     };
 
-    add_metric { "Tags" => { "Partition" => $partition }, "Value" => $usageRaw };
+    add_metric { "Tags" => { "Partition" => $partition, "MountPoint" => $mountPoint }, "Value" => $usageRaw };
 
-    if ( $usageRaw > config->{'critLevel'} )
+    # default global values
+    my $critLevel = config->{'critLevel'};
+    my $warnLevel = config->{'warnLevel'};
+
+    # maybe we have an override for the partition name or the mountpoint ?
+    my $override = config->{'levelOverrides'}->{$partition} || config->{'levelOverrides'}->{$mountPoint};
+    if ( defined $override )
+    {
+        $warnLevel = $override->{'warnLevel'} if defined $override->{'warnLevel'};
+        $critLevel = $override->{'critLevel'} if defined $override->{'critLevel'};
+    }
+
+    if ( $usageRaw > $critLevel )
     {
         raise 300;
     }
-    elsif ( $usageRaw > config->{'warnLevel'} )
+    elsif ( $usageRaw > $warnLevel )
     {
         raise 250;
     }
@@ -73,7 +96,7 @@ PARTITION: foreach my $line ( @df )
     if ( $usageRaw > $max )
     {
         $max = $usageRaw;
-        message "Highest occupation percentage is $usage in partition $partition";
+        message "Highest occupation percentage is $usage in partition $partition mounted on $mountPoint ($free free)";
     }
 }
 
