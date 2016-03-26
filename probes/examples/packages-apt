@@ -24,7 +24,6 @@ my $delta_update = $now - $persist->{'last_update'} if $persist->{'last_update'}
 my $update_tries = $persist->{'update_tries'} || 0;
 my $errorOnUpdate;
 
-
 ###
 # Update
 ###
@@ -32,40 +31,46 @@ my $errorOnUpdate;
 if ( !$delta_update or $delta_update > 30 * 60 or $update_tries )
 {
     my $fnret = `LANGUAGE=C apt-get update 2>&1`;
-    if ( $? == 0)
+    chomp($fnret);
+
+    foreach my $line ( split "\n" , $fnret )
     {
-        chomp($fnret);
-
-        foreach my $line ( split "\n" , $fnret )
+        if ( $line =~ /^([WE]):\s(.*)/ )
         {
-            if ( $line =~ /^([WE]):\s(.*)/ )
+            my $msg = $2;
+            my $level = 'Unknown';
+            $level = 'Errors'   if $1 eq 'E';
+            $level = 'Warnings' if $1 eq 'W';
+            my $ignored = 0;
+            foreach my $regex (@{ config->{'lines_to_ignore'} || [] })
             {
-                my $msg = $2;
-                my $level = 'Unknown';
-                $level = 'Errors'   if $1 eq 'E';
-                $level = 'Warnings' if $1 eq 'W';
-                my $ignored = 0;
-                # lines_to_ignore: array of strings, these will be used as regexes by the perl probe
-                # to tell which warnings/errors of apt should be ignored (they'll still be logged in details)
-                # this is useful for broken remote repositories you can't fix yourself anyway
-                foreach my $regex (@{ config->{'lines_to_ignore'} || [] })
-                {
-                    $ignored = 1 if ($msg =~ /$regex/);
-                }
-                push @{ detail->{'Apt-Get-Update'}->{ $ignored ? "$level-Ignored" : $level } } , $msg;
-                $errorOnUpdate = 1 if not $ignored;
+                $ignored = 1 if ($msg =~ /$regex/);
             }
+            push @{ detail->{'Apt-Get-Update'}->{ $ignored ? "$level-Ignored" : $level } } , $msg;
+            $errorOnUpdate = 1 if not $ignored;
         }
+    }
 
+    if ($? == 0)
+    {
         # Update last_update
         $persist->{'last_update'}   = time;
     }
     else
     {
+        my $msg = "returned error ".($? >> 8);
+        if ($? == -1)
+        {
+            $msg = "failed to launch: $!";
+        }
+        elsif ($? & 127)
+        {
+            $msg = sprintf("died with signal %d, %s coredump", $? & 127, ($? & 128) ? 'with' : 'without');
+        }
+        push @{ detail->{'Apt-Get-Update'}->{'Command'} }, "apt-get update command $msg";
         $errorOnUpdate = 1;
     }
 }
-
 
 ###
 # Upgrade
@@ -145,12 +150,12 @@ if ( $update )
 }
 else
 {
-    $message .= "No security packages availables. ";
+    $message .= "No security packages available. ";
 }
 
 if ( $errorOnUpdate )
 {
-    $message .= "There was errors on updating package list!";
+    $message .= "There were errors while updating package list!";
     
     if ( $persist->{'update_tries'} >= 3 )
     {
@@ -161,6 +166,8 @@ if ( $errorOnUpdate )
         raise 101;
     }
 }
+
+chomp $message;
 
 add_metric { 'Tags' => { 'metric' => 'to_update' },             'Value' => $update };
 add_metric { 'Tags' => { 'metric' => 'to_update_security' },    'Value' => $securityUpdate };
