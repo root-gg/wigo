@@ -99,36 +99,6 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
 			return
 		}
 
-		// Check if the client is allowed to push to the server. If it's not
-		// the case add the client to a waiting appoval list. This beahviour may
-		// be disabled by setting the AutoAcceptClients configuration parametter
-		// to true on the push server.
-		log.Println("Push client : registering")
-		b := new(bool) // void response
-		err = this.CallWithTimeout("PushServer.Register", NewHelloRequest(nil), b, time.Duration(5)*time.Second)
-		if err != nil {
-			if !config.SslEnabled && err.Error() == "unexpected EOF" {
-				log.Println("Push client : error while trying to register, maybe remote server is expecting a TLS connection ?")
-			} else {
-				log.Printf("Push client : error while trying to register (%s)", err.Error())
-			}
-			return
-		}
-
-		if _, err = os.Stat(this.config.UuidSig); err == nil {
-			if this.uuidSignature, err = ioutil.ReadFile(this.config.UuidSig); err != nil {
-				log.Fatal("Push client : while registering, unable to read uuid signature from %s", address, this.config.UuidSig)
-			}
-		} else {
-			err = this.SignUuid()
-			if err == nil {
-				// Ask for immediate reconnect
-				log.Printf("Push client : uuid signed, reconnecting")
-				err = errors.New("RECONNECT")
-			}
-			return
-		}
-
 	} else {
 		listener, err = net.Dial("tcp", address)
 		if err != nil {
@@ -137,6 +107,36 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
 
 		this.client = rpc.NewClient(listener)
 		log.Println("Push client : connected to push server ( insecure connection ) @ " + address)
+	}
+
+	// Check if the client is allowed to push to the server. If it's not
+	// the case add the client to a waiting appoval list. This beahviour may
+	// be disabled by setting the AutoAcceptClients configuration parametter
+	// to true on the push server.
+	log.Println("Push client : registering")
+	b := new(bool) // void response
+	err = this.CallWithTimeout("PushServer.Register", NewHelloRequest(nil), b, time.Duration(5)*time.Second)
+	if err != nil {
+		if !config.SslEnabled && err.Error() == "unexpected EOF" {
+			log.Println("Push client : error while trying to register, maybe remote server is expecting a TLS connection ?")
+		} else {
+			log.Printf("Push client : error while trying to register (%s)", err.Error())
+		}
+		return
+	}
+
+	if _, err = os.Stat(this.config.UuidSig); err == nil {
+		if this.uuidSignature, err = ioutil.ReadFile(this.config.UuidSig); err != nil {
+			log.Fatalf("Push client : while registering on %s, unable to read uuid signature from %s", address, this.config.UuidSig)
+		}
+	} else {
+		err = this.SignUuid()
+		if err == nil {
+			// Ask for immediate reconnect
+			log.Printf("Push client : uuid signed, reconnecting")
+			err = errors.New("RECONNECT")
+		}
+		return
 	}
 
 	return
