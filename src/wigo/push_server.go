@@ -31,24 +31,24 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 	gob.Register(map[string]interface{}{})
 	rpc.Register(this)
 
-	var listner net.Listener
+	var listener net.Listener
 	var err error
 	if this.config.SslEnabled {
 		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 		tlsConfig.Certificates = make([]tls.Certificate, 1)
 		tlsConfig.Certificates[0], err = tls.LoadX509KeyPair(this.config.SslCert, this.config.SslKey)
 		if err != nil {
-			log.Fatalf("Push server : error while loading server certificate : %s", err)
+			log.Fatalf("Push server : error while loading server certificate from %s : %s", this.config.SslCert, err)
 		}
 		rawListner, err := net.Listen("tcp", address)
 		if err != nil {
 			log.Fatalf("Push server : listen error : %s", err)
 		}
-		listner = tls.NewListener(rawListner, tlsConfig)
+		listener = tls.NewListener(rawListner, tlsConfig)
 
 		log.Printf("Push server : now listening @ %s ( TLS enabled )", address)
 	} else {
-		listner, err = net.Listen("tcp", this.config.Address+":"+strconv.Itoa(this.config.Port))
+		listener, err = net.Listen("tcp", this.config.Address+":"+strconv.Itoa(this.config.Port))
 		if err != nil {
 			log.Fatalf("Push server : listen error %s", err)
 		}
@@ -57,10 +57,15 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 
 	go func() {
 		for {
-			if conn, err := listner.Accept(); err == nil {
-				go func() { rpc.ServeConn(conn); conn.Close() }()
+			if conn, err := listener.Accept(); err == nil {
+				log.Printf("Push server [client %s] : accepting connection", conn.RemoteAddr())
+				go func() {
+					rpc.ServeConn(conn);
+					log.Printf("Push server [client %s] : closing connection", conn.RemoteAddr())
+					conn.Close()
+				}()
 			} else {
-				log.Printf("Push server : accept connection error %s", err)
+				log.Printf("Push server [client %s] : accept connection failed : %s", conn.RemoteAddr(), err)
 			}
 		}
 	}()
@@ -76,7 +81,7 @@ func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) (er
 	//	if LocalWigo.GetConfig().Global.Debug {
 	//		Dump(req)
 	//	}
-	log.Println("Push server : Sending server certificate to " + req.Hostname)
+	log.Printf("Push server [client %s] : sending server certificate", req.Hostname)
 	*cert = this.authority.GetServerCertificate()
 	return
 }
@@ -90,8 +95,10 @@ func (this *PushServer) Register(req HelloRequest, reply *bool) (err error) {
 	//		Dump(req)
 	//	}
 	if !this.authority.IsAllowed(req.Uuid) {
+		log.Printf("Push server [client %s] : adding client to waiting list", req.Hostname)
 		this.authority.AddClientToWaitingList(req.Uuid, req.Hostname)
 		if this.config.AutoAcceptClients {
+			log.Printf("Push server [client %s] : automatically accepting client as configured", req.Hostname)
 			this.authority.AllowClient(req.Uuid)
 		}
 	}
@@ -106,12 +113,14 @@ func (this *PushServer) GetUuidSignature(req HelloRequest, sig *[]byte) (err err
 	//		Dump(req)
 	//	}
 	if this.authority.IsAllowed(req.Uuid) {
-		log.Println("Push server : Sending uuid signature to " + req.Hostname)
+		log.Printf("Push server [client %s] : sending uuid signature", req.Hostname)
 		*sig, err = this.authority.GetUuidSignature(req.Uuid, req.Hostname)
 	} else {
 		if this.authority.IsWaiting(req.Uuid) {
+			log.Printf("Push server [client %s] : won't sign your uuid, you're on the waiting queue", req.Hostname)
 			err = errors.New("WAITING")
 		} else {
+			log.Printf("Push server [client %s] : won't sign your uuid, you're not allowed", req.Hostname)
 			err = errors.New("NOT ALLOWED")
 		}
 	}
@@ -127,18 +136,21 @@ func (this *PushServer) Hello(req HelloRequest, token *string) (err error) {
 	if this.authority.IsAllowed(req.Uuid) {
 		if err = this.authority.VerifyUuidSignature(req.Uuid, req.UuidSignature); err == nil {
 			if *token, err = this.authority.GetToken(req.Uuid); err == nil {
-				log.Printf("Push server : Hello %s", req.Hostname)
+				log.Printf("Push server [client %s] : Hello", req.Hostname)
 			} else {
+				log.Printf("Push server [client %s] : Hello, your uuid is valid but couldn't get your token (%s)", req.Hostname, err.Error())
 				err = errors.New("NOT ALLOWED")
 			}
 		} else {
-			log.Println("Push server : invalid uuid signature for " + req.Hostname)
+			log.Printf("Push server [client %s] : Hello, your uuid signature is invalid (%s)", req.Hostname, err.Error())
 			err = errors.New("NOT ALLOWED")
 		}
 	} else {
 		if this.authority.IsWaiting(req.Uuid) {
+			log.Printf("Push server [client %s] : Hello, you're in the waiting queue", req.Hostname)
 			err = errors.New("WAITING")
 		} else {
+			log.Printf("Push server [client %s] : Hello, you're not allowed", req.Hostname)
 			err = errors.New("NOT ALLOWED")
 		}
 	}
@@ -152,11 +164,12 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 	//		Dump(req)
 	//	}
 	if err = this.auth(req.Request); err == nil {
-		log.Printf("Push server : Update %s", req.Wigo.GetHostname())
+		log.Printf("Push server : Update from %s", req.Wigo.GetHostname())
 		req.Wigo.SetParentHostsInProbes()
 		// TODO this should return an error
 		LocalWigo.AddOrUpdateRemoteWigo(&req.Wigo)
 	} else {
+		log.Printf("Push server : Update for %s refused, you're not allowed", req.Wigo.GetHostname())
 		err = errors.New("NOT ALLOWED")
 	}
 	return
