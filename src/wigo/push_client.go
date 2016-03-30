@@ -42,7 +42,7 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
 
 	address := config.Address + ":" + strconv.Itoa(config.Port)
 
-	var listner io.ReadWriteCloser
+	var listener io.ReadWriteCloser
 	if config.SslEnabled {
 		this.tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 
@@ -54,13 +54,13 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
 						this.tlsConfig.RootCAs = x509.NewCertPool()
 						this.tlsConfig.RootCAs.AddCert(cert)
 					} else {
-						log.Fatal("Push client : unable to parse x509 certificate")
+						log.Fatalf("Push client : unable to parse x509 certificate from %s (%s)", this.config.SslCert, err.Error())
 					}
 				} else {
-					log.Fatal("Push client : unable to decode pem certificate")
+					log.Fatalf("Push client : unable to decode pem certificate from %s", this.config.SslCert)
 				}
 			} else {
-				log.Fatal("Push client : unable to read certificate")
+				log.Fatalf("Push client : unable to read certificate from %s", this.config.SslCert)
 			}
 		} else {
 			// If you did not copy the server certificate by hand
@@ -75,12 +75,17 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
 			Timeout: 5 * time.Second,
 		}
 		log.Printf("Push client : connecting to push server @ %s", address)
-		listner, err = tls.DialWithDialer(dialer, "tcp", address, this.tlsConfig)
+		listener, err = tls.DialWithDialer(dialer, "tcp", address, this.tlsConfig)
 		if err != nil {
+			if err.Error() == "unexpected EOF" {
+				log.Println("Push client : connection failed, is server configured for a TLS connection ?")
+			} else {
+				log.Printf("Push client : connection failed, will retry (%s)", err.Error());
+			}
 			return
 		}
 
-		this.client = rpc.NewClient(listner)
+		this.client = rpc.NewClient(listener)
 		log.Printf("Push client : connected to push server ( secure tls connection ) @ %s", address)
 
 		if this.tlsConfig.InsecureSkipVerify == true {
@@ -88,43 +93,50 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
 			err = this.GetServerCertificate()
 			if err == nil {
 				// Ask for immediate reconnect
-				err = errors.New("RECONNECT")
-			}
-			return
-		}
-
-		// Check if the client is allowed to push to the server. If it's not
-		// the case add the client to a waiting appoval list. This beahviour may
-		// be disabled by setting the AutoAcceptClients configuration parametter
-		// to true on the push server.
-		log.Println("Push client : Register")
-		b := new(bool) // void response
-		err = this.CallWithTimeout("PushServer.Register", NewHelloRequest(nil), b, time.Duration(5)*time.Second)
-		if err != nil {
-			return
-		}
-
-		if _, err = os.Stat(this.config.UuidSig); err == nil {
-			if this.uuidSignature, err = ioutil.ReadFile(this.config.UuidSig); err != nil {
-				log.Fatal("Push client : Unable to read uuid signature")
-			}
-		} else {
-			err = this.SignUuid()
-			if err == nil {
-				// Ask for immediate reconnect
+				log.Println("Push client : downloaded server certificate, reconnecting securely")
 				err = errors.New("RECONNECT")
 			}
 			return
 		}
 
 	} else {
-		listner, err = net.Dial("tcp", address)
+		listener, err = net.Dial("tcp", address)
 		if err != nil {
 			return
 		}
 
-		this.client = rpc.NewClient(listner)
+		this.client = rpc.NewClient(listener)
 		log.Println("Push client : connected to push server ( insecure connection ) @ " + address)
+	}
+
+	// Check if the client is allowed to push to the server. If it's not
+	// the case add the client to a waiting appoval list. This beahviour may
+	// be disabled by setting the AutoAcceptClients configuration parametter
+	// to true on the push server.
+	log.Println("Push client : registering")
+	b := new(bool) // void response
+	err = this.CallWithTimeout("PushServer.Register", NewHelloRequest(nil), b, time.Duration(5)*time.Second)
+	if err != nil {
+		if !config.SslEnabled && err.Error() == "unexpected EOF" {
+			log.Println("Push client : error while trying to register, maybe remote server is expecting a TLS connection ?")
+		} else {
+			log.Printf("Push client : error while trying to register (%s)", err.Error())
+		}
+		return
+	}
+
+	if _, err = os.Stat(this.config.UuidSig); err == nil {
+		if this.uuidSignature, err = ioutil.ReadFile(this.config.UuidSig); err != nil {
+			log.Fatalf("Push client : while registering on %s, unable to read uuid signature from %s", address, this.config.UuidSig)
+		}
+	} else {
+		err = this.SignUuid()
+		if err == nil {
+			// Ask for immediate reconnect
+			log.Printf("Push client : uuid signed, reconnecting")
+			err = errors.New("RECONNECT")
+		}
+		return
 	}
 
 	return
@@ -168,6 +180,7 @@ func (this *PushClient) SignUuid() (err error) {
 		err = this.CallWithTimeout("PushServer.GetUuidSignature", NewHelloRequest(nil), &this.uuidSignature, time.Duration(5)*time.Second)
 		if err != nil {
 			if err.Error() == "WAITING" {
+				log.Println("Push client : I'm on the waiting list of the server, will retry later");
 				time.Sleep(time.Duration(this.config.PushInterval) * time.Second)
 				continue
 			}
@@ -204,6 +217,7 @@ func (this *PushClient) Hello() (err error) {
 		err = this.CallWithTimeout("PushServer.Hello", NewHelloRequest(this.uuidSignature), &this.token, time.Duration(5)*time.Second)
 		if err != nil {
 			if err.Error() == "WAITING" {
+				log.Println("Push client : waiting to be allowed on server")
 				time.Sleep(time.Duration(this.config.PushInterval) * time.Second)
 				continue
 			}
