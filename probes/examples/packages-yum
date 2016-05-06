@@ -69,7 +69,7 @@ if ( !$delta_update or $delta_update > 30 * 60 )
             }
             elsif ( $line =~ /Trying other mirror/ )
             {
-                # Don't ware about this errors
+                # Don't care about this errors
             }
             elsif ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S*)$/ )
             {
@@ -90,10 +90,14 @@ if ( !$delta_update or $delta_update > 30 * 60 )
         chomp $fnret;
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( $line =~ /^Error:\s(.*)/ )
+            if ( $line =~ /error:?\s/i)
             {
                 $errorOnUpdate = 1;
                 push @{ detail->{'Yum-List-Updates'}->{'Errors'} } , $1;
+            }
+            elsif ( $line =~ /Trying other mirror/ )
+            {
+                # Don't care about this errors
             }
             elsif ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S*$)/ )
             {
