@@ -36,10 +36,10 @@ if ( !$delta_update or $delta_update > 30 * 60 )
 
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( $line =~ /^Error:\s(.*)/ )
+            if ( $line =~ /^Err(o|eu)r/ )
             {
                 $errorOnUpdate = 1;
-                push @{ detail->{'Yum-Clean'}->{'Errors'} } , $1;
+                push @{ detail->{'Yum-Clean'}->{'Errors'} } , $line;
             }
         }
         
@@ -62,20 +62,24 @@ if ( !$delta_update or $delta_update > 30 * 60 )
         my $securityUpdate = 0;
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( $line =~ /error:?\s/i)
+            if($line)
             {
-                $errorOnUpdate = 1;
-                push @{ detail->{'Yum-List-Security-Updates'}->{'Errors'} } , $1;
-            }
-            elsif ( $line =~ /Trying other mirror/ )
-            {
-                # Don't care about this errors
-            }
-            elsif ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S*)$/ )
-            {
-                detail->{'Yum-List-Security-Updates'}->{$repo} ||= [];
-                push @{detail->{'Yum-List-Security-Updates'}->{$repo}}, $name;
-                $securityUpdate++;
+                if ( $line =~ /^Err(o|eu)r|No|Could Not|Trying/)
+                {
+                    $errorOnUpdate = 1;
+                    push @{ detail->{'Yum-List-Security-Updates'}->{'Errors'} } , $line;
+                }
+                elsif ( my ($name,$version,$repo) = $line =~ /^([a-z0-9._-]+)\s+([a-z0-9._:-]+)\s+([a-z_.-]+)\s*$/ )
+                {
+                    detail->{'Yum-List-Security-Updates'}->{$repo} ||= [];
+                    push @{detail->{'Yum-List-Security-Updates'}->{$repo}}, $name;
+                    $securityUpdate++;
+                }
+                else
+                {
+                    $errorOnUpdate = 1;
+                    push @{ detail->{'Yum-List-Security-Updates'}->{'Errors'} } , $line;
+                }
             }
         }
 
@@ -90,20 +94,24 @@ if ( !$delta_update or $delta_update > 30 * 60 )
         chomp $fnret;
         foreach my $line ( split "\n" , $fnret )
         {
-            if ( $line =~ /error:?\s/i)
+            if($line)
             {
-                $errorOnUpdate = 1;
-                push @{ detail->{'Yum-List-Updates'}->{'Errors'} } , $1;
-            }
-            elsif ( $line =~ /Trying other mirror/ )
-            {
-                # Don't care about this errors
-            }
-            elsif ( my ($name,$version,$repo) = $line =~ /^(\S+)\s+(\S+)\s+(\S*$)/ )
-            {
-                detail->{'Yum-List-Updates'}->{$repo} ||= [];
-                push @{detail->{'Yum-List-Updates'}->{$repo}}, $name;
-                $update++;
+                if ( $line =~ /^Err(o|eu)r|No|Could Not|Trying/)
+                {
+                    $errorOnUpdate = 1;
+                    push @{ detail->{'Yum-List-Updates'}->{'Errors'} } , $line;
+                }
+                elsif ( my ($name,$version,$repo) = $line =~ /^([a-z0-9._-]+)\s+([a-z0-9._:-]+)\s+([a-z_.-]+)\s*$/ )
+                {
+                    detail->{'Yum-List-Updates'}->{$repo} ||= [];
+                    push @{detail->{'Yum-List-Updates'}->{$repo}}, $name;
+                    $update++;
+                }
+                else
+                {
+                    $errorOnUpdate = 1;
+                    push @{ detail->{'Yum-List-Updates'}->{'Errors'} } , $line;
+                }
             }
         }
 
