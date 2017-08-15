@@ -130,6 +130,7 @@ dpkg-deb --build $PACKAGEROOT /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb squeeze /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo.deb
+reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb stretch /tmp/wigo.deb
 
 #if [ -e /tmp/wigo_arm.deb ] ; then
 #    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_arm.deb
