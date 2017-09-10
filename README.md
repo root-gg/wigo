@@ -27,6 +27,19 @@ Installation
 
 ### Installation :
 
+#### Debian Stretch :
+```sh
+echo "deb http://deb.carsso.com stretch main" > /etc/apt/sources.list.d/deb.carsso.com.list
+wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
+apt-get update
+apt-get install wigo
+```
+GPG key has changed since 2017-09-10.
+If you have already installed package before, add the new key with this command: 
+```sh
+wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
+```
+
 #### Debian Jessie :
 ```sh
 echo "deb http://deb.carsso.com jessie main" > /etc/apt/sources.list.d/deb.carsso.com.list
@@ -34,7 +47,7 @@ wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
 apt-get update
 apt-get install wigo
 ```
-GPG key has changed since 2016-03-20.
+GPG key has changed since 2017-09-10.
 If you have already installed package before, add the new key with this command: 
 ```sh
 wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
@@ -47,7 +60,7 @@ wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
 apt-get update
 apt-get install wigo
 ```
-GPG key has changed since 2016-03-20.
+GPG key has changed since 2017-09-10.
 If you have already installed package before, add the new key with this command: 
 ```sh
 wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
