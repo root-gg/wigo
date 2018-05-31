@@ -53,19 +53,6 @@ If you have already installed package before, add the new key with this command:
 wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
 ```
 
-#### Debian Wheezy :
-```sh
-echo "deb http://deb.carsso.com wheezy main" > /etc/apt/sources.list.d/deb.carsso.com.list
-wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
-apt-get update
-apt-get install wigo
-```
-GPG key has changed since 2017-09-10.
-If you have already installed package before, add the new key with this command: 
-```sh
-wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
-```
-
 #### Centos 6 & 7 :
 ```sh
 echo -e "[carsso]\nname=Carsso\nbaseurl=http://rpm.carsso.com\ngpgcheck=0" > /etc/yum.repos.d/carsso.repo

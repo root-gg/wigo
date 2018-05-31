@@ -127,17 +127,13 @@ dpkg-deb --build $PACKAGEROOT /tmp/wigo.deb
 #    dpkg-deb --build $PACKAGEROOT /tmp/wigo_386.deb
 #fi
 
-reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb squeeze /tmp/wigo.deb
-reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo.deb
 reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb stretch /tmp/wigo.deb
 
 #if [ -e /tmp/wigo_arm.deb ] ; then
-#    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_arm.deb
 #    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_arm.deb
 #fi
 
 #if [ -e /tmp/wigo_386.deb ] ; then
-#    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb wheezy /tmp/wigo_386.deb
 #    reprepro --ask-passphrase -b $DEBMIRRORROOT includedeb jessie /tmp/wigo_386.deb
 #fi

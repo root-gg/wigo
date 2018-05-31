@@ -37,6 +37,12 @@ if (config->{'dontCheckSSL'})
     $UA->ssl_opts( verify_hostname => 0 );
 }
 
+# custom timeout
+if (config->{'timeout'})
+{
+    $UA->timeout(config->{'timeout'});
+}
+
 my @down;
 for my $key ( keys %{ config->{'urls'} } )
 {
