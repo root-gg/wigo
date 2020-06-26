@@ -12,7 +12,7 @@ RPMROOT=rpms
 
 ifdef REPOROOT
 else
-	REPOROOT="/repo-root/"
+	REPOROOT="/repo-root"
 endif
 
 race_detector = GORACE="halt_on_error=1" go build -race
@@ -25,7 +25,7 @@ test: build = $(race_detector)
 
 all: clean release
 
-release: deps
+release:
 	@mkdir -p release
 	@cp $(BASE_DIR)/src/wigo/global.go $(BASE_DIR)/src/wigo/global.go.bkp
 	@cd release && for target in $(RELEASE_TARGETS) ; do \
@@ -33,7 +33,6 @@ release: deps
 		sed -i "s/##VERSION##/Wigo v$(RELEASE_VERSION)/" $(BASE_DIR)/src/wigo/global.go;\
 		export CGO_ENABLED=1; \
 		export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
-		echo $(GOPATH); \
 		export GOOS=`echo $$target | cut -d "-" -f 1`; 	\
 		export GOARCH=`echo $$target | cut -d "-" -f 2`; \
 		if [ $$target = 'linux-arm' ]; then  \
@@ -52,7 +51,7 @@ release: deps
 	done
 	@rm $(BASE_DIR)/src/wigo/global.go.bkp
 
-debs: release
+debs:
 	@mkdir -p $(DEBROOT)
 	@mkdir -p $(DEBROOT)/etc/wigo/conf.d
 	@mkdir -p $(DEBROOT)/etc/logrotate.d
@@ -87,11 +86,11 @@ debs: release
 		dpkg-deb --build $(DEBROOT) $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 	done
 
-publish-debs: debs
+publish-debs:
 	@for arch in amd64 armhf ; do \
 		for release in stretch buster ; do \
 		  	echo "Adding package with arch $$arch and release $$release to repo" ; \
-			reprepro --ask-passphrase -b $(DEBMIRRORROOT) includedeb $$release $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
+			reprepro --ask-passphrase -b $(REPOROOT) includedeb $$release $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 		done \
 	done
 
@@ -109,4 +108,5 @@ clean:
 	@rm -rf $(DEBROOT)
 
 deps:
-	@go get -d ./...
+	@export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
+	go get -d ./...
