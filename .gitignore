@@ -5,6 +5,8 @@ src/github.com
 uuid
 wigo
 wigo.*
+debs
+release
 
 # dev
 probes/60
