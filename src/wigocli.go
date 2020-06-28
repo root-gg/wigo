@@ -76,16 +76,20 @@ Options
 	if probe != "" {
 		if wigoHost == "localhost" {
 			// Find probe
-			if p, ok := wigoObj.GetLocalHost().Probes[probe]; ok {
+			if tmp, ok := wigoObj.GetLocalHost().Probes.Get(probe); ok {
+				p := tmp.(*wigo.ProbeResult)
 				fmt.Println(p.Summary())
 			} else {
 				fmt.Printf("Probe %s not found in local wigo\n", probe)
 			}
 		} else {
 			// Find wigo
-			if w, ok := wigoObj.RemoteWigos[wigoHost]; ok {
+
+			if tmp, ok := wigoObj.RemoteWigos.Get(wigoHost); ok {
+				w := tmp.(*wigo.Wigo)
 				// Find probe
-				if p, ok := w.GetLocalHost().Probes[probe]; ok {
+				if tmp, ok := w.GetLocalHost().Probes.Get(probe); ok {
+					p := tmp.(*wigo.ProbeResult)
 					fmt.Println(p.Summary())
 				} else {
 					fmt.Printf("Probe %s not found on remote wigo %s\n", probe, wigoHost)
@@ -96,7 +100,8 @@ Options
 		}
 	} else if wigoHost != "" && wigoHost != "localhost" {
 		// Find remote
-		if w, ok := wigoObj.RemoteWigos[wigoHost]; ok {
+		if tmp, ok := wigoObj.RemoteWigos.Get(wigoHost); ok {
+			w := tmp.(*wigo.Wigo)
 			fmt.Printf(w.GenerateSummary(showOnlyErrors))
 		} else {
 			fmt.Printf("Remote wigo %s not found\n", wigoHost)

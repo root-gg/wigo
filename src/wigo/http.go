@@ -40,7 +40,7 @@ func HttpRemotesHandler(params martini.Params) (int, string) {
 func HttpRemotesProbesHandler(params martini.Params) (int, string) {
 
 	hostname := params["hostname"]
-	probe := params["probe"]
+	probeName := params["probe"]
 
 	if hostname == "" {
 		return 404, "No wigo name set in url"
@@ -53,9 +53,11 @@ func HttpRemotesProbesHandler(params martini.Params) (int, string) {
 	}
 
 	// Get probe or probes
-	if probe != "" {
-		if remoteWigo.LocalHost.Probes[probe] != nil {
-			json, err := json.Marshal(remoteWigo.LocalHost.Probes[probe])
+	if probeName != "" {
+		if tmp, ok := remoteWigo.LocalHost.Probes.Get(probeName); ok {
+			probe := tmp.(*ProbeResult)
+
+			json, err := json.Marshal(probe)
 			if err != nil {
 				return 500, ""
 			} else {
@@ -94,12 +96,12 @@ func HttpRemotesStatusHandler(params martini.Params) (int, string) {
 func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
 
 	hostname := params["hostname"]
-	probe := params["probe"]
+	probeName := params["probe"]
 
 	if hostname == "" {
 		return 404, "No wigo name set in url"
 	}
-	if probe == "" {
+	if probeName == "" {
 		return 404, "No probe name set in url"
 	}
 
@@ -110,11 +112,13 @@ func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
 	}
 
 	// Get probe
-	if remoteWigo.LocalHost.Probes[probe] == nil {
-		return 404, "Probe " + probe + " not found in remote wigo " + hostname
+	if tmp, ok := remoteWigo.LocalHost.Probes.Get(probeName); ok {
+		probe := tmp.(*ProbeResult)
+		return 200, strconv.Itoa(probe.Status)
+	} else {
+		return 404, "Probe " + probeName + " not found in remote wigo " + hostname
 	}
 
-	return 200, strconv.Itoa(remoteWigo.LocalHost.Probes[probe].Status)
 }
 
 func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
@@ -134,9 +138,9 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	if len(pq["hostname"]) > 0 {
 		hostname = pq["hostname"][0]
 	}
-	probe := ""
+	probeName := ""
 	if len(pq["probe"]) > 0 {
-		probe = pq["probe"][0]
+		probeName = pq["probe"][0]
 	}
 	group := ""
 	if len(pq["group"]) > 0 {
@@ -167,17 +171,18 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	}
 
 	// Test probe
-	if probe != "" {
+	if probeName != "" {
 		if hostname != "" {
 			// Get probe
-			if remoteWigo.LocalHost.Probes[probe] == nil {
-				return 404, "Probe " + probe + " not found in remote wigo " + hostname
+			if _, ok := remoteWigo.LocalHost.Probes.Get(probeName); ok {
+			} else {
+				return 404, "Probe " + probeName + " not found in remote wigo " + hostname
 			}
 		}
 	}
 
 	// Get logs
-	logs := LocalWigo.SearchLogs(probe, hostname, group, uint64(limit), uint64(offset))
+	logs := LocalWigo.SearchLogs(probeName, hostname, group, uint64(limit), uint64(offset))
 
 	// Json
 	json, err := json.Marshal(logs)

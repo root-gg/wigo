@@ -25,12 +25,11 @@ test: build = $(race_detector)
 
 all: clean release
 
-release:
+releases:
+	@echo "Building Wigo releases"
 	@mkdir -p release
-	@cp $(BASE_DIR)/src/wigo/global.go $(BASE_DIR)/src/wigo/global.go.bkp
 	@cd release && for target in $(RELEASE_TARGETS) ; do \
 		RELEASE_DIR=$(BASE_DIR)/release/$$target; \
-		sed -i "s/##VERSION##/Wigo v$(RELEASE_VERSION)/" $(BASE_DIR)/src/wigo/global.go;\
 		export CGO_ENABLED=1; \
 		export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
 		export GOOS=`echo $$target | cut -d "-" -f 1`; 	\
@@ -43,15 +42,23 @@ release:
 			export CC=; \
 	    fi ; \
 		mkdir $$RELEASE_DIR; \
-		echo "Building Wigo for $$target to $$RELEASE_DIR"; \
-		$(build) -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/wigo.go;	\
-		$(build) -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/wigocli.go;	\
-		$(build) -o $$RELEASE_DIR/generate_cert $(BASE_DIR)/src/generate_cert.go;	\
-		cp $(BASE_DIR)/src/wigo/global.go.bkp $(BASE_DIR)/src/wigo/global.go; \
+		echo "Building Wigo release for $$target to $$RELEASE_DIR"; \
+		$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/wigo.go; \
+		$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/wigocli.go; \
+		$(build) -o $$RELEASE_DIR/generate_cert $(BASE_DIR)/src/generate_cert.go; \
 	done
-	@rm $(BASE_DIR)/src/wigo/global.go.bkp
+
+release:
+	@echo "Building Wigo release for current OS"
+	@mkdir -p release
+	@cd release; \
+	export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
+	$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/wigo.go;	\
+	$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
+	$(build) -o current/generate_cert $(BASE_DIR)/src/generate_cert.go
 
 debs:
+	@echo "Building Wigo Debian packages"
 	@mkdir -p $(DEBROOT)
 	@mkdir -p $(DEBROOT)/etc/wigo/conf.d
 	@mkdir -p $(DEBROOT)/etc/logrotate.d
@@ -75,6 +82,7 @@ debs:
 	@cp -R public $(DEBROOT)/usr/local/wigo
 	@sed -i "s/##VERSION##/Wigo v$(RELEASE_VERSION)/" $(DEBROOT)/usr/local/wigo/public/index.html
 	@for arch in amd64 armhf ; do \
+		echo "Building Wigo Debian package for $$arch to $(DEBROOT)"; \
 		cp -R build/deb/DEBIAN/control $(DEBROOT)/DEBIAN/control ; \
 		sed -i "s/^Version:.*/Version: $(RELEASE_VERSION)/" $(DEBROOT)/DEBIAN/control ; \
 		sed -i "s/^Architecture:.*/Architecture: $$arch/" $(DEBROOT)/DEBIAN/control ; \
@@ -87,9 +95,10 @@ debs:
 	done
 
 publish-debs:
+	@echo "Publishing Wigo Debian packages to repo"
 	@for arch in amd64 armhf ; do \
 		for release in stretch buster ; do \
-		  	echo "Adding package with arch $$arch and release $$release to repo" ; \
+		  	echo "Adding package with arch $$arch and release $$release to repo $(REPOROOT)" ; \
 			reprepro --ask-passphrase -b $(REPOROOT) includedeb $$release $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 		done \
 	done
@@ -104,9 +113,11 @@ lint:
 	test $$FAIL -eq 0
 
 clean:
+	@echo "Cleaning all files"
 	@rm -rf release
 	@rm -rf $(DEBROOT)
 
 deps:
+	@echo "Installing dependencies"
 	@export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
 	go get -d ./...

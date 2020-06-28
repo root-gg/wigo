@@ -177,8 +177,8 @@ func threadLocalChecks() {
 							// Delete probes results of this directory
 							for c := currentProbesList.Front(); c != nil; c = c.Next() {
 								probeName := c.Value.(string)
-								if _, ok := wigo.GetLocalWigo().GetLocalHost().Probes[probeName]; ok {
-									delete(wigo.GetLocalWigo().GetLocalHost().Probes, probeName)
+								if _, ok := wigo.GetLocalWigo().GetLocalHost().Probes.Get(probeName); ok {
+									wigo.GetLocalWigo().GetLocalHost().Probes.Remove(probeName)
 								}
 							}
 
@@ -461,7 +461,7 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 	if Hostname.Port != 0 {
 		host = Hostname.Hostname + ":" + strconv.Itoa(Hostname.Port)
 	} else {
-		host = Hostname.Hostname + ":" + strconv.Itoa(wigo.GetLocalWigo().GetConfig().Global.ListenPort)
+		host = Hostname.Hostname + ":" + strconv.Itoa(wigo.GetLocalWigo().GetConfig().Http.Port)
 	}
 
 	// Create vars

@@ -78,9 +78,9 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 // verify the identity of the server. To avoid the small window
 // of MITM vulnerability you might copy the certificate by yourself.
 func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) (err error) {
-	//	if LocalWigo.GetConfig().Global.Debug {
-	//		Dump(req)
-	//	}
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : GetServerCertificate \n%s", ToJson(req))
+	}
 	log.Printf("Push server [client %s] : sending server certificate", req.Hostname)
 	*cert = this.authority.GetServerCertificate()
 	return
@@ -91,9 +91,9 @@ func (this *PushServer) GetServerCertificate(req HelloRequest, cert *[]byte) (er
 // to grant the client to the allowed list. You may accept
 // new clients automatically with the AutoAcceptClient setting.
 func (this *PushServer) Register(req HelloRequest, reply *bool) (err error) {
-	//	if LocalWigo.GetConfig().Global.Debug {
-	//		Dump(req)
-	//	}
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : Register \n%s", ToJson(req))
+	}
 	if !this.authority.IsAllowed(req.Uuid) {
 		log.Printf("Push server [client %s] : adding client to waiting list", req.Hostname)
 		this.authority.AddClientToWaitingList(req.Uuid, req.Hostname)
@@ -109,9 +109,9 @@ func (this *PushServer) Register(req HelloRequest, reply *bool) (err error) {
 // The client will have to provide this as a proof of
 // his identity at every new connection.
 func (this *PushServer) GetUuidSignature(req HelloRequest, sig *[]byte) (err error) {
-	//	if LocalWigo.GetConfig().Global.Debug {
-	//		Dump(req)
-	//	}
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : GetUuidSignature \n%s", ToJson(req))
+	}
 	if this.authority.IsAllowed(req.Uuid) {
 		log.Printf("Push server [client %s] : sending uuid signature", req.Hostname)
 		*sig, err = this.authority.GetUuidSignature(req.Uuid, req.Hostname)
@@ -130,9 +130,9 @@ func (this *PushServer) GetUuidSignature(req HelloRequest, sig *[]byte) (err err
 // Verify the validity of the client's uuid signature. This is done
 // once for every connection then a token then a token is used.
 func (this *PushServer) Hello(req HelloRequest, token *string) (err error) {
-	//	if LocalWigo.GetConfig().Global.Debug {
-	//		Dump(req)
-	//	}
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : Hello \n%s", ToJson(req))
+	}
 	if this.authority.IsAllowed(req.Uuid) {
 		if err = this.authority.VerifyUuidSignature(req.Uuid, req.UuidSignature); err == nil {
 			if *token, err = this.authority.GetToken(req.Uuid); err == nil {
@@ -160,16 +160,32 @@ func (this *PushServer) Hello(req HelloRequest, token *string) (err error) {
 
 // Update a client's data
 func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
-	//	if LocalWigo.GetConfig().Global.Debug {
-	//		Dump(req)
-	//	}
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : Update \n%s", ToJson(req))
+	}
 	if err = this.auth(req.Request); err == nil {
-		log.Printf("Push server : Update from %s", req.Wigo.GetHostname())
-		req.Wigo.SetParentHostsInProbes()
-		// TODO this should return an error
-		LocalWigo.AddOrUpdateRemoteWigo(&req.Wigo)
+		if req.WigoJson == "" {
+			wigoHostname := req.WigoHostname
+			if this.authority.IsAllowed(req.Uuid) {
+				wigoHostname = this.authority.Allowed[req.Uuid]
+			}
+			log.Printf("Push server : Legacy data format received from wigo %s with uuid %s, please update your wigo client", wigoHostname, req.Uuid)
+			err = errors.New("TOO OLD WIGO CLIENT")
+		} else {
+			wigoJson := []byte(req.WigoJson)
+			wigo, err := NewWigoFromJson(wigoJson, 1)
+			if err != nil {
+				log.Printf("Push server : Cannot decode json for wigo %s with uuid %s : %s", req.WigoHostname, req.Uuid, err.Error())
+				err = errors.New("CANNOT DECODE")
+			} else {
+				log.Printf("Push server : Update from %s with uuid %s", req.WigoHostname, req.Uuid)
+				wigo.SetParentHostsInProbes()
+				// TODO this should return an error
+				LocalWigo.AddOrUpdateRemoteWigo(wigo)
+			}
+		}
 	} else {
-		log.Printf("Push server : Update for %s refused, you're not allowed", req.Wigo.GetHostname())
+		log.Printf("Push server : Update for %s with uuid %s refused, you're not allowed", req.WigoHostname, req.Uuid)
 		err = errors.New("NOT ALLOWED")
 	}
 	return
@@ -177,9 +193,9 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 
 // Disconnect the client gracefully
 func (this *PushServer) Goodbye(req Request, reply *bool) (err error) {
-	//	if LocalWigo.GetConfig().Global.Debug {
-	//		Dump(req)
-	//	}
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : Goodbye \n%s", ToJson(req))
+	}
 	if err = this.auth(&req); err == nil {
 		this.authority.RevokeToken(req.Uuid, req.Token)
 	}
@@ -222,9 +238,9 @@ func NewRequest(uuid string, token string) (this *Request) {
 // expire within 300 seconds hence forcing the client
 // to reconnect. Here we also check for flooding clients.
 func (this *PushServer) auth(req *Request) (err error) {
-	//	if LocalWigo.GetConfig().Global.Debug {
-	//		Dump(req)
-	//	}
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : auth \n%s", ToJson(req))
+	}
 	err = this.authority.VerifyToken(req.Uuid, req.Token)
 	if err != nil {
 		err = errors.New("NOT ALLOWED")
@@ -236,12 +252,18 @@ func (this *PushServer) auth(req *Request) (err error) {
 // Request the server to update the client's data
 type UpdateRequest struct {
 	*Request
-	Wigo Wigo
+	WigoJson string
+	WigoHostname string
 }
 
 func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
 	this = new(UpdateRequest)
 	this.Request = NewRequest(wigo.Uuid, token)
-	this.Wigo = *wigo
+	json, err := wigo.ToJsonString()
+	if err != nil {
+		log.Println("Push server : NewUpdateRequest error : " + err.Error())
+	}
+	this.WigoJson = json
+	this.WigoHostname = wigo.GetHostname()
 	return
 }

@@ -219,8 +219,9 @@ func (this *Authority) RevokeClient(uuid string) (err error) {
 			log.Println("Authority : token " + token + " revoked")
 		}
 	}
-	if wigo, ok := LocalWigo.RemoteWigos[uuid]; ok {
-		delete(LocalWigo.RemoteWigos, uuid)
+	if tmp, ok := LocalWigo.RemoteWigos.Get(uuid); ok {
+		wigo := tmp.(*Wigo)
+		LocalWigo.RemoteWigos.Remove(uuid)
 		log.Println("Authority : " + wigo.Hostname + " removed")
 	}
 	return

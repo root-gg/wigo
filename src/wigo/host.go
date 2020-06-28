@@ -6,7 +6,7 @@ type Host struct {
 	Name       string
 	Group      string
 	Status     int
-	Probes     map[string]*ProbeResult
+	Probes     *concurrentMapProbes
 	parentWigo *Wigo
 }
 
@@ -23,7 +23,7 @@ func NewHost() (this *Host) {
 	this = new(Host)
 
 	this.Status = 100
-	this.Probes = make(map[string]*ProbeResult)
+	this.Probes = NewConcurrentMapProbes()
 
 	return
 }
@@ -34,9 +34,11 @@ func (this *Host) RecomputeStatus() {
 
 	this.Status = 0
 
-	for probeName := range this.Probes {
-		if this.Probes[probeName].Status > this.Status {
-			this.Status = this.Probes[probeName].Status
+	for item := range this.Probes.IterBuffered() {
+		probe := item.Val.(*ProbeResult)
+
+		if probe.Status > this.Status {
+			this.Status = probe.Status
 		}
 	}
 
@@ -46,7 +48,8 @@ func (this *Host) RecomputeStatus() {
 func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
 	// If old probe, test if status is different
-	if oldProbe, ok := GetLocalWigo().GetLocalHost().Probes[probe.Name]; ok {
+	if tmp, ok := GetLocalWigo().GetLocalHost().Probes.Get(probe.Name); ok {
+		oldProbe := tmp.(*ProbeResult)
 
 		// Notification
 		if oldProbe.Status != probe.Status {
@@ -59,7 +62,7 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 	}
 
 	// Update
-	GetLocalWigo().LocalHost.Probes[probe.Name] = probe
+	GetLocalWigo().LocalHost.Probes.Set(probe.Name, probe)
 	GetLocalWigo().LocalHost.RecomputeStatus()
 
 	// Graph
@@ -72,9 +75,10 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 }
 
 func (this *Host) DeleteProbeByName(probeName string) {
-	if probeToDelete, ok := this.Probes[probeName]; ok {
+	if tmp, ok := this.Probes.Get(probeName); ok {
+		probeToDelete := tmp.(*ProbeResult)
 		NewNotificationProbe(probeToDelete, nil)
-		delete(this.Probes, probeName)
+		this.Probes.Remove(probeName)
 	}
 }
 
@@ -82,8 +86,11 @@ func (this *Host) GetErrorsProbesList() (list []string) {
 
 	list = make([]string, 0)
 
-	for probeName := range this.Probes {
-		if this.Probes[probeName].Status > 100 {
+	for item := range this.Probes.IterBuffered() {
+		probeName := item.Key
+		probe := item.Val.(*ProbeResult)
+
+		if probe.Status > 100 {
 			list = append(list, probeName)
 		}
 	}
@@ -104,12 +111,13 @@ func (this *Host) GetSummary() (hs *HostSummary) {
 	hs.Status = this.Status
 	hs.Probes = make([]map[string]interface{}, 0)
 
-	for probeName := range this.Probes {
+	for item := range this.Probes.IterBuffered() {
+		_probe := item.Val.(*ProbeResult)
 
 		probe := make(map[string]interface{})
-		probe["Name"] = this.Probes[probeName].Name
-		probe["Status"] = this.Probes[probeName].Status
-		probe["Message"] = this.Probes[probeName].Message
+		probe["Name"] = _probe.Name
+		probe["Status"] = _probe.Status
+		probe["Message"] = _probe.Message
 
 		hs.Probes = append(hs.Probes, probe)
 	}

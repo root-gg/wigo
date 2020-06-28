@@ -55,6 +55,7 @@ func NewConfig(configFile string) (this *Config) {
 	this.Global.AliveTimeout = 60
 	this.Global.ConfigFile = configFile
 	this.Global.Debug = false
+	this.Global.Trace = false
 
 	// Http server
 	this.Http.Enabled = true
@@ -116,6 +117,8 @@ func NewConfig(configFile string) (this *Config) {
 	this.OpenTSDB.BufferSize = 10000
 	this.OpenTSDB.Tags = make(map[string]string)
 
+	log.Printf("Loading configuration file %s\n", this.Global.ConfigFile)
+
 	// Override with config file
 	if _, err := toml.DecodeFile(this.Global.ConfigFile, &this); err != nil {
 		log.Printf("Failed to load configuration file %s : %s\n", this.Global.ConfigFile, err)
@@ -135,7 +138,7 @@ func NewConfig(configFile string) (this *Config) {
 			}
 
 			if port == 0 {
-				port = this.Global.ListenPort
+				port = this.Http.Port
 			}
 
 			// Create new RemoteWigoConfig
@@ -162,13 +165,13 @@ func NewConfig(configFile string) (this *Config) {
 
 type GeneralConfig struct {
 	Hostname              string
-	ListenPort            int
 	ListenAddress         string
 	ProbesDirectory       string
 	ProbesConfigDirectory string
 	UuidFile              string
 	LogFile               string
 	Debug                 bool
+	Trace                 bool
 	ConfigFile            string
 	Group                 string
 	Database              string

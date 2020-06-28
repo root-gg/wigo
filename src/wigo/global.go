@@ -36,7 +36,7 @@ type Wigo struct {
 	GlobalMessage string
 
 	LocalHost   *Host
-	RemoteWigos map[string]*Wigo
+	RemoteWigos *concurrentMapWigos
 
 	Hostname       string
 	config         *Config
@@ -63,6 +63,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	this.Version = Version
 	this.GlobalStatus = 100
 	this.GlobalMessage = "OK"
+	log.Printf("Wigo version is : %s", this.Version)
 
 	// Load uuid
 	if _, err = os.Stat(this.config.Global.UuidFile); err == nil {
@@ -116,7 +117,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	this.LocalHost.parentWigo = this
 
 	// Init RemoteWigos list
-	this.RemoteWigos = make(map[string]*Wigo)
+	this.RemoteWigos = NewConcurrentMapWigos()
 
 	// Private vars
 	this.locker = new(sync.RWMutex)
@@ -231,7 +232,8 @@ Options:
 	go func() {
 		for {
 			now := time.Now().Unix()
-			for _, host := range LocalWigo.RemoteWigos {
+			for item := range LocalWigo.RemoteWigos.IterBuffered() {
+				host := item.Val.(*Wigo)
 				if host.LastUpdate < now-int64(config.Global.AliveTimeout) {
 					if host.IsAlive {
 						host.Down()
@@ -261,6 +263,7 @@ func GetLocalWigo() *Wigo {
 func NewWigoFromJson(ba []byte, checkRemotesDepth int) (this *Wigo, e error) {
 
 	this = new(Wigo)
+	this.RemoteWigos = NewConcurrentMapWigos()
 
 	err := json.Unmarshal(ba, this)
 	if err != nil {
@@ -313,9 +316,11 @@ func (this *Wigo) RecomputeGlobalStatus() {
 	this.GlobalStatus = 0
 
 	// Local probes
-	for probeName := range this.LocalHost.Probes {
-		if this.LocalHost.Probes[probeName].Status > this.GlobalStatus {
-			this.GlobalStatus = this.LocalHost.Probes[probeName].Status
+	for item := range this.LocalHost.Probes.IterBuffered() {
+		probe := item.Val.(*ProbeResult)
+
+		if probe.Status > this.GlobalStatus {
+			this.GlobalStatus = probe.Status
 		}
 	}
 
@@ -340,17 +345,20 @@ func (this *Wigo) GetOpenTsdb() *gopentsdb.OpenTsdb {
 }
 
 func (this *Wigo) Deduplicate(remoteWigo *Wigo) (err error) {
-	for uuid, wigo := range remoteWigo.RemoteWigos {
+
+	for item := range remoteWigo.RemoteWigos.IterBuffered() {
+		uuid := item.Key
+		wigo := item.Val.(*Wigo)
 		if uuid != wigo.Uuid {
 			return errors.New(fmt.Sprintf("Remote wigo %s uuid mismatch ...", wigo.GetHostname()))
 		}
 		if wigo.Uuid != "" && this.Uuid == wigo.Uuid {
 			log.Printf("Try to add a remote wigo %s with same uuid as me, Discarding.", wigo.GetHostname())
-			delete(remoteWigo.RemoteWigos, uuid)
+			remoteWigo.RemoteWigos.Remove(uuid)
 		}
-		if _, ok := this.RemoteWigos[uuid]; ok {
+		if _, ok := this.RemoteWigos.Get(uuid); ok {
 			log.Printf("Found a duplicate wigo %s, Discarding.", wigo.GetHostname())
-			delete(remoteWigo.RemoteWigos, uuid)
+			remoteWigo.RemoteWigos.Remove(uuid)
 		}
 		if err := this.Deduplicate(wigo); err != nil {
 			return err
@@ -374,15 +382,17 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 		return
 	}
 
-	if oldWigo, ok := this.RemoteWigos[remoteWigo.Uuid]; ok {
+	if tmp, ok := this.RemoteWigos.Get(remoteWigo.Uuid); ok {
+		oldWigo := tmp.(*Wigo)
 		if !oldWigo.IsAlive {
 			remoteWigo.IsAlive = false
 		}
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo, remoteWigo)
 	}
 
-	this.RemoteWigos[remoteWigo.Uuid] = remoteWigo
-	this.RemoteWigos[remoteWigo.Uuid].LastUpdate = time.Now().Unix()
+	_remoteWigo := remoteWigo
+	_remoteWigo.LastUpdate = time.Now().Unix()
+	this.RemoteWigos.Set(remoteWigo.Uuid, _remoteWigo)
 	this.RecomputeGlobalStatus()
 }
 
@@ -390,10 +400,12 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *W
 	// Detect changes and deleted probes
 	if oldWigo.LocalHost != nil {
 
-		for probeName := range oldWigo.LocalHost.Probes {
-			oldProbe := oldWigo.LocalHost.Probes[probeName]
+		for item := range oldWigo.LocalHost.Probes.IterBuffered() {
+			probeName := item.Key
+			oldProbe := item.Val.(*ProbeResult)
 
-			if probeWhichStillExistInNew, ok := newWigo.LocalHost.Probes[probeName]; ok {
+			if tmp, ok := newWigo.LocalHost.Probes.Get(probeName); ok {
+				probeWhichStillExistInNew := tmp.(*ProbeResult)
 
 				// Probe still exist in new
 				newWigo.LocalHost.SetParentWigo(newWigo)
@@ -417,19 +429,23 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *W
 
 	// Detect new probes (only if new wigo is up)
 	if newWigo.IsAlive && oldWigo.IsAlive {
-		for probeName := range newWigo.LocalHost.Probes {
-			if _, ok := oldWigo.LocalHost.Probes[probeName]; !ok {
-				NewNotificationProbe(nil, newWigo.LocalHost.Probes[probeName])
+		for item := range newWigo.LocalHost.Probes.IterBuffered() {
+			probeName := item.Key
+			newProbe := item.Val.(*ProbeResult)
+
+			if _, ok := oldWigo.LocalHost.Probes.Get(probeName); ok {
+				NewNotificationProbe(nil, newProbe)
 			}
 		}
 	}
 
 	// Remote Wigos
-	for wigoName := range oldWigo.RemoteWigos {
+	for item := range oldWigo.RemoteWigos.IterBuffered() {
+		wigoName := item.Key
+		oldWigo := item.Val.(*Wigo)
 
-		oldWigo := oldWigo.RemoteWigos[wigoName]
-
-		if wigoStillExistInNew, ok := newWigo.RemoteWigos[wigoName]; ok {
+		if tmp, ok := newWigo.RemoteWigos.Get(wigoName); ok {
+			wigoStillExistInNew := tmp.(*Wigo)
 			// Recursion
 			this.CompareTwoWigosAndRaiseNotifications(oldWigo, wigoStillExistInNew)
 		}
@@ -437,12 +453,14 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *W
 }
 
 func (this *Wigo) SetParentHostsInProbes() {
-	for localProbeName := range this.GetLocalHost().Probes {
-		this.LocalHost.Probes[localProbeName].SetHost(this.LocalHost)
+	for item := range this.GetLocalHost().Probes.IterBuffered() {
+		localProbe := item.Val.(*ProbeResult)
+		localProbe.SetHost(this.LocalHost)
 	}
 
-	for remoteWigo := range this.RemoteWigos {
-		this.RemoteWigos[remoteWigo].SetParentHostsInProbes()
+	for item := range this.RemoteWigos.IterBuffered() {
+		wigo := item.Val.(*Wigo)
+		wigo.SetParentHostsInProbes()
 	}
 }
 
@@ -652,20 +670,22 @@ func (this *Wigo) GenerateSummary(showOnlyErrors bool) (summary string) {
 	if this.LocalHost.Status != 100 || !showOnlyErrors {
 		summary += "Local probes : \n\n"
 
-		for probeName := range this.LocalHost.Probes {
-			if this.LocalHost.Probes[probeName].Status > 100 && this.LocalHost.Probes[probeName].Status < 300 {
-				summary += yellow("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, strings.Replace(this.LocalHost.Probes[probeName].Message, "%", "%%", -1))
-			} else if this.LocalHost.Probes[probeName].Status >= 300 {
-				summary += red("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, strings.Replace(this.LocalHost.Probes[probeName].Message, "%", "%%", -1))
+		for item := range this.LocalHost.Probes.IterBuffered() {
+			probe := item.Val.(*ProbeResult)
+
+			if probe.Status > 100 && probe.Status < 300 {
+				summary += yellow("\t%-25s : %d  %s\n", probe.Name, probe.Status, strings.Replace(probe.Message, "%", "%%", -1))
+			} else if probe.Status >= 300 {
+				summary += red("\t%-25s : %d  %s\n", probe.Name, probe.Status, strings.Replace(probe.Message, "%", "%%", -1))
 			} else {
-				summary += fmt.Sprintf("\t%-25s : %d  %s\n", this.LocalHost.Probes[probeName].Name, this.LocalHost.Probes[probeName].Status, strings.Replace(this.LocalHost.Probes[probeName].Message, "%", "%%", -1))
+				summary += fmt.Sprintf("\t%-25s : %d  %s\n", probe.Name, probe.Status, strings.Replace(probe.Message, "%", "%%", -1))
 			}
 		}
 
 		summary += "\n"
 	}
 
-	if this.GlobalStatus >= 200 && len(this.RemoteWigos) > 0 {
+	if this.GlobalStatus >= 200 && len(this.RemoteWigos.Items()) > 0 {
 		summary += "Remote Wigos : \n\n"
 	}
 
@@ -679,9 +699,10 @@ func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, ver
 	red := color.New(color.FgRed).SprintfFunc()
 	yellow := color.New(color.FgYellow).SprintfFunc()
 
-	for remoteWigo := range this.RemoteWigos {
+	for item := range this.RemoteWigos.IterBuffered() {
+		remoteWigo := item.Val.(*Wigo)
 
-		if showOnlyErrors && this.RemoteWigos[remoteWigo].GlobalStatus < 200 {
+		if showOnlyErrors && remoteWigo.GlobalStatus < 200 {
 			continue
 		}
 
@@ -692,22 +713,22 @@ func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, ver
 		}
 
 		// Host down ?
-		if !this.RemoteWigos[remoteWigo].IsAlive {
-			summary += tabs + red(this.RemoteWigos[remoteWigo].GetHostname()+" DOWN : \n")
-			summary += tabs + red("\t"+this.RemoteWigos[remoteWigo].GlobalMessage+"\n")
+		if !remoteWigo.IsAlive {
+			summary += tabs + red(remoteWigo.GetHostname()+" DOWN : \n")
+			summary += tabs + red("\t"+remoteWigo.GlobalMessage+"\n")
 
 		} else {
-			if this.RemoteWigos[remoteWigo].Version != version {
-				summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " ( " + this.RemoteWigos[remoteWigo].LocalHost.Name + " ) - " + red(this.RemoteWigos[remoteWigo].Version) + ": \n"
+			if remoteWigo.Version != version {
+				summary += tabs + remoteWigo.GetHostname() + " ( " + remoteWigo.LocalHost.Name + " ) - " + red(remoteWigo.Version) + ": \n"
 			} else {
-				summary += tabs + this.RemoteWigos[remoteWigo].GetHostname() + " ( " + this.RemoteWigos[remoteWigo].LocalHost.Name + " ) - " + this.RemoteWigos[remoteWigo].Version + ": \n"
+				summary += tabs + remoteWigo.GetHostname() + " ( " + remoteWigo.LocalHost.Name + " ) - " + remoteWigo.Version + ": \n"
 			}
 		}
 
 		// Iterate on probes
-		for probeName := range this.RemoteWigos[remoteWigo].GetLocalHost().Probes {
+		for item := range remoteWigo.GetLocalHost().Probes.IterBuffered() {
+			currentProbe := item.Val.(*ProbeResult)
 
-			currentProbe := this.RemoteWigos[remoteWigo].GetLocalHost().Probes[probeName]
 			summary += tabs
 
 			if currentProbe.Status > 100 && currentProbe.Status < 300 {
@@ -721,7 +742,7 @@ func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, ver
 
 		nextLevel := level + 1
 		summary += "\n"
-		summary += this.RemoteWigos[remoteWigo].GenerateRemoteWigosSummary(nextLevel, showOnlyErrors, version)
+		summary += remoteWigo.GenerateRemoteWigosSummary(nextLevel, showOnlyErrors, version)
 	}
 
 	return
@@ -734,14 +755,15 @@ func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 		return this
 	}
 
-	for name := range this.RemoteWigos {
+	for item := range this.RemoteWigos.IterBuffered() {
+		name := item.Key
+		remoteWigo := item.Val.(*Wigo)
 
 		if name == hostname {
-			foundWigo = this.RemoteWigos[name]
-			return foundWigo
+			return remoteWigo
 		}
 
-		foundWigo = this.RemoteWigos[name].FindRemoteWigoByHostname(hostname)
+		foundWigo = remoteWigo.FindRemoteWigoByHostname(hostname)
 		if foundWigo != nil {
 			return foundWigo
 		}
@@ -751,11 +773,16 @@ func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 }
 
 func (this *Wigo) FindRemoteWigoByUuid(uuid string) (*Wigo, bool) {
-	if wigo, ok := LocalWigo.RemoteWigos[uuid]; ok {
+	if tmp, ok := this.RemoteWigos.Get(LocalWigo.Uuid); ok {
+		wigo := tmp.(*Wigo)
 		return wigo, true
 	} else {
-		for _, w := range this.RemoteWigos {
-			w.FindRemoteWigoByUuid(uuid)
+		for item := range this.RemoteWigos.IterBuffered() {
+			uuid := item.Key
+			wigo := item.Val.(*Wigo)
+			if remoteWigo, ok := wigo.FindRemoteWigoByUuid(uuid); ok {
+				return remoteWigo, true
+			}
 		}
 	}
 	return nil, false
@@ -767,10 +794,10 @@ func (this *Wigo) ListRemoteWigosNames() []string {
 	if this.Uuid == LocalWigo.Uuid {
 		list = append(list, this.GetHostname())
 	}
-
-	for wigoName := range this.RemoteWigos {
-		list = append(list, this.RemoteWigos[wigoName].GetHostname())
-		remoteList := this.RemoteWigos[wigoName].ListRemoteWigosNames()
+	for item := range this.RemoteWigos.IterBuffered() {
+		wigo := item.Val.(*Wigo)
+		list = append(list, wigo.GetHostname())
+		remoteList := wigo.ListRemoteWigosNames()
 		list = append(list, remoteList...)
 	}
 
@@ -780,8 +807,10 @@ func (this *Wigo) ListRemoteWigosNames() []string {
 func (this *Wigo) ListProbes() []string {
 	list := make([]string, 0)
 
-	for probe := range this.LocalHost.Probes {
-		list = append(list, probe)
+	for item := range this.LocalHost.Probes.IterBuffered() {
+		probeName := item.Key
+
+		list = append(list, probeName)
 	}
 
 	return list
@@ -794,13 +823,14 @@ func (this *Wigo) EraseRemoteWigos(depth int) *Wigo {
 	depth = depth - 1
 
 	if depth == 0 {
-		this.RemoteWigos = make(map[string]*Wigo)
+		this.RemoteWigos = NewConcurrentMapWigos()
 		this.RecomputeGlobalStatus()
 		return this
 	} else {
-		for remoteWigo := range this.RemoteWigos {
-			this.RemoteWigos[remoteWigo].EraseRemoteWigos(depth)
-			this.RemoteWigos[remoteWigo].RecomputeGlobalStatus()
+		for item := range this.RemoteWigos.IterBuffered() {
+			remoteWigo := item.Val.(*Wigo)
+			remoteWigo.EraseRemoteWigos(depth)
+			remoteWigo.RecomputeGlobalStatus()
 		}
 	}
 
@@ -816,14 +846,16 @@ func (this *Wigo) ListGroupsNames() []string {
 		list = append(list, this.GetLocalHost().Group)
 	}
 
-	for wigoName := range this.RemoteWigos {
-		group := this.RemoteWigos[wigoName].GetLocalHost().Group
+	for item := range this.RemoteWigos.IterBuffered() {
+		wigo := item.Val.(*Wigo)
+
+		group := wigo.GetLocalHost().Group
 
 		if !IsStringInArray(group, list) && group != "" {
-			list = append(list, this.RemoteWigos[wigoName].GetLocalHost().Group)
+			list = append(list, wigo.GetLocalHost().Group)
 		}
 
-		remoteList := this.RemoteWigos[wigoName].ListGroupsNames()
+		remoteList := wigo.ListGroupsNames()
 
 		for i := range remoteList {
 			if !IsStringInArray(remoteList[i], list) {
@@ -858,8 +890,10 @@ func (this *Wigo) GroupSummary(groupName string) (hs []*HostSummary, status int)
 		}
 	}
 
-	for remoteWigoName := range this.RemoteWigos {
-		subSummaries, subStatus := this.RemoteWigos[remoteWigoName].GroupSummary(groupName)
+	for item := range this.RemoteWigos.IterBuffered() {
+		wigo := item.Val.(*Wigo)
+
+		subSummaries, subStatus := wigo.GroupSummary(groupName)
 
 		if len(subSummaries) > 0 {
 			hs = append(hs, subSummaries...)
