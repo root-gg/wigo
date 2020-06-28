@@ -1,19 +1,19 @@
-src/bin
-wigocli
-generate_cert
-src/github.com
-uuid
-wigo
-wigo.*
-debs
-release
+/src/bin
+/wigocli
+/generate_cert
+/src/github.com
+/uuid
+/wigo
+/wigo.*
+/debs
+/release
 
 # dev
-probes/60
-ssl
-var
-wigo.conf.*
-huge
+/probes/60
+/ssl
+/var
+/wigo.conf.*
+/huge
 
 *.log
 
