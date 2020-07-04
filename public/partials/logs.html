@@ -1,14 +1,14 @@
-<div ng-include="'partials/top-menu.html'"></div>
 <div ng-include="'partials/logs-menu.html'"></div>
+<div ng-include="'partials/top.html'"></div>
 
-<div id="page-wrapper">
-    <div class="row">
-        <div class="col-lg-12">
-            <div class="panel panel-default">
-                <div class="panel-heading">
+<div id="content-wrapper" class="d-flex flex-column">
+    <div id="content">
+        <div class="container-fluid">
+            <div class="card card-default my-4">
+                <div class="card-header">
                     <strong>Logs</strong>
                 </div>
-                <div class="panel-body">
+                <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">
                             <thead>
@@ -27,18 +27,18 @@
                                 | filter:menu.search
                                 | orderBy:'-Timestamp'">
                                     <td>{{ log.Timestamp * 1000 | date:'short' }}</td>
-                                    <td ng-click="set_group(log.Group)">
-                                        <span ng-click="goto.group(log.Group)">
+                                    <td class="cursor-pointer" ng-click="set_group(log.Group)">
+                                        <span class="cursor-pointer" ng-click="goto.group(log.Group)">
                                             {{ log.Group }}
                                         </span>
                                     </td>
-                                    <td ng-click="set_host(log.Host)">
-                                        <span ng-click="goto.host(log.Host)">
+                                    <td class="cursor-pointer" ng-click="set_host(log.Host)">
+                                        <span class="cursor-pointer" ng-click="goto.host(log.Host)">
                                             {{ log.Host }}
                                         </span>
                                     </td>
-                                    <td ng-click="set_probe(log.Probe)">
-                                        <span ng-click="goto.probe(log.Host,log.Probe)">
+                                    <td class="cursor-pointer" ng-click="set_probe(log.Probe)">
+                                        <span class="cursor-pointer" ng-click="goto.probe(log.Host,log.Probe)">
                                             {{ log.Probe }}
                                         </span>
                                     </td>
@@ -48,8 +48,8 @@
                         </table>
                         <div class="row">
                             <div class="col-md-1 col-md-offset-11">
-                                <button class="btn btn-xs" ng-show="offset >= limit" ng-click="prev()">prev</button>
-                                <button class="btn btn-xs" ng-click="next()">next</button>
+                                <button class="btn btn-primary btn-xs" ng-show="offset >= limit" ng-click="prev()">prev</button>
+                                <button class="btn btn-primary btn-xs" ng-click="next()">next</button>
                             </div>
                         </div>
                     </div>

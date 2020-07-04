@@ -69,8 +69,8 @@ angular.module('wigo-refresh', []).
         return module;
     });
 
-angular.module('wigo-navigation', []).
-    factory('$goto', function ($route, $location, $anchorScroll) {
+angular.module('wigo-navigation', [])
+    .factory('$goto', function ($route, $location, $anchorScroll) {
 
         var module = {};
 
@@ -103,20 +103,20 @@ angular.module('wigo-navigation', []).
         return module;
     });
 
-var panelLevels = {
-    "OK"        : "panel-success",
-    "INFO"      : "panel-primary",
-    "WARNING"   : "panel-warning",
-    "CRITICAL"  : "panel-danger",
-    "ERROR"     : "panel-error"
+var textLevels = {
+    "OK"        : "text-success",
+    "INFO"      : "text-primary",
+    "WARNING"   : "text-warning",
+    "CRITICAL"  : "text-danger",
+    "ERROR"     : "text-dark"
 }
 
-var labelLevels = {
-    "OK"        : "label-success",
-    "INFO"      : "label-primary",
-    "WARNING"   : "label-warning",
-    "CRITICAL"  : "label-danger",
-    "ERROR"     : "label-error"
+var bgLevels = {
+    "OK"        : "bg-success",
+    "INFO"      : "bg-primary",
+    "WARNING"   : "bg-warning",
+    "CRITICAL"  : "bg-danger",
+    "ERROR"     : "bg-dark"
 }
 
 var badgeLevels = {
@@ -124,7 +124,7 @@ var badgeLevels = {
     "INFO"      : "badge-primary",
     "WARNING"   : "badge-warning",
     "CRITICAL"  : "badge-danger",
-    "ERROR"     : "badge-error"
+    "ERROR"     : "badge-dark"
 }
 
 var btnLevels = {
@@ -132,7 +132,7 @@ var btnLevels = {
     "INFO"      : "btn-primary",
     "WARNING"   : "btn-warning",
     "CRITICAL"  : "btn-danger",
-    "ERROR"     : "btn-error"
+    "ERROR"     : "btn-dark"
 }
 
 var statusRowLevels = {
@@ -140,7 +140,7 @@ var statusRowLevels = {
     "INFO"      : "alert-info",
     "WARNING"   : "alert-warning",
     "CRITICAL"  : "alert-danger",
-    "ERROR"     : "alert-error"
+    "ERROR"     : "alert-dark"
 }
 
 var logLevels = [
@@ -159,20 +159,20 @@ var logRowLevels = {
     "INFO"      : "alert-info",
     "WARNING"   : "alert-warning",
     "CRITICAL"  : "alert-danger",
-    "ERROR"     : "alert-error",
-    "EMERGENCY" : "alert-error"
+    "ERROR"     : "alert-dark",
+    "EMERGENCY" : "alert-dark"
 }
 
 angular.module('wigo-filters', [])
-    .filter('panelLevelCssFilter', function() {
+    .filter('textLevelCssFilter', function() {
         return function(level) {
-            return panelLevels[level];
+            return textLevels[level];
         };
     })
-    .filter('labelLevelCssFilter', function() {
-            return function(level) {
-                return labelLevels[level];
-            };
+    .filter('bgLevelCssFilter', function() {
+        return function(level) {
+            return bgLevels[level];
+        };
     })
     .filter('btnLevelCssFilter', function() {
             return function(level) {
@@ -522,6 +522,7 @@ function AuthorityCtrl($scope, Restangular, $dialog, $route, $location, $goto, $
         })
     }
 
+    $scope.goto = $goto;
     $scope.refresh = $refresh;
 
     $scope.init();

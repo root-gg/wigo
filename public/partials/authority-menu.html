@@ -1,12 +1,24 @@
-<div class="sidebar" role="navigation">
-    <div class="sidebar-nav">
-        <ul class="nav" id="side-menu">
-            <li style="padding:10px">
-                <button type="button" class="btn btn-success btn-block" ng-click="allow_all()">Allow all waiting clients</button>
-            </li>
-            <li style="padding:10px">
-                <button type="button" class="btn btn-danger btn-block" ng-click="revoke_all()">Revoke all clients</button>
-            </li>
-        </ul>
-    </div>
+<div class="sidebar">
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark fixed-top">
+        <div ng-include="'partials/top-menu.html'"></div>
+
+        <div class="sidebar-heading pb-2">
+            Authority management
+        </div>
+
+        <li class="nav-item">
+            <a class="nav-link py-1 text-center">
+                <button type="button" class="btn btn-success btn-sm" ng-click="allow_all()">
+                    Allow all waiting clients
+                </button>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link py-1 text-center">
+                <button type="button" class="btn btn-danger btn-sm" ng-click="revoke_all()">
+                    Revoke all clients
+                </button>
+            </a>
+        </li>
+    </ul>
 </div>

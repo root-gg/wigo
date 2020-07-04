@@ -1,28 +1,27 @@
-<div class="sidebar" role="navigation">
-    <div class="sidebar-nav">
-        <div class="nav list-group" id="side-menu">
-            <div href="#" class="list-group-item {{ host.GlobalStatus | statusTableRowCssFilter }}">
-                <h4 class="list-group-item-heading">
-                    Host
-                    <strong style="color:red;" ng-show="!host.IsAlive">
-                        {{host.GlobalMessage}}
-                    </strong>
-                </h4>
-                <span class="badge {{ host.GlobalLevel | badgeLevelCssFilter }}">
-                    {{host.GlobalStatus}}
-                </span>
-                <p class="list-group-item-text">
-                    {{hostName}}
-                </p>
-            </div>
-            <a ng-repeat="probe in probes | orderBy:['-Status','Name']" class="list-group-item" ng-click="goto.anchor(probe.Name)">
+<div class="sidebar">
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark fixed-top">
+        <div ng-include="'partials/top-menu.html'"></div>
+
+        <div class="sidebar-heading pb-2">
+            Host {{hostName}}
+            <small style="color:red;" ng-show="!host.IsAlive">
+                {{host.GlobalMessage}}
+            </small>
+            <small class="badge {{ host.GlobalLevel | badgeLevelCssFilter }}">
+                {{host.GlobalStatus}}
+            </small>
+        </div>
+
+        <li class="nav-item" ng-repeat="probe in probes | orderBy:['-Status','Name']">
+            <a class="nav-link py-1 cursor-pointer" ng-click="goto.anchor(probe.Name)">
+                <i class="fas fa-fw fa-table"></i>
                 <span>
                     {{probe.Name}}
                 </span>
-                <span class="badge {{ probe.Level | badgeLevelCssFilter }}">
+                <small class="badge {{ probe.Level | badgeLevelCssFilter }}">
                     {{probe.Status}}
-                </span>
+                </small>
             </a>
-        </div>
-    </div>
+        </li>
+    </ul>
 </div>

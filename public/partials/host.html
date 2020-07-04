@@ -1,19 +1,23 @@
-<div ng-include="'partials/top-menu.html'"></div>
 <div ng-include="'partials/host-menu.html'"></div>
+<div ng-include="'partials/top.html'"></div>
 
-<div id="page-wrapper">
-    <div class="row" ng-repeat="probe in probes | orderBy:['-Status','Name']">
-        <div class="panel {{ probe.Level | panelLevelCssFilter }}">
-            <div id="{{probe.Name}}" class="panel-heading">
-                <strong>{{probe.Name}}</strong>
-            </div>
-            <div class="panel-body">
-                <p>
-                    {{ probe.Message }}
-                </p>
-                <p>
-                    <pre>{{ probe.Detail | json }}</pre>
-                </p>
+<div id="content-wrapper" class="d-flex flex-column">
+    <div id="content">
+        <div class="container-fluid">
+            <div id="{{probe.Name}}" class="jump" ng-repeat="probe in probes | orderBy:['-Status','Name']">
+                <div class="card my-4">
+                    <div class="card-header text-white {{ probe.Level | bgLevelCssFilter }}">
+                        <strong>{{probe.Name}}</strong>
+                    </div>
+                    <div class="card-body">
+                        <p>
+                            {{ probe.Message }}
+                        </p>
+                        <p>
+                            <pre class="border rounded p-2 bg-light">{{ probe.Detail | json }}</pre>
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -1,18 +1,22 @@
-<div class="sidebar" role="navigation">
-    <div class="sidebar-nav">
-        <div class="nav list-group" id="side-menu">
-            <div href="#" class="list-group-item">
-                <h4 class="list-group-item-heading">Hosts</h4>
-                <p class="list-group-item-text">All hosts & groups</p>
-            </div>
-            <a ng-repeat="group in groups |orderBy:['-Status','Name']" class="list-group-item" ng-click="goto.anchor(group.Name)">
-                <span ng-click="goto.group(group.Name)">
+<div class="sidebar">
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark fixed-top">
+        <div ng-include="'partials/top-menu.html'"></div>
+
+        <div class="sidebar-heading pb-2">
+            All hosts & groups
+        </div>
+
+        <li class="nav-item" ng-repeat="group in groups |orderBy:['-Status','Name']">
+            <a class="nav-link py-1 cursor-pointer" ng-click="goto.anchor(group.Name)">
+                <i class="fas fa-fw fa-table"></i>
+                <span>
                     {{group.Name}}
                 </span>
-                <span ng-repeat="(countName, count) in group.counts" ng-hide="!count || (countName == 'OK')" class="badge {{ countName | badgeLevelCssFilter }}">
+                <small ng-repeat="(countName, count) in group.counts" ng-show="count"
+                       class="badge {{ countName | badgeLevelCssFilter }}">
                     {{count}}
-                </span>
+                </small>
             </a>
-        </div>
-    </div>
+        </li>
+    </ul>
 </div>

@@ -1,0 +1,59 @@
+<nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 fixed-top ml-sidebar shadow">
+    <form class="form-inline">
+        <button type="button" class="btn mr-1 {{level | btnLevelCssFilter }} navbar-btn"
+                ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts">
+            <span class="d-none d-lg-inline d-xl-inline">{{level}} : </span>
+            {{counts[level]}}
+        </button>
+    </form>
+
+    <ul class="navbar-nav ml-auto">
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle d-none" data-toggle="dropdown" href="#">
+                <i class="fas fa-sync"></i>
+            </a>
+            <ul class="dropdown-menu dropdown-user">
+                <li>
+                    <a ng-click="refresh.setRefreshInterval(5)">
+                        <i class="fa fa-gear fa-fw"></i> 5 sec
+                    </a>
+                </li>
+                <li>
+                    <a ng-click="refresh.setRefreshInterval(15)">
+                        <i class="fa fa-gear fa-fw"></i> 15 sec
+                    </a>
+                </li>
+                <li>
+                    <a ng-click="refresh.setRefreshInterval(30)">
+                        <i class="fa fa-gear fa-fw"></i> 30 sec
+                    </a>
+                </li>
+                <li>
+                    <a ng-click="refresh.setRefreshInterval(60)">
+                        <i class="fa fa-gear fa-fw"></i> 60 sec
+                    </a>
+                </li>
+                <li>
+                    <a ng-click="refresh.setRefreshInterval(300)">
+                        <i class="fa fa-gear fa-fw"></i> 300 sec
+                    </a>
+                </li>
+                <li>
+                    <a ng-click="refresh.setRefreshInterval(0)">
+                        <i class="fa fa-gear fa-fw"></i> no
+                    </a>
+                </li>
+            </ul>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#/logs">
+                <i class="fas fa-list fa-fw"></i>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#/authority">
+                <i class="fas fa-user fa-fw"></i>
+            </a>
+        </li>
+    </ul>
+</nav>

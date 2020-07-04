@@ -1,49 +1,53 @@
-<div ng-include="'partials/top-menu.html'"></div>
 <div ng-include="'partials/hosts-menu.html'"></div>
+<div ng-include="'partials/top.html'"></div>
 
-<div id="page-wrapper">
-    <div class="row" ng-repeat="group in groups | orderBy:['-Status','Name']">
-        <div class="col-lg-12">
-            <div class="panel {{ group.Level | panelLevelCssFilter }}">
-                <div id="{{group.Name}}"class="panel-heading">
-                    <span ng-click="goto.group(group.Name)" style="font-weight:bold;">
-                        {{group.Name}}
-                    </span>
-                    <span ng-repeat="(countName, count) in group.counts" ng-show="count" class="badge {{ countName | badgeLevelCssFilter }}">
-                        {{count}}
-                    </span>
-                </div>
-                <div class="panel-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover">
-                            <thead>
-                            <tr>
-                                <th>Hostname</th>
-                                <th>Probes</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr class="{{ host.Status | statusTableRowCssFilter }}" ng-repeat="host in group.Hosts | orderBy:['-Status','Name']">
-                                <td>
-                                    <span ng-click="goto.host(host.Name)">
-                                        {{host.Name}}
-                                    </span>
-                                    <strong style="color:red;" ng-show="!host.IsAlive">
-                                        {{host.Message}}
-                                    </strong>
-                                </td>
-                                <td>
-                                    <a ng-click="goto.probe(host.Name, probe.Name)" ng-repeat="probe in host.Probes | orderBy:['-Status','Name']">
-                                        <span
-                                            class="probeLabel label {{ probe.Level | labelLevelCssFilter }}"
-                                            popover="{{probe.Message}}" popover-trigger="mouseenter">
-                                            {{probe.Name}}
-                                        </span>
-                                    </a>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
+<div id="content-wrapper" class="d-flex flex-column">
+    <div id="content">
+        <div class="container-fluid">
+            <div id="{{group.Name}}" class="jump" ng-repeat="group in groups | orderBy:['-Status','Name']">
+                <div class="card my-4">
+                    <div class="card-header text-white cursor-pointer {{ group.Level | bgLevelCssFilter }}"
+                         ng-click="goto.group(group.Name)">
+                        <span>
+                            {{group.Name}}
+                        </span>
+                            <span ng-repeat="(countName, count) in group.counts" ng-show="count"
+                                  class="badge badge-light mr-1 {{ countName | textLevelCssFilter }}">
+                            {{count}}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Hostname</th>
+                                        <th>Probes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="{{ host.Status | statusTableRowCssFilter }}"
+                                        ng-repeat="host in group.Hosts | orderBy:['-Status','Name']">
+                                        <td class="cursor-pointer" ng-click="goto.host(host.Name)">
+                                            <span>
+                                                {{host.Name}}
+                                            </span>
+                                            <strong style="color:red;" ng-show="!host.IsAlive">
+                                                {{host.Message}}
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            <span class="cursor-pointer mr-1 badge {{ probe.Level | badgeLevelCssFilter }}"
+                                                  ng-click="goto.probe(host.Name, probe.Name)"
+                                                  ng-repeat="probe in host.Probes | orderBy:['-Status','Name']"
+                                                  popover="{{probe.Message}}" popover-trigger="mouseenter">
+                                                {{probe.Name}}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

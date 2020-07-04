@@ -1,0 +1,13 @@
+{
+  "name": "startbootstrap-sb-admin-2",
+  "homepage": "https://github.com/IronSummitMedia/startbootstrap-sb-admin-2",
+  "_release": "e9f9c18142",
+  "_resolution": {
+    "type": "branch",
+    "branch": "master",
+    "commit": "e9f9c181420ac5b0b08978761eddf2c3c5fc680e"
+  },
+  "_source": "https://github.com/IronSummitMedia/startbootstrap-sb-admin-2.git",
+  "_target": "master",
+  "_originalSource": "startbootstrap-sb-admin-2"
+}

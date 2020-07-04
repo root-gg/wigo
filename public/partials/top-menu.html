@@ -1,53 +1,8 @@
-<nav class="navbar navbar-default navbar-top-links navbar-inverse navbar-fixed-top">
-    <div class="container-fluid">
-        <div class="navbar-header">
-            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar-collapse">
-                <span class="sr-only">Toggle navigation</span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-            </button>
-            <a class="navbar-brand" href="#" ng-click="windown.location.reload()">W I G O</a>
-            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts" class="visible-xs-inline">
-                <button type="button" class="btn {{level | btnLevelCssFilter }} navbar-btn">{{counts[level]}}</button>
-            </span>
-        </div>
-        <div class="navbar-header visible-sm-inline">
-            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts">
-                <button type="button" class="btn {{level | btnLevelCssFilter }} navbar-btn">{{counts[level]}}</button>
-            </span>
-        </div>
-        <div class="collapse navbar-collapse" id="navbar-collapse">
-            <span ng-repeat="level in ['OK','INFO','WARNING','CRITICAL','ERROR']" ng-show="counts" class="visible-md-inline visible-lg-inline">
-                <button type="button" class="btn {{level | btnLevelCssFilter }} navbar-btn">{{level}} : {{counts[level]}}</button>
-            </span>
-            <ul class="nav navbar-top-links navbar-nav navbar-right">
-                <li class="dropdown">
-                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-                        <i class="fa fa-user fa-refresh"></i>  <i class="fa fa-caret-down"></i>
-                    </a>
-                    <ul class="dropdown-menu dropdown-user">
-                        <li><a ng-click="refresh.setRefreshInterval(5)"><i class="fa fa-gear fa-fw"></i> 5 sec</a>
-                        </li>
-                        <li><a ng-click="refresh.setRefreshInterval(15)"><i class="fa fa-gear fa-fw"></i> 15 sec</a>
-                        </li>
-                        <li><a ng-click="refresh.setRefreshInterval(30)"><i class="fa fa-gear fa-fw"></i> 30 sec</a>
-                        </li>
-                        <li><a ng-click="refresh.setRefreshInterval(60)"><i class="fa fa-gear fa-fw"></i> 60 sec</a>
-                        </li>
-                        <li><a ng-click="refresh.setRefreshInterval(300)"><i class="fa fa-gear fa-fw"></i> 300 sec</a>
-                        </li>
-                        <li><a ng-click="refresh.setRefreshInterval(0)"><i class="fa fa-gear fa-fw"></i> no</a>
-                        </li>
-                    </ul>
-                </li>
-                <li>
-                    <a href="#/logs"><i class="fa fa-list fa-fw"></i></a>
-                </li>
-                <li>
-                    <a href="#/authority"><i class="fa fa-user fa-fw"></i></a>
-                </li>
-            </ul>
-        </div>
+<a class="sidebar-brand d-flex align-items-center justify-content-center" href="/#/"
+   ng-click="window.location.reload()">
+    <div class="sidebar-brand-icon">
+        W I G O
     </div>
-</nav>
+</a>
+
+<hr class="sidebar-divider">

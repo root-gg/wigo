@@ -1,19 +1,57 @@
-<div ng-include="'partials/top-menu.html'"></div>
 <div ng-include="'partials/authority-menu.html'"></div>
+<div ng-include="'partials/top.html'"></div>
 
-<div id="page-wrapper">
-    <div class="row">
-        <p></p>
-    </div>
-    <div class="row" ng-show="waiting.length">
-        <div class="col-lg-12">
-            <div class="panel panel panel-warning">
-                <div class="panel-heading">
+<div id="content-wrapper" class="d-flex flex-column">
+    <div id="content">
+        <div class="container-fluid">
+            <div ng-show="waiting.length">
+                <div class="card my-4">
+                    <div class="card-header text-white bg-warning">
+                        <span style="font-weight:bold;">
+                            Clients waiting for approval
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Hostname</th>
+                                        <th>Uuid</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr ng-repeat="host in waiting | orderBy:['hostname']">
+                                        <td>
+                                            {{host.hostname}}
+                                        </td>
+                                        <td>
+                                            {{host.uuid}}
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-danger btn-block" ng-click="revoke(host)">
+                                                Revoke
+                                            </button>
+                                            <button type="button" class="btn btn-success btn-block" ng-click="allow(host)">
+                                                Allow
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div ng-show="allowed.length">
+            <div class="card my-4">
+                <div class="card-header text-white bg-success">
                     <span style="font-weight:bold;">
-                        Clients waiting for approval
+                        Allowed clients
                     </span>
                 </div>
-                <div class="panel-body">
+                <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">
                             <thead>
@@ -24,7 +62,8 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr ng-repeat="host in waiting | orderBy:['hostname']">
+                                <tr ng-repeat="host in allowed | orderBy:['hostname']"
+                                    class="cursor-pointer" ng-click="goto.host(host.hostname)">
                                     <td>
                                         {{host.hostname}}
                                     </td>
@@ -32,8 +71,9 @@
                                         {{host.uuid}}
                                     </td>
                                     <td>
-                                        <button type="button" class="btn btn-danger btn-block" ng-click="revoke(host)">Revoke</button>
-                                        <button type="button" class="btn btn-success btn-block" ng-click="allow(host)">Allow</button>
+                                        <button type="button" class="btn btn-danger btn-block" ng-click="revoke(host)">
+                                            Revoke
+                                        </button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -42,42 +82,6 @@
                 </div>
             </div>
         </div>
-    </div>
-    <div class="row" ng-show="allowed.length">
-        <div class="col-lg-12">
-            <div class="panel panel-success">
-                <div class="panel-heading">
-                    <span style="font-weight:bold;">
-                        Allowed clients
-                    </span>
-                </div>
-                <div class="panel-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover">
-                            <thead>
-                            <tr>
-                                <th>Hostname</th>
-                                <th>Uuid</th>
-                                <th></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr ng-repeat="host in allowed | orderBy:['hostname']">
-                                <td>
-                                    {{host.hostname}}
-                                </td>
-                                <td>
-                                    {{host.uuid}}
-                                </td>
-                                <td>
-                                    <button type="button" class="btn btn-danger btn-block" ng-click="revoke(host)">Revoke</button>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>

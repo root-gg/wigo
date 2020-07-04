@@ -1,76 +1,75 @@
-<div class="sidebar" role="navigation">
-    <div class="sidebar-nav">
-        <ul class="nav" id="side-menu">
-            <li class="sidebar-search">
-                <div class="input-group custom-search-form">
-                    <input type="text" ng-model="menu.search" class="form-control" placeholder="Search...">
-                    <span class="input-group-btn">
-                        <button class="btn btn-default" type="button">
-                            <i class="fa fa-search"></i>
-                        </button>
-                    </span>
-                </div>
-            </li>
+<div class="sidebar">
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark fixed-top">
+        <div ng-include="'partials/top-menu.html'"></div>
 
-            <li class="sidebar-search" ng-show="menu.group">
-                Group : {{menu.group}} <i class="fa fa-times" ng-click="remove_group()"></i>
-            </li>
-            <li class="sidebar-search" ng-show="menu.host">
-                Host : {{menu.host}} <i class="fa fa-times" ng-click="remove_host()"></i>
-            </li>
-            <li class="sidebar-search" ng-show="menu.probe">
-                Probe : {{menu.probe}} <i class="fa fa-times" ng-click="remove_probe()"></i>
-            </li>
+        <div class="sidebar-heading pb-2">
+            Logs management
+        </div>
 
-            <li class="sidebar-search">
-                <div style="text-align:center">
-                    Level
-                </div>
-                <select ng-model="menu.level" ng-options="level for level in logLevels" class="form-control" >
-                </select>
-            </li>
-            <li class="sidebar-search">
-                <div style="text-align:center">
-                    Group
-                </div>
-                <div class="form-group input-group">
-                    <select ng-model="menu.group_select" ng-options="group for group in indexes.groups" class="form-control">
-                    </select>
-                    <span class="input-group-btn">
-                        <button class="btn btn-default" type="button" ng-click="set_group(menu.group_select)">
-                            <i class="fa fa-plus"></i>
-                        </button>
-                    </span>
-                </div>
-            </li>
-            <li class="sidebar-search">
-                <div style="text-align:center">
-                    Host
-                </div>
-                <div class="form-group input-group">
-                    <select ng-model="menu.host_select" ng-options="host for host in indexes.hosts" class="form-control">
-                    </select>
-                    <span class="input-group-btn">
-                        <button class="btn btn-default" type="button" ng-click="set_host(menu.host_select)">
-                            <i class="fa fa-plus"></i>
-                        </button>
-                    </span>
-                </div>
-            </li>
-            <li class="sidebar-search">
-                <div style="text-align:center">
-                    Probe
-                </div>
-                <div class="form-group input-group">
-                    <select ng-model="menu.probe_select" ng-options="probe for probe in indexes.probes" class="form-control">
-                    </select>
-                    <span class="input-group-btn">
-                        <button class="btn btn-default" type="button" ng-click="set_probe(menu.probe_select)">
-                            <i class="fa fa-plus"></i>
-                        </button>
-                    </span>
-                </div>
-            </li>
-        </ul>
-    </div>
+        <li class="form-inline mx-2 pb-1">
+            <input type="text" ng-model="menu.search" class="form-control" placeholder="Search...">
+            <button class="btn btn-secondary ml-2" type="button">
+                <i class="fas fa-search"></i>
+            </button>
+        </li>
+        <li class="nav-item" ng-show="menu.group">
+            <span class="nav-link py-1">
+                Group : {{menu.group}}
+                <i class="fas fa-times cursor-pointer text-danger" ng-click="remove_group()"></i>
+            </span>
+        </li>
+        <li class="nav-item" ng-show="menu.host">
+            <span class="nav-link py-1">
+                Host : {{menu.host}}
+                <i class="fas fa-times cursor-pointer text-danger" ng-click="remove_host()"></i>
+            </span>
+        </li>
+        <li class="nav-item" ng-show="menu.probe">
+            <span class="nav-link py-1">
+                Probe : {{menu.probe}}
+                <i class="fas fa-times cursor-pointer text-danger" ng-click="remove_probe()"></i>
+            </span>
+        </li>
+
+        <div class="sidebar-heading pb-2 pt-4">
+            Level
+        </div>
+        <li class="form-inline mx-2">
+            <select ng-model="menu.level" ng-options="level for level in logLevels" class="form-control" >
+            </select>
+        </li>
+
+        <div class="sidebar-heading pb-2 pt-4">
+            Group
+        </div>
+        <li class="form-inline mx-2">
+            <select ng-model="menu.group_select" ng-options="group for group in indexes.groups" class="form-control">
+            </select>
+            <button class="btn btn-success btn-sm ml-2" type="button" ng-click="set_group(menu.group_select)">
+                <i class="fas fa-plus"></i>
+            </button>
+        </li>
+
+        <div class="sidebar-heading pb-2 pt-4">
+            Host
+        </div>
+        <li class="form-inline mx-2">
+            <select ng-model="menu.host_select" ng-options="host for host in indexes.hosts" class="form-control">
+            </select>
+            <button class="btn btn-success btn-sm ml-2" type="button" ng-click="set_host(menu.host_select)">
+                <i class="fas fa-plus"></i>
+            </button>
+        </li>
+
+        <div class="sidebar-heading pb-2 pt-4">
+            Probe
+        </div>
+        <li class="form-inline mx-2">
+            <select ng-model="menu.probe_select" ng-options="probe for probe in indexes.probes" class="form-control">
+            </select>
+            <button class="btn btn-success btn-sm ml-2" type="button" ng-click="set_probe(menu.probe_select)">
+                <i class="fas fa-plus"></i>
+            </button>
+        </li>
+    </ul>
 </div>
