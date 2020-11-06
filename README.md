@@ -14,13 +14,13 @@ Main features
 #### Screenshots:
 
 ##### Web UI Main view:
-![Main view](http://pix.toile-libre.org/upload/original/1452263131.png)
+![Main view](https://user-images.githubusercontent.com/666182/98400230-f9384e00-2063-11eb-9f82-01138f87942d.png)
 
 ##### Web UI Group view:
-![Group view](http://pix.toile-libre.org/upload/original/1452263323.png)
+![Group view](https://user-images.githubusercontent.com/666182/98400233-fa697b00-2063-11eb-955a-e9f165a90bef.png)
 
 ##### Web UI Host view:
-![Host view](http://pix.toile-libre.org/upload/original/1452263238.png)
+![Host view](https://user-images.githubusercontent.com/666182/98400236-fb021180-2063-11eb-8605-9dd65d26f7ac.png)
 
 
 ### Installation
