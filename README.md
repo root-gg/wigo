@@ -29,7 +29,8 @@ Main features
 > A change in the wigo push protocol can cause crashes if your wigo push server version is < 0.73.22.
 > You should update both wigo push clients and server to (at least) 0.73.22.
 
-##### Debian 9 & 10 :
+##### Debian :
+Deb packages are available for Debian 9 & 10
 ```sh
 apt-get install lsb-release
 wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
@@ -37,14 +38,10 @@ echo "deb http://deb.carsso.com $(lsb_release --codename --short) main" > /etc/a
 apt-get update
 apt-get install wigo
 ```
-_Debian Jessie packages are not available anymore, it's time to upgrade :)_
+_Debian 7 & 8 packages are not available anymore, it's time to upgrade :)_
 
-##### Centos 6 & 7 :
-```sh
-echo -e "[carsso]\nname=Carsso\nbaseurl=http://rpm.carsso.com\ngpgcheck=0" > /etc/yum.repos.d/carsso.repo
-yum clean all
-yum install wigo yum-plugin-security
-```
+##### Centos :
+_Centos packages are not available anymore, but you can build them by yourself_
 
 ### Configuration / Setup
 
