@@ -30,7 +30,7 @@ Main features
 > You should update both wigo push clients and server to (at least) 0.73.22.
 
 ##### Debian :
-Deb packages are available for Debian 9 & 10
+Deb packages are available for Debian 9, 10 and 11
 ```sh
 apt-get install lsb-release
 wget -O- http://deb.carsso.com/deb.carsso.com.key | apt-key add -
