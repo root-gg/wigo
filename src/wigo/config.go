@@ -1,11 +1,12 @@
 package wigo
 
 import (
-	"github.com/BurntSushi/toml"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 type Config struct {

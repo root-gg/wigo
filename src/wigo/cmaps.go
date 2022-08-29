@@ -2,13 +2,13 @@ package wigo
 
 import (
 	"encoding/json"
-	"github.com/orcaman/concurrent-map"
+
+	cmap "github.com/orcaman/concurrent-map"
 )
 
 type concurrentMapWigos struct {
 	cmap.ConcurrentMap
 }
-
 
 func NewConcurrentMapWigos() *concurrentMapWigos {
 	return &concurrentMapWigos{
@@ -45,14 +45,13 @@ func NewConcurrentMapProbes() *concurrentMapProbes {
 	}
 }
 
-
 func (m *concurrentMapProbes) UnmarshalJSON(b []byte) (err error) {
 	// Reverse process of Marshal.
 
 	tmp := make(map[string]*ProbeResult)
 
 	// Unmarshal into a single map.
-	if err := json.Unmarshal(b, &tmp); err != nil 	{
+	if err := json.Unmarshal(b, &tmp); err != nil {
 		return nil
 	}
 

@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/docopt/docopt-go"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"wigo"
+
+	"github.com/docopt/docopt-go"
+	"github.com/root-gg/wigo/src/wigo"
 )
 
 var command string = ""

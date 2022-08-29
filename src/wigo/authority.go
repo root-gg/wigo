@@ -15,7 +15,8 @@ import (
 	"regexp"
 
 	"fmt"
-	"github.com/nu7hatch/gouuid"
+
+	uuid "github.com/nu7hatch/gouuid"
 )
 
 // The Authority is responsible to handle the security

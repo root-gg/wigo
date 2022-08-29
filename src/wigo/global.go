@@ -12,16 +12,17 @@ import (
 
 	"container/list"
 	"errors"
-	"github.com/docopt/docopt-go"
-	"github.com/fatih/color"
-	"github.com/lann/squirrel"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/nu7hatch/gouuid"
-	"github.com/root-gg/gopentsdb"
 	"io/ioutil"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/docopt/docopt-go"
+	"github.com/fatih/color"
+	_ "github.com/mattn/go-sqlite3"
+	uuid "github.com/nu7hatch/gouuid"
+	"github.com/root-gg/gopentsdb"
 )
 
 // Static global object

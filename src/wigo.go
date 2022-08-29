@@ -18,12 +18,11 @@ import (
 	"syscall"
 	"time"
 
-	"wigo"
-
 	"github.com/codegangsta/martini"
 	"github.com/codegangsta/martini-contrib/auth"
 	"github.com/codegangsta/martini-contrib/gzip"
 	"github.com/codegangsta/martini-contrib/secure"
+	"github.com/root-gg/wigo/src/wigo"
 
 	"github.com/howeyc/fsnotify"
 )

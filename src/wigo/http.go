@@ -3,10 +3,11 @@ package wigo
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/codegangsta/martini"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/codegangsta/martini"
 )
 
 func HttpRemotesHandler(params martini.Params) (int, string) {

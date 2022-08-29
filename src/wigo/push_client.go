@@ -80,7 +80,7 @@ func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
 			if err.Error() == "unexpected EOF" {
 				log.Println("Push client : connection failed, is server configured for a TLS connection ?")
 			} else {
-				log.Printf("Push client : connection failed, will retry (%s)", err.Error());
+				log.Printf("Push client : connection failed, will retry (%s)", err.Error())
 			}
 			return
 		}
@@ -180,7 +180,7 @@ func (this *PushClient) SignUuid() (err error) {
 		err = this.CallWithTimeout("PushServer.GetUuidSignature", NewHelloRequest(nil), &this.uuidSignature, time.Duration(5)*time.Second)
 		if err != nil {
 			if err.Error() == "WAITING" {
-				log.Println("Push client : I'm on the waiting list of the server, will retry later");
+				log.Println("Push client : I'm on the waiting list of the server, will retry later")
 				time.Sleep(time.Duration(this.config.PushInterval) * time.Second)
 				continue
 			}

@@ -31,7 +31,6 @@ releases:
 	@cd release && for target in $(RELEASE_TARGETS) ; do \
 		RELEASE_DIR=$(BASE_DIR)/release/$$target; \
 		export CGO_ENABLED=1; \
-		export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
 		export GOOS=`echo $$target | cut -d "-" -f 1`; 	\
 		export GOARCH=`echo $$target | cut -d "-" -f 2`; \
 		if [ $$target = 'linux-arm' ]; then  \
@@ -52,7 +51,6 @@ release:
 	@echo "Building Wigo release for current OS"
 	@mkdir -p release
 	@cd release; \
-	export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
 	$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/wigo.go;	\
 	$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
 	$(build) -o current/generate_cert $(BASE_DIR)/src/generate_cert.go
@@ -108,9 +106,10 @@ lint:
 	if [[ -z "$$OUT" ]]; then echo " OK" ; else echo " FAIL"; echo "$$OUT"; FAIL=1 ; fi ;\
 	echo -n " - go vet :" ; OUT=`go vet ./...` ; \
 	if [[ -z "$$OUT" ]]; then echo " OK" ; else echo " FAIL"; echo "$$OUT"; FAIL=1 ; fi ;\
-	echo -n " - go lint :" ; OUT=`golint ./... | grep -v ^vendor` ; \
-	if [[ -z "$$OUT" ]]; then echo " OK" ; else echo " FAIL"; echo "$$OUT"; FAIL=1 ; fi ;\
 	test $$FAIL -eq 0
+
+fmt:
+	@gofmt -w -s $(shell find . -type f -name '*.go' -not -path "./vendor/*" )
 
 clean:
 	@echo "Cleaning all files"
@@ -119,5 +118,4 @@ clean:
 
 deps:
 	@echo "Installing dependencies"
-	@export GOPATH=`echo "$(GOPATH):$(BASE_DIR)"`; \
-	go get -d ./...
+	go mod download

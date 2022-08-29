@@ -60,7 +60,7 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 			if conn, err := listener.Accept(); err == nil {
 				log.Printf("Push server [client %s] : accepting connection", conn.RemoteAddr())
 				go func() {
-					rpc.ServeConn(conn);
+					rpc.ServeConn(conn)
 					log.Printf("Push server [client %s] : closing connection", conn.RemoteAddr())
 					conn.Close()
 				}()
@@ -252,7 +252,7 @@ func (this *PushServer) auth(req *Request) (err error) {
 // Request the server to update the client's data
 type UpdateRequest struct {
 	*Request
-	WigoJson string
+	WigoJson     string
 	WigoHostname string
 }
 
