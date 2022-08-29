@@ -118,4 +118,4 @@ clean:
 
 deps:
 	@echo "Installing dependencies"
-	go mod download
+	go mod download -x

@@ -1,0 +1,39 @@
+name: "CI"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - "main"
+      - "master"
+
+jobs:
+  build:
+    name: "Build"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version-file: 'go.mod'
+      - name: Install cross-compilation tools
+        run: |
+          set -ex
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+      - run: go version
+      - name: "Installing go dependencies"
+        run: make deps
+      - name: "Linting"
+        run: make lint
+      - name: "Building releases"
+        run: make releases
+      - name: "Creating debian packages"
+        run: make debs
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            release
+            debs/*.deb
