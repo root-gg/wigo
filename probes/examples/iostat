@@ -109,7 +109,7 @@ foreach my $line ( @iostats )
 
     my $last = persist->{$device};
 
-    if ( scalar @stats == 11 || scalar @stats == 15 )
+    if ( scalar @stats >= 11 )
     {
         for my $i ( 0..10 )
         {
