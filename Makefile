@@ -89,7 +89,7 @@ debs:
 		else \
 			cp release/linux-$$arch/* $(DEBROOT)/usr/local/wigo/bin/ ; \
 		fi ; \
-		dpkg-deb --build $(DEBROOT) $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
+		dpkg-deb -Z xz --build $(DEBROOT) $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 	done
 
 publish-debs:
