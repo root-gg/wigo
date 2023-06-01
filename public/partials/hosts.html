@@ -40,7 +40,7 @@
                                             <span class="cursor-pointer mr-1 badge {{ probe.Level | badgeLevelCssFilter }}"
                                                   ng-click="goto.probe(host.Name, probe.Name)"
                                                   ng-repeat="probe in host.Probes | orderBy:['-Status','Name']"
-                                                  popover="{{probe.Message}}" popover-trigger="mouseenter">
+                                                  title="{{probe.Message}}">
                                                 {{probe.Name}}
                                             </span>
                                         </td>
