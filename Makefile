@@ -42,8 +42,8 @@ releases:
 	    fi ; \
 		mkdir $$RELEASE_DIR; \
 		echo "Building Wigo release for $$target to $$RELEASE_DIR"; \
-		$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/wigo.go; \
-		$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/wigocli.go; \
+		$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/wigo.go; \
+		$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/wigocli.go; \
 		$(build) -o $$RELEASE_DIR/generate_cert $(BASE_DIR)/src/generate_cert.go; \
 	done
 
@@ -51,8 +51,8 @@ release:
 	@echo "Building Wigo release for current OS"
 	@mkdir -p release
 	@cd release; \
-	$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/wigo.go;	\
-	$(build) -ldflags "-X wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
+	$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/wigo.go;	\
+	$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
 	$(build) -o current/generate_cert $(BASE_DIR)/src/generate_cert.go
 
 debs:
