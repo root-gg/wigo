@@ -6,6 +6,9 @@ WIGOPATH="/usr/local/wigo"
 EXAMPLEPROBES60=( hardware_load_average hardware_disks hardware_memory ifstat supervisord check_mdadm check_process haproxy lm-sensors iostat check_uptime )
 EXAMPLEPROBES300=( smart check_ntp packages-apt )
 
+# Fixing logrotate permissions
+chown root:root /etc/logrotate.d/wigo
+
 # <TEMPORARY>
 rm /etc/wigo/conf.d/smart.conf
 # </TEMPORARY>
