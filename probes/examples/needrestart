@@ -31,10 +31,17 @@ unless ( -x $needrestart )
 
 my $outNeedRestart = `$needrestart -k -p -l`;
 my $returnCode = $?;
+my @lines = split("\n", $outNeedRestart);
+detail->{'output'} = $lines[0];
+detail->{'returncode'} = $returnCode;
 if($returnCode == 512)
 {
     status 200;
     message "Restart needed";
+}
+elsif($returnCode == 256)
+{
+  message "Restart not required";
 }
 elsif($returnCode)
 {
@@ -46,8 +53,5 @@ else
 {
   message "Restart not needed";
 }
-
-my @lines = split("\n", $outNeedRestart);
-detail->{'output'} = $lines[0];
 
 output 0;
