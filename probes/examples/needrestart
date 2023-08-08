@@ -29,7 +29,7 @@ unless ( -x $needrestart )
 # GET STATUS LIST
 ###
 
-my $outNeedRestart = `$needrestart -k -p -l`;
+my $outNeedRestart = `$needrestart -k -p`;
 my $returnCode = $?;
 my @lines = split("\n", $outNeedRestart);
 detail->{'output'} = $lines[0];
