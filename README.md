@@ -87,7 +87,8 @@ The directory name is the interval of check in seconds
     ├── hardware_load_average -> ../../probes-examples/hardware_load_average
     ├── hardware_memory -> ../../probes-examples/hardware_memory
     ├── ifstat -> ../../probes-examples/ifstat
-    └── supervisord
+    ├── supervisord
+    └── needrestart
 
 ```
 

@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    'needrestart' => '/usr/sbin/needrestart',
+};
+
+init( config => $conf );
+
+my $needrestart = config->{'needrestart'};
+unless ( -x $needrestart )
+{
+    status  403;
+    message "needrestart $needrestart is not executable";
+    output  13;
+}
+
+###
+# GET STATUS LIST
+###
+
+my $outNeedRestart = `$needrestart -k -p -l`;
+my $returnCode = $?;
+if($returnCode == 512)
+{
+    status 200;
+    message "Restart needed";
+}
+elsif($returnCode)
+{
+    status 500;
+    message "Error while getting restart status";
+    output 1;
+}
+else
+{
+  message "Restart not needed";
+}
+
+my @lines = split("\n", $outNeedRestart);
+detail->{'output'} = $lines[0];
+
+output 0;
