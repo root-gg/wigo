@@ -20,9 +20,9 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
-	_ "github.com/mattn/go-sqlite3"
 	uuid "github.com/nu7hatch/gouuid"
 	"github.com/root-gg/gopentsdb"
+	_ "modernc.org/sqlite"
 )
 
 // Static global object
@@ -199,7 +199,7 @@ Options:
 
 	// SqlLite
 	LocalWigo.sqlLiteLock = new(sync.Mutex)
-	LocalWigo.sqlLiteConn, err = sql.Open("sqlite3", LocalWigo.config.Global.Database)
+	LocalWigo.sqlLiteConn, err = sql.Open("sqlite", LocalWigo.config.Global.Database)
 	if err != nil {
 		log.Fatalf("Fail to init sqllite database %s : %s", LocalWigo.config.Global.Database, err)
 	}

@@ -12,16 +12,20 @@ RPMROOT=rpms
 
 ifdef REPOROOT
 else
-	REPOROOT="/repo-root"
+    REPOROOT="/repo-root"
 endif
 
-race_detector = GORACE="halt_on_error=1" go build -race
-ifdef ENABLE_RACE_DETECTOR
-	build = $(race_detector)
-else
-	build = go build
-endif
-test: build = $(race_detector)
+build = go build
+
+.PHONY: release race
+race:
+	@echo "Building with race detector (current OS)"
+	@mkdir -p release
+	@cd release; \
+	export CGO_ENABLED=1; \
+	GORACE="halt_on_error=1" go build -race -o current/wigo $(BASE_DIR)/src/wigo.go; \
+	GORACE="halt_on_error=1" go build -race -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
+	go build -o current/generate_cert $(BASE_DIR)/src/generate_cert.go
 
 all: clean release
 
@@ -30,20 +34,20 @@ releases:
 	@mkdir -p release
 	@cd release && for target in $(RELEASE_TARGETS) ; do \
 		RELEASE_DIR=$(BASE_DIR)/release/$$target; \
-		export CGO_ENABLED=1; \
+		export CGO_ENABLED=0; \
 		export GOOS=`echo $$target | cut -d "-" -f 1`; 	\
 		export GOARCH=`echo $$target | cut -d "-" -f 2`; \
 		if [ $$target = 'linux-arm' ]; then  \
 			export GOARM='7'; \
-			export CC='arm-linux-gnueabihf-gcc'; \
+			export CC=; \
 		else \
 			export GOARM=; \
 			export CC=; \
 	    fi ; \
 		mkdir $$RELEASE_DIR; \
 		echo "Building Wigo release for $$target to $$RELEASE_DIR"; \
-		$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/wigo.go; \
-		$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/wigocli.go; \
+		$(build) -tags "netgo osusergo" -ldflags "-s -w -X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/wigo.go; \
+		$(build) -tags "netgo osusergo" -ldflags "-s -w -X wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/wigocli.go; \
 		$(build) -o $$RELEASE_DIR/generate_cert $(BASE_DIR)/src/generate_cert.go; \
 	done
 
@@ -51,8 +55,9 @@ release:
 	@echo "Building Wigo release for current OS"
 	@mkdir -p release
 	@cd release; \
-	$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/wigo.go;	\
-	$(build) -ldflags "-extldflags '-static' -X wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
+	export CGO_ENABLED=0; \
+	$(build) -tags "netgo osusergo" -ldflags "-s -w -X wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/wigo.go;	\
+	$(build) -tags "netgo osusergo" -ldflags "-s -w -X wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
 	$(build) -o current/generate_cert $(BASE_DIR)/src/generate_cert.go
 
 debs:
@@ -95,7 +100,7 @@ debs:
 publish-debs:
 	@echo "Publishing Wigo Debian packages to repo"
 	@for arch in amd64 armhf ; do \
-		for release in stretch buster bullseye; do \
+		for release in stretch buster bullseye bookworm trixie; do \
 		  	echo "Adding package with arch $$arch and release $$release to repo $(REPOROOT)" ; \
 			reprepro --ask-passphrase -b $(REPOROOT) includedeb $$release $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 		done \
