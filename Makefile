@@ -164,11 +164,11 @@ run-dev: build-dev
 	if [ ! -e $(BASE_DIR)/dev/wigo.crt ]; then \
 		(cd $(BASE_DIR)/dev && $(BASE_DIR)/release/current/generate_cert -ca=true -duration=87600h0m0s -host "127.0.0.1" --rsa-bits=4096;) \
 	fi; \
-	# Try without sudo first, use sudo only if needed
-	$(BASE_DIR)/release/current/wigo --config $(BASE_DIR)/etc/wigo-dev.conf & \
-	WIGO_PID=$$!; \
-	sleep 1; \
-	if ! kill -0 $$WIGO_PID 2>/dev/null; then \
+	# Check if user is root, use sudo if not
+	if [ $$(id -u) -eq 0 ]; then \
+		$(BASE_DIR)/release/current/wigo --config $(BASE_DIR)/etc/wigo-dev.conf & \
+		WIGO_PID=$$!; \
+	else \
 		sudo $(BASE_DIR)/release/current/wigo --config $(BASE_DIR)/etc/wigo-dev.conf & \
 		WIGO_PID=$$!; \
 	fi; \
