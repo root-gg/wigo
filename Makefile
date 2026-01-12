@@ -144,7 +144,6 @@ build-dev: deps
 
 run-dev: build-dev
 	@echo "Starting Wigo development server"
-	@trap 'kill $$WIGO_PID $$TAIL_PID 2>/dev/null; wait $$WIGO_PID $$TAIL_PID 2>/dev/null; exit' INT TERM; \
 	mkdir -p $(BASE_DIR)/dev; \
 	mkdir -p $(BASE_DIR)/dev/probes/; \
 	if [ ! -d $(BASE_DIR)/dev/probes/60 ]; then mkdir -p $(BASE_DIR)/dev/probes/60; fi; \
@@ -165,13 +164,17 @@ run-dev: build-dev
 	if [ ! -e $(BASE_DIR)/dev/wigo.crt ]; then \
 		(cd $(BASE_DIR)/dev && $(BASE_DIR)/release/current/generate_cert -ca=true -duration=87600h0m0s -host "127.0.0.1" --rsa-bits=4096;) \
 	fi; \
-	sudo $(BASE_DIR)/release/current/wigo --config $(BASE_DIR)/etc/wigo-dev.conf & \
+	# Try without sudo first, use sudo only if needed
+	$(BASE_DIR)/release/current/wigo --config $(BASE_DIR)/etc/wigo-dev.conf & \
 	WIGO_PID=$$!; \
 	sleep 1; \
-	tail -f $(BASE_DIR)/dev/wigo.log 2>/dev/null & \
-	TAIL_PID=$$!; \
+	if ! kill -0 $$WIGO_PID 2>/dev/null; then \
+		sudo $(BASE_DIR)/release/current/wigo --config $(BASE_DIR)/etc/wigo-dev.conf & \
+		WIGO_PID=$$!; \
+	fi; \
+	sleep 1; \
 	cd $(BASE_DIR)/src/public && npm run pretty && npm run watch; \
 	EXIT_CODE=$$?; \
-	kill $$WIGO_PID $$TAIL_PID 2>/dev/null; \
-	wait $$WIGO_PID $$TAIL_PID 2>/dev/null; \
+	# Cleanup: kill process and wait for it to terminate
+	if [ -n "$$WIGO_PID" ]; then kill $$WIGO_PID 2>/dev/null; wait $$WIGO_PID 2>/dev/null; fi; \
 	exit $$EXIT_CODE
