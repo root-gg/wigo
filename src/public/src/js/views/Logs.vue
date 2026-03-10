@@ -4,7 +4,11 @@
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
-      <div class="pb-2">Logs management</div>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="Logs management">
+          <i class="fas fa-fw fa-list"></i><span>&nbsp;Logs management</span>
+        </a>
+      </li>
 
       <li class="nav-item px-2 pb-2">
         <div class="input-group">
@@ -15,16 +19,21 @@
             placeholder="Search..."
             @keyup.enter="load"
           />
-          <button class="btn btn-secondary btn-sm" type="button" @click="load">
+          <button
+            class="btn btn-secondary btn-sm"
+            type="button"
+            @click="load"
+            title="Search"
+          >
             <i class="fas fa-search"></i>
           </button>
         </div>
       </li>
 
       <li v-if="menu.group" class="nav-item">
-        <span class="nav-link py-1">
-          <i class="fas fa-fw fa-folder"></i>
-          <span>Group: {{ menu.group }}</span>
+        <span class="nav-link px-3 py-1" :title="`Group: ${menu.group}`">
+          <i class="fas fa-fw fa-folder"></i
+          ><span>&nbsp;Group: {{ menu.group }}</span>
           <i
             class="fas fa-times cursor-pointer text-danger ms-auto"
             @click="removeGroup"
@@ -33,9 +42,9 @@
       </li>
 
       <li v-if="menu.host" class="nav-item">
-        <span class="nav-link py-1">
-          <i class="fas fa-fw fa-server"></i>
-          <span>Host: {{ menu.host }}</span>
+        <span class="nav-link px-3 py-1" :title="`Host: ${menu.host}`">
+          <i class="fas fa-fw fa-server"></i
+          ><span>&nbsp;Host: {{ menu.host }}</span>
           <i
             class="fas fa-times cursor-pointer text-danger ms-auto"
             @click="removeHost"
@@ -44,9 +53,9 @@
       </li>
 
       <li v-if="menu.probe" class="nav-item">
-        <span class="nav-link py-1">
-          <i class="fas fa-fw fa-chart-line"></i>
-          <span>Probe: {{ menu.probe }}</span>
+        <span class="nav-link px-3 py-1" :title="`Probe: ${menu.probe}`">
+          <i class="fas fa-fw fa-chart-line"></i
+          ><span>&nbsp;Probe: {{ menu.probe }}</span>
           <i
             class="fas fa-times cursor-pointer text-danger ms-auto"
             @click="removeProbe"
@@ -54,7 +63,11 @@
         </span>
       </li>
 
-      <div class="pb-2 pt-4">Level</div>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="Level">
+          <i class="fas fa-fw fa-signal"></i><span>&nbsp;Level</span>
+        </a>
+      </li>
       <li class="nav-item px-2 pb-2">
         <select
           v-model="menu.level"
@@ -67,7 +80,11 @@
         </select>
       </li>
 
-      <div class="pb-2 pt-4">Group</div>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="Group">
+          <i class="fas fa-fw fa-folder"></i><span>&nbsp;Group</span>
+        </a>
+      </li>
       <li class="nav-item px-2 pb-2">
         <div class="input-group">
           <select
@@ -82,6 +99,7 @@
           <button
             class="btn btn-success btn-sm"
             type="button"
+            title="Add group"
             @click="setGroup(menu.group_select)"
           >
             <i class="fas fa-plus"></i>
@@ -89,7 +107,11 @@
         </div>
       </li>
 
-      <div class="pb-2 pt-4">Host</div>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="Host">
+          <i class="fas fa-fw fa-server"></i><span>&nbsp;Host</span>
+        </a>
+      </li>
       <li class="nav-item px-2 pb-2">
         <div class="input-group">
           <select
@@ -104,6 +126,7 @@
           <button
             class="btn btn-success btn-sm"
             type="button"
+            title="Add host"
             @click="setHost(menu.host_select)"
           >
             <i class="fas fa-plus"></i>
@@ -111,7 +134,11 @@
         </div>
       </li>
 
-      <div class="pb-2 pt-4">Probe</div>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="Probe">
+          <i class="fas fa-fw fa-chart-line"></i><span>&nbsp;Probe</span>
+        </a>
+      </li>
       <li class="nav-item px-2 pb-2">
         <div class="input-group">
           <select
@@ -126,6 +153,7 @@
           <button
             class="btn btn-success btn-sm"
             type="button"
+            title="Add probe"
             @click="setProbe(menu.probe_select)"
           >
             <i class="fas fa-plus"></i>

@@ -1,6 +1,6 @@
 <template>
   <div class="d-flex flex-nowrap" style="min-height: 100vh">
-    <Sidebar :show="sidebarCollapsed" @toggle="toggleSidebar">
+    <Sidebar :collapsed="sidebarCollapsed" @toggle="toggleSidebar">
       <slot name="sidebar"></slot>
     </Sidebar>
 
@@ -10,7 +10,6 @@
         :sidebar-collapsed="sidebarCollapsed"
         :current-interval="currentInterval"
         @refresh-settings="handleRefreshSettings"
-        @toggle-sidebar="toggleSidebar"
       />
 
       <main
@@ -26,7 +25,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import Sidebar from "./Sidebar.vue";
 import TopBar from "./TopBar.vue";
 
@@ -51,9 +50,9 @@ const emit = defineEmits(["refresh-settings"]);
 
 const windowWidth = ref(window.innerWidth);
 
-const isMobile = computed(() => windowWidth.value < 769);
-
-const sidebarCollapsed = ref(!isMobile);
+/** Sidebar collapsed by default if the screen is small (< 992px) */
+const SIDEBAR_WIDE_BREAKPOINT = 992;
+const sidebarCollapsed = ref(window.innerWidth < SIDEBAR_WIDE_BREAKPOINT);
 
 function handleResize() {
   windowWidth.value = window.innerWidth;

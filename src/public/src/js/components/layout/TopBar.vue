@@ -4,29 +4,19 @@
       'navbar',
       'navbar-expand',
       'text-bg-light',
-      'py-3',
+      'navbar-block',
       { 'sidebar-collapsed': sidebarCollapsed },
     ]"
     data-bs-theme="light"
   >
-    <div class="container-fluid">
-      <button
-        v-if="showSidebarToggle"
-        class="btn btn-link text-dark sidebar-toggle me-3"
-        @click="$emit('toggle-sidebar')"
-        type="button"
+    <div class="container-fluid d-flex align-items-center">
+      <a
+        v-if="sidebarCollapsed"
+        href="/"
+        class="wigo-logo navbar-brand text-dark text-decoration-none ms-3 me-4"
       >
-        <i
-          :class="[
-            'fas',
-            {
-              'fa-chevron-left': !sidebarCollapsed,
-              'fa-chevron-right': sidebarCollapsed,
-            },
-          ]"
-        ></i>
-      </button>
-
+        W I G O
+      </a>
       <div>
         <button
           v-for="level in ['OK', 'INFO', 'WARNING', 'CRITICAL', 'ERROR']"
@@ -135,7 +125,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getBtnLevelClass } from "../../utils/status.js";
 
@@ -162,13 +152,9 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["refresh-settings", "toggle-sidebar"]);
+const emit = defineEmits(["refresh-settings"]);
 
 const windowWidth = ref(window.innerWidth);
-
-const showSidebarToggle = computed(() => {
-  return windowWidth.value < 769;
-});
 
 function handleResize() {
   windowWidth.value = window.innerWidth;

@@ -5,32 +5,53 @@
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
-      <div class="pb-2">
-        Group {{ groupName }}
-        <StatusBadge v-if="group" :level="group.Level" size="sm" class="ms-1">
-          {{ group.Status }}
-        </StatusBadge>
-      </div>
+      <li class="nav-item sidebar-section-title">
+        <a
+          class="nav-link px-3 py-1"
+          :title="
+            group
+              ? `Group ${groupName} - ${group.Status}`
+              : `Group ${groupName}`
+          "
+        >
+          <i class="fas fa-fw fa-folder"></i
+          ><span
+            >&nbsp;Group {{ groupName }}
+            <StatusBadge
+              v-if="group"
+              :level="group.Level"
+              size="sm"
+              class="ms-1"
+            >
+              {{ group.Status }}
+            </StatusBadge>
+          </span>
+        </a>
+      </li>
 
       <li v-for="host in sortedHosts" :key="host.Name" class="nav-item">
-        <a class="nav-link py-1 cursor-pointer" @click="gotoAnchor(host.Name)">
-          <i class="fas fa-fw fa-server"></i>
-          <span>
-            {{ host.Name }}
+        <a
+          class="nav-link px-3 py-1 cursor-pointer"
+          :title="hostTitle(host)"
+          @click="gotoAnchor(host.Name)"
+        >
+          <i class="fas fa-fw fa-server"></i
+          ><span
+            >&nbsp;{{ host.Name }}
             <small v-if="!host.IsAlive" class="text-danger ms-1">
               {{ host.Message }}
             </small>
+            <StatusBadge
+              v-for="(count, countName) in host.counts"
+              :key="countName"
+              :level="countName"
+              size="sm"
+              class="ms-1"
+              v-show="count"
+            >
+              {{ count }}
+            </StatusBadge>
           </span>
-          <StatusBadge
-            v-for="(count, countName) in host.counts"
-            :key="countName"
-            :level="countName"
-            size="sm"
-            class="ms-1"
-            v-show="count"
-          >
-            {{ count }}
-          </StatusBadge>
         </a>
       </li>
     </template>
@@ -143,6 +164,19 @@ function gotoAnchor(anchor) {
   if (element) {
     element.scrollIntoView({ behavior: "smooth" });
   }
+}
+
+function hostTitle(host) {
+  const parts = [host.Name];
+  if (!host.IsAlive && host.Message) parts.push(host.Message);
+  if (host.counts && Object.keys(host.counts).length) {
+    const status = Object.entries(host.counts)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
+    if (status) parts.push(status);
+  }
+  return parts.join(" - ");
 }
 
 async function load() {

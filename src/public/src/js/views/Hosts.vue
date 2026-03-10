@@ -5,21 +5,32 @@
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
-      <div class="pb-2">All hosts & groups</div>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="All hosts & groups">
+          <i class="fas fa-fw fa-network-wired"></i
+          ><span>&nbsp;All hosts & groups </span>
+        </a>
+      </li>
       <li v-for="group in sortedGroups" :key="group.Name" class="nav-item">
-        <a class="nav-link p-1 cursor-pointer" @click="gotoAnchor(group.Name)">
-          <i class="fas fa-fw fa-folder"></i>
-          <span>{{ group.Name }}</span>
-          <StatusBadge
-            v-for="(count, countName) in group.counts"
-            :key="countName"
-            :level="countName"
-            size="sm"
-            class="ms-1"
-            v-show="count"
-          >
-            {{ count }}
-          </StatusBadge>
+        <a
+          class="nav-link px-3 py-1 cursor-pointer"
+          :title="groupTitle(group)"
+          @click="gotoAnchor(group.Name)"
+        >
+          <i class="fas fa-fw fa-folder"></i
+          ><span
+            >&nbsp;{{ group.Name }}
+            <StatusBadge
+              v-for="(count, countName) in group.counts"
+              :key="countName"
+              :level="countName"
+              size="sm"
+              class="ms-1"
+              v-show="count"
+            >
+              {{ count }}
+            </StatusBadge>
+          </span>
         </a>
       </li>
     </template>
@@ -157,6 +168,18 @@ function gotoAnchor(anchor) {
   if (element) {
     element.scrollIntoView({ behavior: "smooth" });
   }
+}
+
+function groupTitle(group) {
+  const parts = [group.Name];
+  if (group.counts && Object.keys(group.counts).length) {
+    const status = Object.entries(group.counts)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
+    if (status) parts.push(status);
+  }
+  return parts.join(" - ");
 }
 
 async function load() {

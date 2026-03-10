@@ -4,10 +4,15 @@
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
-      <div class="pb-2">Authority management</div>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="Authority management">
+          <i class="fas fa-fw fa-key"></i
+          ><span>&nbsp;Authority management</span>
+        </a>
+      </li>
 
       <li class="nav-item">
-        <a class="nav-link py-1 text-center">
+        <a class="nav-link px-3 py-1" title="Allow all waiting clients">
           <button
             type="button"
             class="btn btn-success btn-sm w-100"
@@ -19,7 +24,7 @@
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link py-1 text-center">
+        <a class="nav-link px-3 py-1" title="Revoke all clients">
           <button
             type="button"
             class="btn btn-danger btn-sm w-100"

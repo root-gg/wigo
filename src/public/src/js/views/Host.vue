@@ -5,28 +5,49 @@
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
-      <div class="d-flex flex-row pb-2">
-        Host {{ hostName }}
-        <small v-if="host && !host.IsAlive" class="text-danger d-block mt-1">
-          {{ host.GlobalMessage }}
-        </small>
-        <StatusBadge
-          v-if="host"
-          :level="host.GlobalLevel"
-          size="sm"
-          class="ms-1"
+      <li class="nav-item sidebar-section-title">
+        <a
+          class="nav-link px-3 py-1"
+          :title="
+            host
+              ? `Host ${hostName} - ${host.GlobalStatus}`
+              : `Host ${hostName}`
+          "
         >
-          {{ host.GlobalStatus }}
-        </StatusBadge>
-      </div>
+          <i class="fas fa-fw fa-server"></i
+          ><span
+            >&nbsp;Host {{ hostName }}
+            <small
+              v-if="host && !host.IsAlive"
+              class="text-danger d-block mt-1"
+            >
+              {{ host.GlobalMessage }}
+            </small>
+            <StatusBadge
+              v-if="host"
+              :level="host.GlobalLevel"
+              size="sm"
+              class="ms-1"
+            >
+              {{ host.GlobalStatus }}
+            </StatusBadge>
+          </span>
+        </a>
+      </li>
 
       <li v-for="probe in sortedProbes" :key="probe.Name" class="nav-item">
-        <a class="nav-link p-1 cursor-pointer" @click="gotoAnchor(probe.Name)">
-          <i class="fas fa-fw fa-chart-line"></i>
-          <span>{{ probe.Name }}</span>
-          <StatusBadge :level="probe.Level" size="sm" class="ms-1">
-            {{ probe.Status }}
-          </StatusBadge>
+        <a
+          class="nav-link px-3 py-1 cursor-pointer"
+          :title="`${probe.Name} - ${probe.Status}`"
+          @click="gotoAnchor(probe.Name)"
+        >
+          <i class="fas fa-fw fa-chart-line"></i
+          ><span
+            >&nbsp;{{ probe.Name }}
+            <StatusBadge :level="probe.Level" size="sm" class="ms-1">
+              {{ probe.Status }}
+            </StatusBadge>
+          </span>
         </a>
       </li>
     </template>

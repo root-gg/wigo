@@ -44,3 +44,9 @@ function handleClick() {
   }
 }
 </script>
+
+<style scoped>
+.status-card .clickable {
+  cursor: pointer;
+}
+</style>

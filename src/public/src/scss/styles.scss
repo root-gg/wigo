@@ -1,5 +1,37 @@
 @import "bootstrap/scss/bootstrap";
 
+:root {
+  --navbar-block-height: 3.5rem; /* same height for the navbar and the arrow bar of the sidebar */
+}
+
+/* Wigo Logo: same font everywhere (sidebar + navbar) */
+.wigo-logo {
+  font-weight: inherit;
+  font-size: 1.5rem; /* Bootstrap fs-4 */
+  letter-spacing: 0.15em;
+}
+
+.navbar-block {
+  min-height: var(--navbar-block-height);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.navbar-block .container-fluid,
+.navbar-block .navbar-nav {
+  min-height: var(--navbar-block-height);
+}
+
+.navbar-block .navbar-nav {
+  align-items: center;
+}
+
+.navbar-block .navbar-nav .nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Utilities */
 .text-truncate {
   overflow: hidden;
