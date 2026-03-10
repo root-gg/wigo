@@ -1,32 +1,78 @@
-Wigo
-=========
+# Wigo
 
-Wigo, aka "What Is Going On" is a light pull/push monitoring tool written in Golang.
+**Wigo** (What Is Going On) is a lightweight pull/push monitoring tool written in Go.
 
-Main features
-  - Write probes in any language you want
-  - Notifications when a probe status change (http,email)
-  - Proxy mode for hosts behind NAT/Gateways
-  - Graphing probes metrics to OpenTSDB instances
+## Features
 
-[Install Wigo Monitoring browser extention for Chrome or Firefox](https://github.com/carsso/wigo-browser-extension)
+- **Probes in any language** — Write probes as binaries in the language of your choice
+- **Notifications** — HTTP, email, and Apprise alerts when probe or host status changes
+- **Proxy mode** — Monitor hosts behind NAT/gateways via PUSH mode
+- **Metrics** — Send probe metrics to OpenTSDB
 
-#### Screenshots:
+## Screenshots
 
-##### Web UI Main view:
+### Main view
+
 ![Main view](https://user-images.githubusercontent.com/666182/98400230-f9384e00-2063-11eb-9f82-01138f87942d.png)
 
-##### Web UI Group view:
+### Group view
+
 ![Group view](https://user-images.githubusercontent.com/666182/98400233-fa697b00-2063-11eb-955a-e9f165a90bef.png)
 
-##### Web UI Host view:
+### Host view
+
 ![Host view](https://user-images.githubusercontent.com/666182/98400236-fb021180-2063-11eb-8605-9dd65d26f7ac.png)
 
+---
 
-### Installation
+## Monitoring modes: PULL and PUSH
 
-##### Debian :
-Deb packages are available for Debian >= 12
+Wigo can collect data from other Wigo instances in two ways.
+
+### PULL mode
+
+The **master** (central Wigo) periodically **fetches** data from remote Wigos over HTTP/HTTPS.
+
+- You configure a list of remote hosts in `[RemoteWigos]` (see [Configuration](#configuration)).
+- The master polls each remote at `CheckInterval` seconds by requesting `GET /api` (full JSON state).
+- Remotes must expose the HTTP API (default port 4000). Use firewall rules, TLS, and optional HTTP Basic Auth to secure access.
+- **Use case:** You can open the master’s network to outbound connections; remotes are just normal Wigo instances with the HTTP API enabled.
+
+### PUSH mode
+
+**Clients** (e.g. hosts behind NAT) **send** their state to a central Wigo over a persistent TCP connection.
+
+- You enable `[PushServer]` on the central Wigo and `[PushClient]` on each client.
+- Clients connect to the server (default port 4001), authenticate with a signed UUID, then periodically push their state via RPC (binary gob over TCP).
+- TLS is strongly recommended. The server uses a **CA** certificate to sign client UUIDs; clients use the server certificate to verify the server.
+- **Use case:** Hosts that cannot be reached from the master (NAT, no public IP). They initiate the connection and push their probes and status.
+
+You can combine both: a master can have some remotes via PULL (HTTP) and others via PUSH (TCP).
+
+---
+
+## Status codes
+
+Every probe returns a numeric **Status**. Wigo uses it for aggregation and notifications.
+
+| Code      | Label  | Meaning |
+|-----------|--------|---------|
+| **100**   | OK     | All good |
+| **101–199** | INFO  | Informational (e.g. minor notice) |
+| **200–299** | WARN  | Warning, attention needed |
+| **300–499** | CRIT  | Critical, should be fixed |
+| **500+**  | ERROR  | Error or failure (e.g. probe timeout, exec failure) |
+
+- **Host status** is the **maximum** of its probe statuses (worst probe wins).
+- A host that has not reported in time is marked **DOWN** (status 999).
+- **Notifications** are sent when a probe’s status **changes** and crosses the threshold defined by `MinLevelToSend` (e.g. only WARN and above). You can also get notified when a host goes UP or DOWN.
+
+---
+
+## Installation
+
+Packages for Debian 12 (Bookworm) are available from the project repository:
+
 ```sh
 apt-get install lsb-release
 sudo mkdir -p /etc/apt/keyrings
@@ -36,170 +82,255 @@ apt-get update
 apt-get install wigo
 ```
 
-### Configuration / Setup
+Alternatively, you can build the packages from source (see [Building from source](#building-from-source)) or download the latest release from the [releases page](https://github.com/root-gg/wigo/releases).
 
-- Wigo configuration is in `/etc/wigo/wigo.conf`
-- Probes configurations are in `/etc/wigo/conf.d/`
+**Optional:** [Install the Wigo Monitoring browser extension](https://github.com/carsso/wigo-browser-extension) for Chrome or Firefox.
 
-##### PULL
-The master fetch remote clients over the http api.
-Communications should be secured using firewall rules, TLS and http basic authentication.
+---
 
-##### PUSH
-Clients send their data to a remote master over a persistent tcp connection.
-Communications should be secured using firewall rules and TLS.
+## Configuration
 
-##### TLS
-Wigo needs a key pair to enable HTTPS api.
-You can generate a self signed key pair by running this command:
-```
-/usr/local/wigo/bin/generate_cert -ca=false -duration=87600h0m0s -host "hostnames,ips,..." --rsa-bits=4096
-```
+ - Main config file: **`/etc/wigo/wigo.conf`**.
+ - Probes config: **`/etc/wigo/conf.d/`**.
 
-Wigo needs a CA key pair to secure PUSH communications.
-You can generate a CA self signed key pair by running this command on the push server :
-```
-/usr/local/wigo/bin/generate_cert -ca=true -duration=87600h0m0s -host "hostnames,ips,..." --rsa-bits=4096
-```
+The main config file is split into sections. Below is what each section does and the main options.
 
+### `[Global]`
 
-##### Default probes 
+| Option | Description |
+|--------|-------------|
+| `Hostname` | This machine’s hostname (default: system hostname). |
+| `Group` | Logical group (e.g. `webserver`, `loadbalancer`) for the UI and OpenTSDB tags. |
+| `LogFile` | Log path (e.g. `/var/log/wigo.log`). |
+| `ProbesDirectory` | Where probe executables live (e.g. `/usr/local/wigo/probes`). |
+| `ProbesConfigDirectory` | Directory for per-probe config (e.g. `/etc/wigo/conf.d`). |
+| `UuidFile` | Path where the instance UUID is stored. |
+| `Database` | SQLite DB to store data (logs, status, etc.) (e.g. `/var/lib/wigo/wigo.db`). |
+| `AliveTimeout` | Seconds without update before a remote is considered DOWN (e.g. `60`). |
+| `Debug` | Enable debug logging. |
 
-The directory name is the interval of check in seconds
+### `[Http]`
+
+HTTP API (used by the web UI and by PULL mode).
+
+| Option | Description |
+|--------|-------------|
+| `Enabled` | Turn the HTTP server on/off. |
+| `Address`, `Port` | Listen address (e.g. `0.0.0.0`, `4000`). |
+| `SslEnabled` | Use HTTPS. |
+| `SslCert`, `SslKey` | Paths to the server certificate and private key. |
+| `Login`, `Password` | Optional HTTP Basic Auth for the API. |
+
+### `[PushServer]`
+
+Central server for PUSH mode (clients connect here).
+
+| Option | Description |
+|--------|-------------|
+| `Enabled` | Enable the push server. |
+| `Address`, `Port` | Listen address (e.g. `0.0.0.0`, `4001`). |
+| `SslEnabled` | Use TLS (recommended). |
+| `SslCert`, `SslKey` | **CA** certificate and private key (used to sign client UUIDs). |
+| `AllowedClientsFile` | File listing allowed client UUIDs (one per line). |
+| `AutoAcceptClients` | If true, new clients are accepted without manual approval. |
+
+### `[PushClient]`
+
+Client side for PUSH mode (this instance pushes to a central Wigo).
+
+| Option | Description |
+|--------|-------------|
+| `Enabled` | Enable the push client. |
+| `Address`, `Port` | Push server host and port. |
+| `SslEnabled` | Use TLS (recommended). |
+| `SslCert` | Path to the **server’s** certificate (e.g. `/var/lib/wigo/master.crt`) so the client can verify the server. |
+| `UuidSig` | Path where the server’s signature of this client’s UUID is stored. |
+| `PushInterval` | Seconds between state pushes (e.g. `10`). |
+
+### `[RemoteWigos]`
+
+List of remotes for **PULL** mode. The master polls these via HTTP.
+
+| Option | Description |
+|--------|-------------|
+| `CheckInterval` | Seconds between polls per remote (e.g. `10`). Do not set below about half of `AliveTimeout`. |
+| `SslEnabled` | Use HTTPS when polling. |
+| `Login`, `Password` | HTTP Basic Auth for remote APIs. |
+| `List` | Simple list: `["host1", "host2:4000", ...]`. Port optional (default: master’s HTTP port). |
+
+For per-host options (custom port, TLS, auth, depth), use the advanced form in the config file (see comments in `etc/wigo.conf`).
+
+### `[OpenTSDB]`
+
+Optional: send probe metrics to OpenTSDB.
+
+| Option | Description |
+|--------|-------------|
+| `Enabled` | Enable OpenTSDB output. |
+| `Address` | OpenTSDB host(s). |
+| `MetricPrefix` | Prefix for metric names (e.g. `wigo`). |
+| `Deduplication`, `BufferSize` | Tuning for metric submission. |
+
+### `[Notifications]`
+
+Alerts when probe or host status changes.
+
+| Option | Description |
+|--------|-------------|
+| `MinLevelToSend` | Minimum status to trigger a notification (e.g. `250` = WARN and above). |
+| `OnProbeChange` | Notify on probe status change. |
+| `OnWigoChange` | Notify when a host goes UP/DOWN. |
+| `HttpEnabled`, `HttpUrl` | HTTP POST callback with notification payload. |
+| `EmailEnabled`, `EmailSmtpServer`, `EmailRecipients`, … | SMTP email alerts. |
+| `AppriseEnabled`, `ApprisePath`, `AppriseUrls` | Alerts via [Apprise](https://github.com/caronc/apprise). |
+
+---
+
+## TLS
+
+### HTTPS API (PULL and web UI)
+
+Use a **server** certificate and key so the HTTP API is served over HTTPS.
+
+Generate a self-signed certificate (replace hostnames/IPs as needed):
 
 ```sh
-/usr/local/wigo/probes
-├── 120
-├── 300
-│   ├── apt-security -> ../../probes-examples/apt-security
-│   └── smart -> ../../probes-examples/smart
-└── 60
-    ├── check_mdadm -> ../../probes-examples/check_mdadm
-    ├── check_processes
-    ├── hardware_disks -> ../../probes-examples/hardware_disks
-    ├── hardware_load_average -> ../../probes-examples/hardware_load_average
-    ├── hardware_memory -> ../../probes-examples/hardware_memory
-    ├── ifstat -> ../../probes-examples/ifstat
-    ├── supervisord
-    └── needrestart
-
+/usr/local/wigo/bin/generate_cert -ca=false -duration=876000h0m0s -host "hostname,ip1,ip2" --rsa-bits=4096
 ```
 
-### Building from sources
+Then set in `[Http]`: `SslEnabled = true`, and point `SslCert` / `SslKey` to the generated files.
 
-##### Environment
-To build from sources, you need:
-- `golang` and `gcc` installed
-- `node.js` and `npm` for the frontend
-- The `$GOPATH` environment variable should also be set on your system
+You may want to order a certificate from a trusted CA like [Let's Encrypt](https://letsencrypt.org/) instead of using a self-signed certificate.
 
-##### Dependencies
+### PUSH mode (server and clients)
 
-Install all dependencies:
+The **push server** uses a **CA** certificate to sign client UUIDs. Clients use the **server’s** certificate to verify the server.
+
+On the **push server**, generate a CA key pair:
+
+```sh
+/usr/local/wigo/bin/generate_cert -ca=true -duration=876000h0m0s -host "hostnames,ips,..." --rsa-bits=4096
+```
+
+Configure `[PushServer]` with these cert/key paths. Copy the **certificate** (not the key) to each client and set `[PushClient].SslCert` to that path. On first connect, the client can optionally fetch the server cert via RPC and then reconnect with verification enabled.
+
+---
+
+## Probes
+
+Probes live under `ProbesDirectory` (e.g. `/usr/local/wigo/probes`).
+
+Subdirectory name is the check interval in **seconds** (60, 120, 300) (e.g. `/usr/local/wigo/probes/60`). They are executed automatically every time the interval is reached.
+
+Probes in subdirectories are symlinks to the actual probe executable located in the examples subdirectory (e.g. `/usr/local/wigo/probes/60/check_mdadm` -> `/usr/local/wigo/probes/examples/check_mdadm`).
+
+Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf.d`).
+
+### Writing a probe
+
+A probe is an **executable** (any language) that prints a single JSON object to stdout. Required field: **`Status`** (integer, see [Status codes](#status-codes)). Optional: `Message`, `Detail`, `Version`, `Metrics` (for OpenTSDB).
+
+Example output:
+
+```json
+{
+  "Status": 100,
+  "Message": "0.38 0.26 0.24",
+  "Detail": "",
+  "Version": "0.11",
+  "Metrics": [
+    { "Value": 0.38, "Tags": { "load": "load5" } },
+    { "Value": 0.26, "Tags": { "load": "load10" } },
+    { "Value": 0.24, "Tags": { "load": "load15" } }
+  ]
+}
+```
+
+If the process fails (non-zero exit, timeout), Wigo reports status **500** for that probe. Exit code **12** disables the probe until restart; **13** disables and removes its result.
+
+---
+
+## Building from source
+
+### Prerequisites
+
+- Go and GCC
+- Node.js and npm (for the frontend)
+- `GOPATH` set in your environment
+
+### Install dependencies
+
 ```sh
 make deps
 ```
 
-##### Building
+### Build
 
 ```sh
 make clean release
 ```
 
-##### Building for all supported archs (amd64 & armhf)
-You will need `arm-linux-gnueabihf-gcc`
+### Build for all supported architectures (amd64 & armhf)
+
+Requires `arm-linux-gnueabihf-gcc`:
+
 ```sh
 make clean releases
 ```
 
-##### Build debian packages
-You will need `dpkg-deb`
+### Build Debian packages
+
+Requires `dpkg-deb`:
+
 ```sh
 make debs
 ```
 
-##### Development mode
+### Development mode
 
-To run Wigo in development mode with hot-reload for both backend and frontend:
+Run Wigo with hot-reload for backend and frontend:
 
 ```sh
 make run-dev
 ```
 
-The web interface will be available at `http://localhost:4400/` (or the port configured in `etc/wigo-dev.conf`).
+The web UI is at `http://localhost:4400/` (or the port in `etc/wigo-dev.conf`). Stop with `Ctrl+C`.
 
-To stop the development server, press `Ctrl+C` - this will gracefully stop both the Go server and the frontend watcher.
+**Note:** Development mode needs `sudo`. Artifacts are stored in `dev/`.
 
-**Note:** The development mode requires `sudo` privileges to run the Wigo server. The development files are stored in the `dev/` directory.
+---
 
-### Usage
+## Usage
 
-##### Wigo web interface
+### Web interface
 
-`http://[your-ip]:4000/` (by default)
+Web interface requires the HTTP API to be enabled locally in `[Http]` (see [Configuration](#configuration)).
 
+By default the web interface is at: **`http://[your-ip]:4000/`**
 
-##### Wigo CLI
+### CLI
+
+CLI requires the HTTP API to be enabled locally in `[Http]` (see [Configuration](#configuration)).
 
 ```sh
-# /usr/local/wigo/bin/wigocli
-Wigo v0.51.5 running on backbone.root.gg 
+/usr/local/wigo/bin/wigocli
+```
+
+Example output:
+
+```
+Wigo v0.51.5 running on backbone.root.gg
 Local Status    : 100
 Global Status   : 250
 
-Remote Wigos : 
+Remote Wigos :
 
-    1.2.3.4:4000 ( ns2 ) - Wigo v0.51.5: 
+    1.2.3.4:4000 ( ns2 ) - Wigo v0.51.5:
         apt-security              : 100  No security packages availables
         hardware_disks            : 250  Highest occupation percentage is 93% in partition /dev/md0
         hardware_load_average     : 100  0.09 0.04 0.05
-        hardware_memory           : 100  Current memory usage is 19.32%
-        ifstat                    : 100  tap0 0.00/0.01 mbps , eth1 0.00/0.00 mbps , eth0 0.01/0.01 mbps , 
-        smart                     : 100  /dev/sdc : PASSED /dev/sdb : PASSED 
-
+        ...
 ```
 
-
-##### Write your own probes !
-
-Probes are binaries, written in any language you want, that output a json string with at least Status param :
-```sh
-
-$ /usr/local/wigo/probes/examples/hardware_load_average
-{
-   "Detail" : "",
-   "Version" : "0.11",
-   "Message" : "0.38 0.26 0.24",
-   "Status" : 100,
-   "Metrics" : [
-      {
-         "Value" : 0.38,
-         "Tags" : {
-            "load" : "load5"
-         }
-      },
-      {
-         "Value" : 0.26,
-         "Tags" : {
-            "load" : "load10"
-         }
-      },
-      {
-         "Value" : 0.24,
-         "Tags" : {
-            "load" : "load15"
-         }
-      }
-   ]
-}
-```
-
-##### Status codes :
-```
-    100         OK
-    101 to 199  INFO
-    200 to 299  WARN
-    300 to 499  CRIT
-    500+        ERROR
-```
-
+- **Local Status** — worst status among probes on this host.
+- **Global Status** — same as local here; for the whole view, check each remote’s status in the list.
