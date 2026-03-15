@@ -13,15 +13,15 @@
 
 ### Main view
 
-![Main view](https://user-images.githubusercontent.com/666182/98400230-f9384e00-2063-11eb-9f82-01138f87942d.png)
+![Main view](https://github.com/user-attachments/assets/999138a2-0602-4da1-bb20-337a3f0433ed)
 
 ### Group view
 
-![Group view](https://user-images.githubusercontent.com/666182/98400233-fa697b00-2063-11eb-955a-e9f165a90bef.png)
+![Group view](https://github.com/user-attachments/assets/8a4a1aa4-afa2-4461-86b4-ff70dc910efa)
 
 ### Host view
 
-![Host view](https://user-images.githubusercontent.com/666182/98400236-fb021180-2063-11eb-8605-9dd65d26f7ac.png)
+![Host view](https://github.com/user-attachments/assets/2938c5c7-a5f7-497f-8f4d-9da7affdbccd)
 
 ---
 
