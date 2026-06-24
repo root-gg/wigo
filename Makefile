@@ -26,9 +26,9 @@ race:
 	@mkdir -p release
 	@cd release; \
 	export CGO_ENABLED=1; \
-	GORACE="halt_on_error=1" go build -race -o current/wigo $(BASE_DIR)/src/wigo.go; \
-	GORACE="halt_on_error=1" go build -race -o current/wigocli $(BASE_DIR)/src/wigocli.go; \
-	go build -o current/generate_cert $(BASE_DIR)/src/generate_cert.go
+	GORACE="halt_on_error=1" go build -race -o current/wigo $(BASE_DIR)/src/cmd/wigo/main.go; \
+	GORACE="halt_on_error=1" go build -race -o current/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go; \
+	go build -o current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
 deps:
 	@echo "Installing dependencies"
