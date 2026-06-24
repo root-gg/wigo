@@ -195,6 +195,17 @@ func (this *Authority) AllowClient(uuid string) (err error) {
 	return
 }
 
+// Update the hostname for an allowed client if it has changed.
+func (this *Authority) UpdateAllowedHostname(uuid string, hostname string) {
+	if current, ok := this.Allowed[uuid]; ok && current != hostname {
+		this.Allowed[uuid] = hostname
+		if err := this.SaveAllowedList(); err != nil {
+			log.Println(err)
+		}
+		log.Printf("Authority : updated hostname for %s: %s -> %s", uuid, current, hostname)
+	}
+}
+
 // Remove a client from the allowed list, revoke tokens if any and
 // remove client data.
 // TODO The dedup data in gopentsdb are leaked.

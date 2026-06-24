@@ -27,6 +27,25 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 	address := this.config.Address + ":" + strconv.Itoa(config.Port)
 	this.authority = NewAuthority(this.config)
 
+	// Pre-populate RemoteWigos with stubs for all known clients so that the
+	// health loop can detect them as DOWN if they don't reconnect after restart.
+	for uuid, hostname := range this.authority.Allowed {
+		stub := new(Wigo)
+		stub.Uuid = uuid
+		stub.Hostname = hostname
+		stub.IsAlive = true
+		stub.GlobalStatus = 100
+		stub.GlobalMessage = "OK"
+		stub.LocalHost = NewHost()
+		stub.LocalHost.Name = hostname
+		stub.RemoteWigos = NewConcurrentMapWigos()
+		stub.LastUpdate = 0
+		LocalWigo.RemoteWigos.Set(uuid, stub)
+	}
+	if len(this.authority.Allowed) > 0 {
+		log.Printf("Push server : restored %d known clients from allowed list", len(this.authority.Allowed))
+	}
+
 	gob.Register([]interface{}{})
 	gob.Register(map[string]interface{}{})
 	rpc.Register(this)

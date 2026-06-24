@@ -416,6 +416,10 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 		this.CompareTwoWigosAndRaiseNotifications(oldWigo, remoteWigo)
 	}
 
+	if this.push != nil {
+		this.push.authority.UpdateAllowedHostname(remoteWigo.Uuid, remoteWigo.Hostname)
+	}
+
 	_remoteWigo := remoteWigo
 	_remoteWigo.LastUpdate = time.Now().Unix()
 	this.RemoteWigos.Set(remoteWigo.Uuid, _remoteWigo)
