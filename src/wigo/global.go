@@ -463,7 +463,7 @@ func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *W
 			probeName := item.Key
 			newProbe := item.Val.(*ProbeResult)
 
-			if _, ok := oldWigo.LocalHost.Probes.Get(probeName); ok {
+			if _, ok := oldWigo.LocalHost.Probes.Get(probeName); !ok {
 				NewNotificationProbe(nil, newProbe)
 			}
 		}

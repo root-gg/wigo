@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/rpc"
 	"strconv"
+	"time"
 )
 
 // Push server expose method to update client's
@@ -39,7 +40,7 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 		stub.LocalHost = NewHost()
 		stub.LocalHost.Name = hostname
 		stub.RemoteWigos = NewConcurrentMapWigos()
-		stub.LastUpdate = 0
+		stub.LastUpdate = time.Now().Unix()
 		LocalWigo.RemoteWigos.Set(uuid, stub)
 	}
 	if len(this.authority.Allowed) > 0 {
