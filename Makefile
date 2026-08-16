@@ -17,9 +17,9 @@ endif
 
 build = go build
 
-.PHONY: all clean deps lint race release releases build-dev run-dev
+.PHONY: all clean deps lint test race release releases build-dev run-dev
 
-all: clean deps lint race release releases
+all: clean deps lint test race release releases
 
 race:
 	@echo "Building with race detector (current OS)"
@@ -123,6 +123,10 @@ lint: fmt
 	echo -n " - go vet :" ; OUT=`go vet ./...` ; \
 	if [[ -z "$$OUT" ]]; then echo " OK" ; else echo " FAIL"; echo "$$OUT"; FAIL=1 ; fi ;\
 	test $$FAIL -eq 0
+
+test:
+	@echo "Running tests"
+	@go test -race ./src/...
 
 fmt:
 	@gofmt -w -s $(shell find . -type f -name '*.go' -not -path "./vendor/*" )

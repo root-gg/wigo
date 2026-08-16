@@ -329,6 +329,15 @@ Requires `dpkg-deb`:
 make debs
 ```
 
+### Run the tests
+
+```sh
+make test
+```
+
+Runs the Go test suite with the race detector. `make lint` checks `gofmt` and
+`go vet`, and `make all` runs both.
+
 ### Development mode
 
 Run Wigo with hot-reload for backend and frontend:
