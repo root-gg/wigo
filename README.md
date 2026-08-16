@@ -339,6 +339,24 @@ Runs the Go test suite with the race detector. `make lint` checks `gofmt` and
 `go vet` without touching the files, `make fmt` rewrites them, and `make all`
 runs the lint and the tests along with the build.
 
+### Releasing
+
+Releases are driven by the `VERSION` file:
+
+```sh
+echo 0.75.0 > VERSION
+git commit -am "version v0.75.0" && git push
+```
+
+The CI builds and tests that commit, then the release workflow takes over: it
+creates the `v0.75.0` tag on it, downloads the debian packages the CI has just
+built, and publishes the release with them attached and the list of the commits
+since the previous tag.
+
+Nothing happens when `VERSION` holds a version that is already tagged, so
+ordinary pushes are left alone. A failing CI releases nothing, and pushing the
+fix is enough to trigger the release again.
+
 ### Development mode
 
 Run Wigo with hot-reload for backend and frontend:

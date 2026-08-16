@@ -1,0 +1,83 @@
+name: "Release"
+
+# Releasing is driven by the VERSION file : bump it, push it on master, and
+# once the CI is green the matching tag and release are created with the
+# debian packages the CI just built.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - "completed"
+    branches:
+      - "master"
+
+permissions:
+  contents: "write"
+  actions: "read"
+
+jobs:
+  release:
+    name: "Release"
+    runs-on: "ubuntu-latest"
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The commit the CI has built, and the whole history so the release
+          # notes can be built from the previous tag
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: "Looking for a version to release"
+        id: "version"
+        run: |
+          set -euo pipefail
+          version="$(cat VERSION)"
+          tag="v$version"
+
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null ; then
+            echo "$tag already exists, nothing to release"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "releasing $tag"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: "Downloading the debian packages built by the CI"
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download "${{ github.event.workflow_run.id }}" --dir artifacts
+
+          mkdir debs
+          find artifacts -name '*.deb' -exec mv {} debs/ \;
+          ls -l debs
+
+          # One package per architecture, named after the version being released
+          for arch in amd64 armhf ; do
+            test -f "debs/wigo-${{ steps.version.outputs.version }}-$arch.deb"
+          done
+
+      - name: "Creating the release"
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+
+          .github/scripts/release-notes.sh "$tag" > notes.md
+          cat notes.md
+
+          # This creates the tag on the commit the CI has built
+          gh release create "$tag" \
+            --target "${{ github.event.workflow_run.head_sha }}" \
+            --title "Wigo $tag" \
+            --notes-file notes.md \
+            debs/*.deb
