@@ -128,11 +128,11 @@ Options
 		// Find remote
 		if tmp, ok := wigoObj.RemoteWigos.Get(wigoHost); ok {
 			w := tmp.(*wigo.Wigo)
-			fmt.Printf(w.GenerateSummary(showOnlyErrors))
+			fmt.Print(w.GenerateSummary(showOnlyErrors))
 		} else {
 			fmt.Printf("Remote wigo %s not found\n", wigoHost)
 		}
 	} else {
-		fmt.Printf(wigoObj.GenerateSummary(showOnlyErrors))
+		fmt.Print(wigoObj.GenerateSummary(showOnlyErrors))
 	}
 }

@@ -490,6 +490,29 @@ func TestWigoGenerateSummary(t *testing.T) {
 	}
 }
 
+// Probe messages routinely hold percent signs, and the summary is printed as
+// is, so they must not be escaped nor eaten.
+func TestWigoGenerateSummaryKeepsPercentSigns(t *testing.T) {
+
+	wigo := setupTestWigo(t, "databases")
+	host := wigo.GetLocalHost()
+
+	probe := newTestProbe(host, "check_disk", 300)
+	probe.Message = "/ is 91% full"
+	host.Probes.Set("check_disk", probe)
+	host.RecomputeStatus()
+	wigo.RecomputeGlobalStatus()
+
+	summary := wigo.GenerateSummary(false)
+
+	if !strings.Contains(summary, "/ is 91% full") {
+		t.Errorf("The summary does not hold the raw message :\n%s", summary)
+	}
+	if strings.Contains(summary, "91%% full") {
+		t.Errorf("The percent sign has been escaped :\n%s", summary)
+	}
+}
+
 func TestWigoGenerateSummaryOnlyErrors(t *testing.T) {
 
 	wigo := setupTestWigo(t, "databases")

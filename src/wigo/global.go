@@ -716,11 +716,11 @@ func (this *Wigo) GenerateSummary(showOnlyErrors bool) (summary string) {
 			probe := item.Val.(*ProbeResult)
 
 			if probe.Status > 100 && probe.Status < 300 {
-				summary += yellow("\t%-25s : %d  %s\n", probe.Name, probe.Status, strings.Replace(probe.Message, "%", "%%", -1))
+				summary += yellow("\t%-25s : %d  %s\n", probe.Name, probe.Status, probe.Message)
 			} else if probe.Status >= 300 {
-				summary += red("\t%-25s : %d  %s\n", probe.Name, probe.Status, strings.Replace(probe.Message, "%", "%%", -1))
+				summary += red("\t%-25s : %d  %s\n", probe.Name, probe.Status, probe.Message)
 			} else {
-				summary += fmt.Sprintf("\t%-25s : %d  %s\n", probe.Name, probe.Status, strings.Replace(probe.Message, "%", "%%", -1))
+				summary += fmt.Sprintf("\t%-25s : %d  %s\n", probe.Name, probe.Status, probe.Message)
 			}
 		}
 
@@ -774,11 +774,11 @@ func (this *Wigo) GenerateRemoteWigosSummary(level int, showOnlyErrors bool, ver
 			summary += tabs
 
 			if currentProbe.Status > 100 && currentProbe.Status < 300 {
-				summary += yellow("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, strings.Replace(currentProbe.Message, "%", "%%", -1))
+				summary += yellow("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, currentProbe.Message)
 			} else if currentProbe.Status >= 300 {
-				summary += red("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, strings.Replace(currentProbe.Message, "%", "%%", -1))
+				summary += red("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, currentProbe.Message)
 			} else {
-				summary += fmt.Sprintf("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, strings.Replace(currentProbe.Message, "%", "%%", -1))
+				summary += fmt.Sprintf("\t%-25s : %d  %s\n", currentProbe.Name, currentProbe.Status, currentProbe.Message)
 			}
 		}
 
