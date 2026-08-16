@@ -336,7 +336,8 @@ make test
 ```
 
 Runs the Go test suite with the race detector. `make lint` checks `gofmt` and
-`go vet`, and `make all` runs both.
+`go vet` without touching the files, `make fmt` rewrites them, and `make all`
+runs the lint and the tests along with the build.
 
 ### Development mode
 

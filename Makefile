@@ -17,7 +17,7 @@ endif
 
 build = go build
 
-.PHONY: all clean deps lint test race release releases build-dev run-dev
+.PHONY: all clean deps fmt lint test race release releases build-dev run-dev
 
 all: clean deps lint test race release releases
 
@@ -117,8 +117,9 @@ publish-debs:
 		done \
 	done
 
-lint: fmt
-	@FAIL=0 ;echo -n " - go fmt :" ; OUT=`gofmt -l . | grep -v ^vendor` ; \
+# Checks only, run "make fmt" to rewrite the files
+lint:
+	@FAIL=0 ;echo -n " - go fmt :" ; OUT=`gofmt -l -s . | grep -v ^vendor` ; \
 	if [[ -z "$$OUT" ]]; then echo " OK" ; else echo " FAIL"; echo "$$OUT"; FAIL=1 ; fi ;\
 	echo -n " - go vet :" ; OUT=`go vet ./... 2>&1` ; \
 	if [[ -z "$$OUT" ]]; then echo " OK" ; else echo " FAIL"; echo "$$OUT"; FAIL=1 ; fi ;\
