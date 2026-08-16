@@ -629,14 +629,17 @@ func (this *Wigo) SearchLogs(probe string, hostname string, group string, limit 
 	// Instanciate
 	for rows.Next() {
 		l := new(Log)
-		t := new(time.Time)
 
-		if err := rows.Scan(&t, &l.Level, &l.Group, &l.Host, &l.Probe, &l.Message); err != nil {
+		// Dates are persisted as unix timestamps
+		var timestamp int64
+
+		if err := rows.Scan(&timestamp, &l.Level, &l.Group, &l.Host, &l.Probe, &l.Message); err != nil {
+			log.Printf("Fail to fetch log row : %s", err)
 			return logs
 		}
 
-		l.Timestamp = t.Unix()
-		l.Date = t.Format(dateLayout)
+		l.Timestamp = timestamp
+		l.Date = time.Unix(timestamp, 0).Format(dateLayout)
 
 		logs = append(logs, l)
 	}
