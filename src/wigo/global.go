@@ -814,22 +814,6 @@ func (this *Wigo) FindRemoteWigoByHostname(hostname string) *Wigo {
 	return foundWigo
 }
 
-func (this *Wigo) FindRemoteWigoByUuid(uuid string) (*Wigo, bool) {
-	if tmp, ok := this.RemoteWigos.Get(LocalWigo.Uuid); ok {
-		wigo := tmp.(*Wigo)
-		return wigo, true
-	} else {
-		for item := range this.RemoteWigos.IterBuffered() {
-			uuid := item.Key
-			wigo := item.Val.(*Wigo)
-			if remoteWigo, ok := wigo.FindRemoteWigoByUuid(uuid); ok {
-				return remoteWigo, true
-			}
-		}
-	}
-	return nil, false
-}
-
 func (this *Wigo) ListRemoteWigosNames() []string {
 	list := make([]string, 0)
 

@@ -36,9 +36,6 @@ func NewLog(level uint8, message string) (this *Log) {
 func (this *Log) SetHost(hostname string) {
 	this.Host = hostname
 }
-func (this *Log) SetProbe(probename string) {
-	this.Host = probename
-}
 func (this *Log) SetGroup(group string) {
 	this.Group = group
 }
