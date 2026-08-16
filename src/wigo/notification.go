@@ -19,6 +19,7 @@ import (
 type Notification struct {
 	Type     string
 	Hostname string
+	Group    string
 	Message  string
 	Date     string
 	Summary  string
@@ -28,6 +29,8 @@ type INotification interface {
 	ToJson() ([]byte, error)
 	GetMessage() string
 	GetSummary() string
+	GetHostname() string
+	GetGroup() string
 }
 
 type NotificationWigo struct {
@@ -55,6 +58,13 @@ func NewNotificationFromMessage(message string) (this *Notification) {
 	return
 }
 
+func NewNotificationFromMessageForHost(message string, hostname string, group string) (this *Notification) {
+	this = NewNotificationFromMessage(message)
+	this.Hostname = hostname
+	this.Group = group
+	return
+}
+
 func SendNotification(notification INotification) {
 	log.Printf("New notification : %s", notification.GetMessage())
 	Channels.ChanCallbacks <- notification
@@ -69,6 +79,7 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 
 	if oldProbe == nil && newProbe != nil {
 		this.Hostname = newProbe.GetHost().GetParentWigo().Hostname
+		this.Group = newProbe.GetHost().Group
 		this.Message = fmt.Sprintf("New probe %s with status %d detected on host %s", newProbe.Name, newProbe.Status, this.Hostname)
 
 		this.Summary += fmt.Sprintf("A new probe %s has been detected on host %s : \n\n", newProbe.Name, this.Hostname)
@@ -76,6 +87,7 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 
 	} else if oldProbe != nil && newProbe == nil {
 		this.Hostname = oldProbe.GetHost().GetParentWigo().Hostname
+		this.Group = oldProbe.GetHost().Group
 		this.Message = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, this.Hostname, oldProbe.Status)
 
 		this.Summary += fmt.Sprintf("Probe %s has been deleted on host %s : \n\n", oldProbe.Name, this.Hostname)
@@ -84,6 +96,7 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 	} else if oldProbe != nil && newProbe != nil {
 		if newProbe.Status != oldProbe.Status {
 			this.Hostname = newProbe.GetHost().GetParentWigo().Hostname
+			this.Group = newProbe.GetHost().Group
 
 			this.Message = fmt.Sprintf("Probe %s status changed from %d to %d on host %s", newProbe.Name, oldProbe.Status, newProbe.Status, this.Hostname)
 
@@ -148,6 +161,14 @@ func (this *NotificationProbe) GetSummary() (s string) {
 
 func (this *Notification) GetMessage() string {
 	return this.Message
+}
+
+func (this *Notification) GetHostname() string {
+	return this.Hostname
+}
+
+func (this *Notification) GetGroup() string {
+	return this.Group
 }
 
 func SendMail(summary string, message string) {
@@ -260,7 +281,7 @@ func CallbackHttp(json string) (e error) {
 	return nil
 }
 
-func SendApprise(summary string, message string) {
+func SendApprise(notification INotification) {
 
 	log.Printf("We're gonna launch apprise notif...")
 
@@ -272,8 +293,20 @@ func SendApprise(summary string, message string) {
 	}
 
 	// Check if URLs are configured
-	if len(config.AppriseUrls) == 0 {
+	if len(config.AppriseUrls) == 0 && len(config.AppriseTargets) == 0 {
 		log.Printf("Apprise is enabled but no URLs are configured")
+		return
+	}
+
+	summary := notification.GetSummary()
+	message := notification.GetMessage()
+	hostname := notification.GetHostname()
+	group := notification.GetGroup()
+
+	// Keep only the urls matching the host/group of this notification
+	appriseUrls := config.GetAppriseUrls(hostname, group)
+	if len(appriseUrls) == 0 {
+		log.Printf("Apprise : no target matching host \"%s\" (group \"%s\"), notification not sent", hostname, group)
 		return
 	}
 
@@ -289,8 +322,8 @@ func SendApprise(summary string, message string) {
 	}
 
 	// Send to each URL in a separate goroutine
-	for _, url := range config.AppriseUrls {
-		go func(appriseUrl string) {
+	for _, url := range appriseUrls {
+		go func(appriseUrl string, origin string) {
 			// Create context with timeout (10 seconds)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -301,18 +334,18 @@ func SendApprise(summary string, message string) {
 			// Execute command
 			output, err := cmd.CombinedOutput()
 			if err != nil {
-				log.Printf("Error sending apprise notification to %s : %s", appriseUrl, err)
+				log.Printf("Error sending apprise notification to %s%s : %s", appriseUrl, origin, err)
 				if len(output) > 0 {
-					log.Printf("Apprise verbose output for %s : %s", appriseUrl, string(output))
+					log.Printf("Apprise verbose output for %s%s : %s", appriseUrl, origin, string(output))
 				}
 				return
 			}
 
 			// Log verbose output even on success for debugging
 			if len(output) > 0 {
-				log.Printf("Apprise verbose output for %s : %s", appriseUrl, string(output))
+				log.Printf("Apprise verbose output for %s%s : %s", appriseUrl, origin, string(output))
 			}
-			log.Printf(" - Sent to apprise url : %s", appriseUrl)
-		}(url)
+			log.Printf(" - Sent to apprise url : %s%s", appriseUrl, origin)
+		}(url.Url, url.Origin())
 	}
 }

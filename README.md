@@ -182,7 +182,50 @@ Alerts when probe or host status changes.
 | `OnWigoChange` | Notify when a host goes UP/DOWN. |
 | `HttpEnabled`, `HttpUrl` | HTTP POST callback with notification payload. |
 | `EmailEnabled`, `EmailSmtpServer`, `EmailRecipients`, … | SMTP email alerts. |
-| `AppriseEnabled`, `ApprisePath`, `AppriseUrls` | Alerts via [Apprise](https://github.com/caronc/apprise). |
+| `AppriseEnabled`, `ApprisePath`, `AppriseUrls` | Alerts via [Apprise](https://github.com/caronc/apprise). `AppriseUrls` receives **all** notifications. |
+| `[[Notifications.AppriseTargets]]` | Apprise urls restricted to some groups and/or hosts (see below). |
+
+#### Filtering Apprise notifications
+
+`AppriseUrls` is the catch-all list: every notification is sent to it. To route
+notifications to different urls depending on the host or the group, declare one
+or more `AppriseTargets`:
+
+```toml
+[Notifications]
+AppriseEnabled = 1
+ApprisePath    = "/usr/local/bin/apprise"
+AppriseUrls    = []                                 # catch-all, keep it empty to only use targets
+
+# Only the "databases" group and the host db-master.domain.tld
+[[Notifications.AppriseTargets]]
+Name   = "dba team"
+Urls   = ["mailto://user:pass@domain.tld"]
+Groups = ["databases"]
+Hosts  = ["db-master.domain.tld"]
+
+# Two groups
+[[Notifications.AppriseTargets]]
+Name   = "web team"
+Urls   = ["slack://token/#alerts"]
+Groups = ["frontend", "backend"]
+```
+
+| Field | Description |
+|-------|-------------|
+| `Name` | Optional label, shown in the logs when a notification is sent. Defaults to the position of the target in the file (`#1`, `#2`, …). |
+| `Urls` | Apprise urls notified when the target matches. |
+| `Groups` | Groups to notify. Matches the `Group` of the host that raised the notification. |
+| `Hosts` | Hostnames to notify. |
+
+`Groups` and `Hosts` are OR'ed: a notification matches if its group is listed
+**or** its host is listed. Matching is case insensitive and `"*"` matches
+everything. A target with neither `Groups` nor `Hosts` never matches — use
+`AppriseUrls` to notify every host. Urls matched by several targets are
+deduplicated, so a notification is never sent twice to the same url.
+
+Because of the TOML syntax, `[[Notifications.AppriseTargets]]` blocks must be
+written **after** the other `[Notifications]` keys.
 
 ---
 

@@ -105,7 +105,7 @@ func (this *Authority) AddClientToWaitingList(uuid string, hostname string) (err
 		if len(this.Waiting) < this.config.MaxWaitingClients {
 			this.Waiting[uuid] = hostname
 			message := fmt.Sprintf("New client %s", hostname)
-			SendNotification(NewNotificationFromMessage(message))
+			SendNotification(NewNotificationFromMessageForHost(message, hostname, ""))
 			log.Printf("Authority : %s", message)
 			LocalWigo.AddLog(LocalWigo, INFO, message)
 		} else {

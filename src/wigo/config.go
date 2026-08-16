@@ -112,6 +112,7 @@ func NewConfig(configFile string) (this *Config) {
 	this.Notifications.AppriseEnabled = 0
 	this.Notifications.ApprisePath = "/usr/local/bin/apprise"
 	this.Notifications.AppriseUrls = nil
+	this.Notifications.AppriseTargets = nil
 
 	// OpenTSDB
 	this.OpenTSDB.Enabled = false
@@ -157,6 +158,14 @@ func NewConfig(configFile string) (this *Config) {
 
 			// Push new AdvancedRemoteWigo to remoteWigosList
 			this.AdvancedList = append(this.AdvancedList, *AdvancedRemoteWigo)
+		}
+	}
+
+	// Warn about apprise targets that would never be notified
+	for i := range this.Notifications.AppriseTargets {
+		target := &this.Notifications.AppriseTargets[i]
+		if len(target.Groups) == 0 && len(target.Hosts) == 0 {
+			log.Printf("Apprise target %s has no Groups nor Hosts filter and will never be notified, use AppriseUrls to notify every host\n", target.GetName(i))
 		}
 	}
 
@@ -247,6 +256,100 @@ type NotificationConfig struct {
 	AppriseEnabled int
 	ApprisePath    string
 	AppriseUrls    []string
+	AppriseTargets []AppriseTargetConfig
+}
+
+// AppriseTargetConfig sends a set of apprise urls only for the notifications
+// matching its filters. Groups and Hosts are OR'ed together and accept the "*"
+// wildcard. Use the plain AppriseUrls list to notify every host.
+type AppriseTargetConfig struct {
+	Name   string
+	Urls   []string
+	Groups []string
+	Hosts  []string
+}
+
+// GetName returns a printable name for this target, falling back on its
+// position in the configuration file when Name is not set.
+func (this *AppriseTargetConfig) GetName(index int) string {
+	if this.Name == "" {
+		return "#" + strconv.Itoa(index+1)
+	}
+
+	return "\"" + this.Name + "\""
+}
+
+// Matches tells whether a notification coming from the given host/group has to
+// be sent to this target.
+func (this *AppriseTargetConfig) Matches(hostname string, group string) bool {
+
+	// A target without any filter would never be notified
+	if len(this.Groups) == 0 && len(this.Hosts) == 0 {
+		return false
+	}
+
+	if matchFilterList(this.Groups, group) {
+		return true
+	}
+
+	return matchFilterList(this.Hosts, hostname)
+}
+
+func matchFilterList(filters []string, value string) bool {
+	for _, filter := range filters {
+		if filter == "*" {
+			return true
+		}
+		if value != "" && strings.EqualFold(filter, value) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// AppriseUrl is an apprise url to notify along with the name of the target it
+// comes from, so logs can tell which part of the configuration triggered it.
+type AppriseUrl struct {
+	Url    string
+	Target string
+}
+
+// Origin returns a printable suffix telling which target this url comes from
+func (this *AppriseUrl) Origin() string {
+	if this.Target == "" {
+		return ""
+	}
+
+	return " (target " + this.Target + ")"
+}
+
+// GetAppriseUrls returns the deduplicated list of apprise urls to notify for a
+// given host/group. The plain AppriseUrls list is always included as it has no
+// filter.
+func (this *NotificationConfig) GetAppriseUrls(hostname string, group string) (urls []AppriseUrl) {
+
+	seen := make(map[string]bool)
+
+	appendUrls := func(list []string, target string) {
+		for _, url := range list {
+			if url == "" || seen[url] {
+				continue
+			}
+			seen[url] = true
+			urls = append(urls, AppriseUrl{Url: url, Target: target})
+		}
+	}
+
+	appendUrls(this.AppriseUrls, "")
+
+	for i := range this.AppriseTargets {
+		if this.AppriseTargets[i].Matches(hostname, group) {
+			appendUrls(this.AppriseTargets[i].Urls, this.AppriseTargets[i].GetName(i))
+		}
+	}
+
+	return
 }
 
 type AdvancedRemoteWigoConfig struct {

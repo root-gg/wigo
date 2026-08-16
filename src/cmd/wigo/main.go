@@ -306,7 +306,7 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 			}
 
 			if appriseEnabled != 0 {
-				wigo.SendApprise(notification.GetSummary(), notification.GetMessage())
+				wigo.SendApprise(notification)
 			}
 		}()
 	}

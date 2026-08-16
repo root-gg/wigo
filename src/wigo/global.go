@@ -319,7 +319,7 @@ func (this *Wigo) Down() {
 	this.IsAlive = false
 
 	// Send notification
-	SendNotification(NewNotificationFromMessage(fmt.Sprintf("Host %s DOWN", this.Hostname)))
+	SendNotification(NewNotificationFromMessageForHost(fmt.Sprintf("Host %s DOWN", this.Hostname), this.Hostname, this.GetGroup()))
 
 	// Add a log
 	LocalWigo.AddLog(this, CRITICAL, fmt.Sprintf("Wigo %s DOWN", this.Hostname))
@@ -330,7 +330,7 @@ func (this *Wigo) Up() {
 	this.IsAlive = true
 
 	// Send notification
-	SendNotification(NewNotificationFromMessage(fmt.Sprintf("Host %s UP", this.Hostname)))
+	SendNotification(NewNotificationFromMessageForHost(fmt.Sprintf("Host %s UP", this.Hostname), this.Hostname, this.GetGroup()))
 
 	// Add a log
 	LocalWigo.AddLog(this, INFO, fmt.Sprintf("Wigo %s UP", this.Hostname))
@@ -356,6 +356,15 @@ func (this *Wigo) RecomputeGlobalStatus() {
 // Getters
 func (this *Wigo) GetLocalHost() *Host {
 	return this.LocalHost
+}
+
+// Group of the host represented by this wigo instance
+func (this *Wigo) GetGroup() string {
+	if this.LocalHost == nil {
+		return ""
+	}
+
+	return this.LocalHost.Group
 }
 
 func (this *Wigo) GetConfig() *Config {
