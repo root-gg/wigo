@@ -27,6 +27,8 @@ jobs:
         run: make deps
       - name: "Linting"
         run: make lint
+      - name: "Testing"
+        run: make test
       - name: "Building releases"
         run: make releases
       - name: "Creating debian packages"
