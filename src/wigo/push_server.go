@@ -75,21 +75,36 @@ func NewPushServer(config *PushServerConfig) (this *PushServer) {
 		log.Printf("Push server : now listening @ %s ( TLS disabled ! )", address)
 	}
 
-	go func() {
-		for {
-			if conn, err := listener.Accept(); err == nil {
-				log.Printf("Push server [client %s] : accepting connection", conn.RemoteAddr())
-				go func() {
-					rpc.ServeConn(conn)
-					log.Printf("Push server [client %s] : closing connection", conn.RemoteAddr())
-					conn.Close()
-				}()
-			} else {
-				log.Printf("Push server [client %s] : accept connection failed : %s", conn.RemoteAddr(), err)
-			}
-		}
-	}()
+	go this.acceptConnections(listener)
+
 	return
+}
+
+// Serve every incoming connection until the listener is closed
+func (this *PushServer) acceptConnections(listener net.Listener) {
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			// There is no connection to report about here, Accept returns nil on error
+			if errors.Is(err, net.ErrClosed) {
+				log.Printf("Push server : listener closed, stop accepting connections")
+				return
+			}
+
+			// Transient errors like a file descriptor exhaustion would
+			// otherwise spin on a hot loop
+			log.Printf("Push server : accept connection failed : %s", err)
+			time.Sleep(time.Second)
+			continue
+		}
+
+		log.Printf("Push server [client %s] : accepting connection", conn.RemoteAddr())
+		go func() {
+			rpc.ServeConn(conn)
+			log.Printf("Push server [client %s] : closing connection", conn.RemoteAddr())
+			conn.Close()
+		}()
+	}
 }
 
 // PUSH SERVER RPCs
