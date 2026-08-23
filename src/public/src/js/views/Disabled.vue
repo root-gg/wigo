@@ -15,14 +15,14 @@
       <li v-for="host in hostsWithDisabled" :key="host.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
-          :title="`${host.Name} — ${host.Probes.length} disabled`"
+          :title="`${host.Name} — ${host.DisabledCount} disabled`"
           @click="gotoAnchor(host.Name)"
         >
           <i class="fas fa-fw fa-server"></i
           ><span
             >&nbsp;{{ host.Name }}
             <span class="badge bg-secondary ms-1">{{
-              host.Probes.length
+              host.DisabledCount
             }}</span>
           </span>
         </a>
@@ -72,7 +72,7 @@
         </template>
         <template #badges>
           <span class="badge text-bg-light">
-            {{ host.Probes.length }} disabled
+            {{ host.DisabledCount }} disabled
           </span>
         </template>
         <template #body>
@@ -87,7 +87,11 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="probe in host.Probes" :key="probe.Name">
+                <tr
+                  v-for="probe in host.Probes"
+                  :key="probe.Name"
+                  :class="{ 'table-success': probe.JustEnabled }"
+                >
                   <td class="align-middle">
                     <a
                       class="cursor-pointer"
@@ -96,6 +100,13 @@
                     >
                       {{ probe.Name }}
                     </a>
+                    <span
+                      v-if="probe.JustEnabled"
+                      class="ms-2 small text-body-secondary"
+                    >
+                      <i class="fas fa-fw fa-check"></i>
+                      enabled, it will run from now on
+                    </span>
                   </td>
                   <td>
                     <div class="d-flex justify-content-end">
@@ -105,7 +116,9 @@
                         :schedule="probe"
                         :editable="host.WriteActionsAllowed"
                         :read-only-reason="`Read only: set AllowWriteActions in the [Http] section of the configuration file on ${host.Name}`"
-                        @changed="load"
+                        @changed="
+                          (updated) => onChanged(host.Name, probe.Name, updated)
+                        "
                       />
                     </div>
                   </td>
@@ -133,22 +146,72 @@ const schedules = ref([]);
 const unreachable = ref([]);
 const loaded = ref(false);
 
+/**
+ * Les probes qu'on vient d'activer depuis cette page, par host et par nom.
+ *
+ * Elles n'ont plus rien à faire dans une liste de probes désactivées, mais les
+ * retirer sur-le-champ faisait disparaître la ligne sous le curseur sans rien
+ * dire de ce qui venait de se passer. Elles restent affichées, marquées comme
+ * activées, jusqu'au rafraîchissement suivant -- ce qui laisse aussi le temps
+ * de corriger l'intervalle si on s'est trompé.
+ */
+const justEnabled = ref(new Map());
+
+function enabledKey(hostName, probeName) {
+  return `${hostName}\u0000${probeName}`;
+}
+
 // Une probe désactivée est une probe qu'aucun répertoire d'intervalle
 // n'ordonnance. La plupart n'ont été coupées par personne : wigo en livre une
 // trentaine et le packaging en active la moitié. Le résultat est le même, une
 // vérification qui n'a pas lieu, et c'est ce que cette page recense.
 const hostsWithDisabled = computed(() =>
   schedules.value
-    .map((schedule) => ({
-      Name: schedule.Hostname,
-      WriteActionsAllowed: !!schedule.WriteActionsAllowed,
-      Probes: (schedule.Probes || [])
-        .filter((location) => !location.Enabled)
-        .sort((a, b) => a.Name.localeCompare(b.Name)),
-    }))
+    .map((schedule) => {
+      const disabled = (schedule.Probes || []).filter(
+        (location) => !location.Enabled,
+      );
+      const stillListed = new Set(disabled.map((location) => location.Name));
+
+      const enabled = [...justEnabled.value.entries()]
+        .filter(
+          ([key, location]) =>
+            key.startsWith(`${schedule.Hostname}\u0000`) &&
+            !stillListed.has(location.Name),
+        )
+        .map(([, location]) => ({ ...location, JustEnabled: true }));
+
+      return {
+        Name: schedule.Hostname,
+        WriteActionsAllowed: !!schedule.WriteActionsAllowed,
+        DisabledCount: disabled.length,
+        Probes: [...disabled, ...enabled].sort((a, b) =>
+          a.Name.localeCompare(b.Name),
+        ),
+      };
+    })
     .filter((host) => host.Probes.length > 0)
     .sort((a, b) => a.Name.localeCompare(b.Name)),
 );
+
+/**
+ * L'API répond l'ordonnancement complet du host visé, donc l'état de la probe
+ * est celui qu'elle a réellement pris, pas celui qu'on a demandé.
+ */
+function onChanged(hostName, probeName, updated) {
+  const location = (updated?.Probes || []).find(
+    (probe) => probe.Name === probeName,
+  );
+
+  if (location && location.Enabled) {
+    justEnabled.value.set(enabledKey(hostName, probeName), location);
+  } else {
+    justEnabled.value.delete(enabledKey(hostName, probeName));
+  }
+  justEnabled.value = new Map(justEnabled.value);
+
+  load();
+}
 
 function gotoAnchor(anchor) {
   const element = document.getElementById(anchor);
@@ -194,8 +257,15 @@ async function load() {
   }
 }
 
+// Le rafraîchissement périodique est aussi ce qui fait retomber les lignes des
+// probes qu'on vient d'activer : elles ont eu le temps d'être vues.
+function refresh() {
+  justEnabled.value = new Map();
+  return load();
+}
+
 const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(
-  load,
+  refresh,
   60,
 );
 
@@ -204,7 +274,7 @@ function handleRefreshSettings(seconds) {
 }
 
 onMounted(() => {
-  load();
+  refresh();
   startRefresh();
 });
 

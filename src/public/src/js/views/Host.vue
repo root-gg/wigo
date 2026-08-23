@@ -39,14 +39,14 @@
       <li v-for="probe in visibleProbes" :key="probe.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
-          :title="`${probe.Name} - ${probe.Disabled ? 'disabled' : probe.Status}`"
+          :title="probeTitle(probe)"
           @click="gotoAnchor(probe.Name)"
         >
           <i class="fas fa-fw fa-chart-line"></i
           ><span
             >&nbsp;{{ probe.Name }}
             <StatusBadge :level="probe.Level" size="sm" class="ms-1">
-              {{ probe.Disabled ? "off" : probe.Status }}
+              {{ probeBadge(probe) }}
             </StatusBadge>
           </span>
         </a>
@@ -95,9 +95,18 @@
           />
         </template>
         <template #body>
-          <p v-if="probe.Disabled" class="mb-0 text-body-secondary">
-            This probe is disabled: it is not executed at all, so nothing about
-            it is being monitored.
+          <!-- Elle vient d'être activée : le résultat n'arrivera qu'au premier
+               passage, et la carte doit le dire plutôt que de disparaître de la
+               page en attendant. -->
+          <p v-if="probe.Pending" class="mb-0 text-body-secondary">
+            <i class="fas fa-fw fa-hourglass-half"></i>
+            This probe is now scheduled every
+            {{ formatInterval(probe.Interval) }}. It has not run yet, so its
+            first result will appear on the next cycle.
+          </p>
+          <p v-else-if="probe.Disabled" class="mb-0 text-body-secondary">
+            This probe is disabled: nothing schedules it, so it is never
+            executed and nothing about it is being monitored.
           </p>
           <template v-else>
             <p class="mb-3">{{ probe.Message }}</p>
@@ -192,24 +201,36 @@ function scheduleOf(probeName) {
   return scheduleByName.value[probeName] || null;
 }
 
-/** Probes désactivées : elles n'ont aucun résultat, seul le disque les connaît */
-const disabledProbes = computed(() => {
+/**
+ * Les probes sans résultat, que seul l'ordonnancement sur disque connaît. Deux
+ * raisons de ne pas en avoir : rien ne les ordonnance, ou elles viennent d'être
+ * activées et n'ont pas encore tourné.
+ *
+ * La seconde compte autant que la première. Sans elle, activer une probe la
+ * faisait disparaître de la page jusqu'à sa première exécution, soit une heure
+ * entière si c'est l'intervalle qu'on vient de choisir.
+ */
+const probesWithoutResult = computed(() => {
   if (!hasSchedule.value) return [];
 
   const withResult = new Set(probes.value.map((probe) => probe.Name));
 
   return (schedule.value.Probes || [])
-    .filter((location) => !location.Enabled && !withResult.has(location.Name))
+    .filter((location) => !withResult.has(location.Name))
     .map((location) => ({
       Name: location.Name,
       Level: DISABLED_LEVEL,
-      Disabled: true,
+      Disabled: !location.Enabled,
+      Pending: location.Enabled,
+      Interval: location.Interval,
       Status: null,
       Message: "",
     }));
 });
 
-const disabledCount = computed(() => disabledProbes.value.length);
+const disabledCount = computed(
+  () => probesWithoutResult.value.filter((probe) => probe.Disabled).length,
+);
 
 const sortedProbes = computed(() =>
   [...probes.value].sort((a, b) => {
@@ -223,14 +244,38 @@ const visibleProbes = computed(() => {
     matches(probe.Level, probe.Name, probe.Message),
   );
 
-  // Les désactivées ferment la liste : elles n'ont pas de statut, donc pas de
-  // place dans un tri par gravité.
-  const disabled = [...disabledProbes.value]
+  // Les sans-résultat ferment la liste : elles n'ont pas de statut, donc pas de
+  // place dans un tri par gravité. Celles qui attendent leur première exécution
+  // passent devant les désactivées, on vient de demander qu'elles tournent.
+  const withoutResult = [...probesWithoutResult.value]
     .filter((probe) => matchesWithoutLevel(probe.Name))
-    .sort((a, b) => a.Name.localeCompare(b.Name));
+    .sort((a, b) => {
+      if (a.Pending !== b.Pending) return a.Pending ? -1 : 1;
+      return a.Name.localeCompare(b.Name);
+    });
 
-  return [...running, ...disabled];
+  return [...running, ...withoutResult];
 });
+
+function formatInterval(seconds) {
+  if (!seconds) return "—";
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}min`;
+  return `${seconds}s`;
+}
+
+function probeBadge(probe) {
+  if (probe.Pending) return "…";
+  if (probe.Disabled) return "off";
+  return probe.Status;
+}
+
+function probeTitle(probe) {
+  if (probe.Pending) {
+    return `${probe.Name} - scheduled every ${formatInterval(probe.Interval)}, waiting for its first result`;
+  }
+  return `${probe.Name} - ${probe.Disabled ? "disabled" : probe.Status}`;
+}
 
 function gotoAnchor(anchor) {
   const element = document.getElementById(anchor);
