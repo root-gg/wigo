@@ -18,19 +18,19 @@
       {{ schedule.Enabled ? formatInterval(schedule.Interval) : "disabled" }}
     </span>
 
-    <!-- Installée à plusieurs intervalles : elle tourne plusieurs fois par
-         cycle et l'API refuse d'y toucher. Proposer un réglage qui échouera à
-         coup sûr serait pire que de dire ce qui ne va pas. -->
+    <!-- Installée à plusieurs fois : elle tourne plusieurs fois par cycle.
+         Le badge le signale, mais ne bloque rien : choisir un intervalle
+         consolide en un seul emplacement, ce qui est justement la sortie. -->
     <span
       v-if="ambiguous"
       class="badge text-bg-warning"
-      :title="`Installed in ${schedule.Directories.join(' and ')} at once, so it runs several times per cycle. Resolve it in the probes directory before changing it from here.`"
+      :title="`Installed in ${schedule.Directories.join(' and ')} at once, so it runs several times per cycle. Picking an interval, or disabling it, consolidates it into one.`"
     >
       <i class="fas fa-fw fa-triangle-exclamation"></i>
       installed {{ schedule.Directories.length }}&times;
     </span>
 
-    <div v-else-if="editable" class="dropdown" @click.stop>
+    <div v-if="editable" class="dropdown" @click.stop>
       <button
         :class="[
           'btn',
@@ -137,7 +137,7 @@
     </div>
 
     <span
-      v-else-if="schedule && !ambiguous"
+      v-else-if="schedule"
       :class="onColor ? 'text-white' : 'text-body-secondary'"
       :title="readOnlyReason"
     >

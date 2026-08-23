@@ -2,6 +2,7 @@ package wigo
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -147,6 +148,12 @@ func findProbeLocationsIn(root string, name string) ([]ProbeLocation, error) {
 
 // moveProbeIn moves a probe to targetDirectory, creating that directory when
 // needed.
+//
+// A probe installed in several directories at once runs several times per
+// cycle. Asking for an interval means asking for the probe to run every so
+// often -- once -- so the extra copies are removed rather than left behind :
+// moving one of them would leave the probe running from the others, which is
+// the very state being corrected.
 func moveProbeIn(root string, name string, targetDirectory string) error {
 	locations, err := findProbeLocationsIn(root, name)
 	if err != nil {
@@ -157,23 +164,45 @@ func moveProbeIn(root string, name string, targetDirectory string) error {
 		return fmt.Errorf("probe %q was not found in the probes directory", name)
 	}
 
-	// Being in two directories at once is pathological, and guessing which one
-	// to act on would leave the probe running from the other. Say so instead.
-	if len(locations) > 1 {
-		directories := make([]string, 0, len(locations))
-		for _, location := range locations {
-			directories = append(directories, location.Directory)
+	// The copy that stays. One already sitting where it belongs is kept, which
+	// leaves nothing to move afterwards.
+	survivor := locations[0]
+	for _, location := range locations {
+		if location.Directory == targetDirectory {
+			survivor = location
+			break
 		}
-		return fmt.Errorf("probe %q is installed in several directories at once (%s), please resolve it by hand first",
-			name, strings.Join(directories, ", "))
 	}
 
-	current := locations[0]
-	if current.Directory == targetDirectory {
+	// The extras go first : should the move below fail, the probe is left
+	// scheduled once instead of several times, which is still an improvement on
+	// where we started.
+	for _, location := range locations {
+		if location.Directory == survivor.Directory {
+			continue
+		}
+
+		duplicate, err := probePath(root, location.Directory, name)
+		if err != nil {
+			return err
+		}
+
+		if target, err := os.Readlink(duplicate); err == nil {
+			log.Printf("Probe %s was installed in %s as well, removing that copy (it pointed at %s)", name, location.Directory, target)
+		} else {
+			log.Printf("Probe %s was installed in %s as well, removing that copy", name, location.Directory)
+		}
+
+		if err := os.Remove(duplicate); err != nil {
+			return fmt.Errorf("fail to remove the copy of probe %q found in %s : %s", name, location.Directory, err)
+		}
+	}
+
+	if survivor.Directory == targetDirectory {
 		return nil
 	}
 
-	source, err := probePath(root, current.Directory, name)
+	source, err := probePath(root, survivor.Directory, name)
 	if err != nil {
 		return err
 	}
@@ -187,8 +216,8 @@ func moveProbeIn(root string, name string, targetDirectory string) error {
 		return fmt.Errorf("fail to create the %s directory : %s", targetDirectory, err)
 	}
 
-	// Rename replaces the destination without a word, and findProbeLocationsIn
-	// just told us it should not exist.
+	// Rename replaces the destination without a word. Nothing can be there :
+	// a copy in the target directory would have been kept as the survivor.
 	if _, err := os.Lstat(destination); err == nil {
 		return fmt.Errorf("%s already exists", destination)
 	}
@@ -196,7 +225,7 @@ func moveProbeIn(root string, name string, targetDirectory string) error {
 	// Rename is atomic within a filesystem : the probe is never present in both
 	// directories, which would run it twice, nor missing from both.
 	if err := os.Rename(source, destination); err != nil {
-		return fmt.Errorf("fail to move probe %q from %s to %s : %s", name, current.Directory, targetDirectory, err)
+		return fmt.Errorf("fail to move probe %q from %s to %s : %s", name, survivor.Directory, targetDirectory, err)
 	}
 
 	return nil

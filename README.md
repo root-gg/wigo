@@ -292,7 +292,9 @@ Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf
 
 The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the `[Http]` section. They act on the probes directory directly, so the change takes effect on the next cycle without a restart, and it survives one.
 
-A probe must already be installed to be acted upon: a name that only exists in `examples/`, or does not exist at all, is refused. A probe installed in **several** interval directories at once is also refused rather than half-moved — resolve it by hand first.
+A probe must already be installed to be acted upon: a name that only exists in `examples/`, or does not exist at all, is refused.
+
+A probe installed in **several** directories at once runs several times per cycle. Asking for an interval means asking for it to run every so often — once — so the extra copies are removed and the probe ends up installed exactly once. Each removal is logged with the symlink it pointed at. Moving one copy and leaving the others would keep the probe running from them, which is the very state being corrected.
 
 ### Managing the probes of a remote host
 

@@ -230,22 +230,96 @@ func TestMoveRefusesInvalidName(t *testing.T) {
 	}
 }
 
-// A probe installed at two intervals runs twice per cycle. Picking one of the
-// two would leave it running from the other, so the operation is refused.
-func TestMoveRefusesAmbiguousProbe(t *testing.T) {
+// A probe installed at two intervals runs twice per cycle. Asking for an
+// interval means asking for it to run once, so the extra copies go rather than
+// being left behind : moving one of them would leave it running from the other.
+func TestMoveConsolidatesAnAmbiguousProbe(t *testing.T) {
 	root := newTestProbesDirectory(t, "60/iostat", "300/iostat")
 
-	err := unscheduleProbeIn(root, "iostat")
-	if err == nil {
-		t.Fatalf("Disabling an ambiguous probe should fail")
-	}
-	if !strings.Contains(err.Error(), "several directories") {
-		t.Errorf("Got %q, expected the error to name the problem", err)
+	if err := scheduleProbeIn(root, "iostat", 900); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
 	}
 
-	// Nothing moved
-	if !probeIsIn(t, root, "60", "iostat") || !probeIsIn(t, root, "300", "iostat") {
-		t.Errorf("The probe should have been left untouched")
+	if probeIsIn(t, root, "60", "iostat") || probeIsIn(t, root, "300", "iostat") {
+		t.Errorf("The extra copies should be gone")
+	}
+	if !probeIsIn(t, root, "900", "iostat") {
+		t.Errorf("The probe has not been moved to the 900 directory")
+	}
+
+	locations, err := findProbeLocationsIn(root, "iostat")
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if len(locations) != 1 {
+		t.Errorf("Got %+v, expected the probe to be installed exactly once", locations)
+	}
+}
+
+// Disabling an ambiguous probe has to stop every copy, not just one.
+func TestDisableConsolidatesAnAmbiguousProbe(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/iostat", "300/iostat")
+
+	if err := unscheduleProbeIn(root, "iostat"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if probeIsIn(t, root, "60", "iostat") || probeIsIn(t, root, "300", "iostat") {
+		t.Errorf("The probe is still scheduled somewhere")
+	}
+	if !probeIsIn(t, root, DisabledProbesDirectory, "iostat") {
+		t.Errorf("The probe is not in the disabled directory")
+	}
+}
+
+// One copy already in the target directory is the one kept, so nothing is moved
+// and the others simply go.
+func TestMoveKeepsTheCopyAlreadyInPlace(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/iostat", "300/iostat")
+
+	if err := scheduleProbeIn(root, "iostat", 300); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if probeIsIn(t, root, "60", "iostat") {
+		t.Errorf("The extra copy should be gone")
+	}
+	if !probeIsIn(t, root, "300", "iostat") {
+		t.Errorf("The copy already in place should have been kept")
+	}
+}
+
+// A probe both scheduled and sitting in disabled/ is not disabled at all : it
+// still runs. Disabling it has to remove the scheduled copy.
+func TestDisableConsolidatesWithAnExistingDisabledCopy(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/iostat", "disabled/iostat")
+
+	if err := unscheduleProbeIn(root, "iostat"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if probeIsIn(t, root, "60", "iostat") {
+		t.Errorf("The probe is still scheduled every 60 seconds")
+	}
+	if !probeIsIn(t, root, DisabledProbesDirectory, "iostat") {
+		t.Errorf("The probe should have stayed in the disabled directory")
+	}
+}
+
+// The same the other way round : re-enabling has to remove the disabled copy,
+// otherwise the probe would look disabled while running.
+func TestScheduleConsolidatesWithAnExistingDisabledCopy(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/iostat", "disabled/iostat")
+
+	if err := scheduleProbeIn(root, "iostat", 60); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if probeIsIn(t, root, DisabledProbesDirectory, "iostat") {
+		t.Errorf("The disabled copy should be gone")
+	}
+	if !probeIsIn(t, root, "60", "iostat") {
+		t.Errorf("The probe should still run every 60 seconds")
 	}
 }
 
