@@ -282,6 +282,18 @@ The Debian package only seeds the default symlinks on a **fresh install**, so up
 
 Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf.d`).
 
+### Managing probes through the API
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. |
+| `POST /api/probes/:probe/disable` | Move the probe to `disabled/`. |
+| `POST /api/probes/:probe/interval?seconds=300` | Run the probe every 300 seconds, re-enabling it if it was disabled. |
+
+The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the `[Http]` section. They act on the probes directory directly, so the change takes effect on the next cycle without a restart, and it survives one.
+
+A probe must already be installed to be acted upon: a name that only exists in `examples/`, or does not exist at all, is refused. A probe installed in **several** interval directories at once is also refused rather than half-moved — resolve it by hand first.
+
 ### Writing a probe
 
 A probe is an **executable** (any language) that prints a single JSON object to stdout. Required field: **`Status`** (integer, see [Status codes](#status-codes)). Optional: `Message`, `Detail`, `Version`, `Metrics` (for OpenTSDB).

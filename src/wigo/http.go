@@ -3,6 +3,7 @@ package wigo
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -332,4 +333,92 @@ func HttpAuthorityRevokeHandler(params martini.Params) (int, string) {
 	}
 
 	return 200, "OK"
+}
+
+// Probes scheduling
+//
+// The probes directory is the source of truth, so these handlers read it and
+// write to it directly rather than going through any cached state.
+
+// HttpProbesHandler lists the probes of this host with their schedule,
+// including the ones that are currently disabled and therefore have no result.
+func HttpProbesHandler() (int, string) {
+
+	locations, err := ProbeLocations()
+	if err != nil {
+		return 500, fmt.Sprintf("Fail to read the probes directory : %s", err)
+	}
+
+	body, err := json.Marshal(locations)
+	if err != nil {
+		return 500, fmt.Sprintf("Fail to encode the probes list : %s", err)
+	}
+
+	return 200, string(body)
+}
+
+// httpWriteActionsAllowed reports whether this host accepts being changed
+// through its API. Closed unless an administrator opened it.
+func httpWriteActionsAllowed() (int, string, bool) {
+
+	if !GetLocalWigo().GetConfig().Http.AllowWriteActions {
+		return 403, "Write actions are disabled on this host. Set AllowWriteActions in the [Http] section of the configuration file to allow them.", false
+	}
+
+	return 0, "", true
+}
+
+// HttpProbeDisableHandler stops a probe from being scheduled.
+func HttpProbeDisableHandler(params martini.Params) (int, string) {
+
+	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
+		return status, message
+	}
+
+	probeName := params["probe"]
+	if probeName == "" {
+		return 404, "No probe name set in url"
+	}
+
+	if err := UnscheduleProbe(probeName); err != nil {
+		return 400, err.Error()
+	}
+
+	GetLocalWigo().AddLog(nil, INFO, fmt.Sprintf("Probe %s has been disabled through the API", probeName))
+	log.Printf("Probe %s has been disabled through the API", probeName)
+
+	return HttpProbesHandler()
+}
+
+// HttpProbeIntervalHandler sets how often a probe runs, scheduling it again
+// when it was disabled.
+func HttpProbeIntervalHandler(params martini.Params, r *http.Request) (int, string) {
+
+	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
+		return status, message
+	}
+
+	probeName := params["probe"]
+	if probeName == "" {
+		return 404, "No probe name set in url"
+	}
+
+	seconds := r.URL.Query().Get("seconds")
+	if seconds == "" {
+		return 400, "No interval set in url, expected ?seconds=300"
+	}
+
+	interval, err := strconv.Atoi(seconds)
+	if err != nil {
+		return 400, fmt.Sprintf("Invalid interval %q : %s", seconds, err)
+	}
+
+	if err := ScheduleProbe(probeName, interval); err != nil {
+		return 400, err.Error()
+	}
+
+	GetLocalWigo().AddLog(nil, INFO, fmt.Sprintf("Probe %s is now scheduled every %d seconds through the API", probeName, interval))
+	log.Printf("Probe %s is now scheduled every %d seconds through the API", probeName, interval)
+
+	return HttpProbesHandler()
 }

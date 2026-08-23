@@ -26,6 +26,11 @@ type ProbeResult struct {
 	ProbeDate string
 	Timestamp int64
 
+	// Check interval in seconds this result was produced at, taken from the
+	// probes directory the probe was run from. Zero when it comes from a wigo
+	// too old to report it.
+	Interval int
+
 	Metrics interface{}
 	Detail  interface{}
 

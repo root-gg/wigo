@@ -264,6 +264,24 @@ func probeLocationsIn(root string) ([]ProbeLocation, error) {
 	return locations, nil
 }
 
+// probeIsScheduledIn reports whether a probe runs from some interval
+// directory. Being unable to tell counts as not scheduled, so a probe that
+// really went away is still forgotten.
+func probeIsScheduledIn(root string, name string) bool {
+	locations, err := findProbeLocationsIn(root, name)
+	if err != nil {
+		return false
+	}
+
+	for _, location := range locations {
+		if location.Enabled {
+			return true
+		}
+	}
+
+	return false
+}
+
 func probesRoot() string {
 	return GetLocalWigo().GetConfig().Global.ProbesDirectory
 }
@@ -287,4 +305,12 @@ func FindProbeLocations(name string) ([]ProbeLocation, error) {
 // ProbeLocations lists every probe of the probes directory with where it sits.
 func ProbeLocations() ([]ProbeLocation, error) {
 	return probeLocationsIn(probesRoot())
+}
+
+// IsProbeScheduled reports whether a probe runs from some interval directory.
+// Leaving one directory does not mean a probe is gone : it may have been
+// repitched to another interval, and dropping its result on the way would
+// delete what the new directory just produced.
+func IsProbeScheduled(name string) bool {
+	return probeIsScheduledIn(probesRoot(), name)
 }

@@ -207,6 +207,15 @@ func scheduleProbesDirectory(directory string, interval int, stop chan struct{})
 	for {
 		if newProbesList, err := wigo.ListProbesInDirectory(directory); err == nil {
 			for _, probeName := range reconcileProbesList(directory, currentProbesList, newProbesList) {
+				// Leaving this directory does not mean the probe is gone : it
+				// may have been repitched to another interval, and that
+				// directory owns its result now. Dropping it here would delete
+				// a result the other one just produced.
+				if wigo.IsProbeScheduled(probeName) {
+					log.Printf("Probe %s has been moved to another interval, keeping its result\n", probeName)
+					continue
+				}
+
 				wigo.GetLocalWigo().LocalHost.DeleteProbeByName(probeName)
 			}
 		}
@@ -220,7 +229,7 @@ func scheduleProbesDirectory(directory string, interval int, stop chan struct{})
 			if wigo.GetLocalWigo().IsProbeDisabled(probeName) {
 				log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName)
 			} else {
-				go execProbe(directory+"/"+probeName, interval-1)
+				go execProbe(directory+"/"+probeName, interval)
 			}
 		}
 
@@ -339,13 +348,23 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 	}
 }
 
-func execProbe(probePath string, timeOut int) {
+func execProbe(probePath string, interval int) {
 
 	// Get probe name
 	probeDirectory, probeName := path.Split(probePath)
 
+	// A probe gets its whole interval minus a second to answer
+	timeOut := interval - 1
+
 	// Create ProbeResult
 	var probeResult *wigo.ProbeResult
+
+	// Every result carries the interval it was produced at, so the API can tell
+	// how often a probe runs without reading the probes directory again.
+	publish := func(result *wigo.ProbeResult) {
+		result.Interval = interval
+		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(result)
+	}
 
 	// Stat prob
 	fileInfo, err := os.Stat(probePath)
@@ -369,14 +388,14 @@ func execProbe(probePath string, timeOut int) {
 	outputPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s", err), "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 		return
 	}
 
 	errPipe, err := cmd.StderrPipe()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error getting stderr pipe: %s", err), "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 		return
 	}
 
@@ -386,7 +405,7 @@ func execProbe(probePath string, timeOut int) {
 	err = cmd.Start()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error starting command: %s", err), "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 		return
 	}
 
@@ -396,7 +415,7 @@ func execProbe(probePath string, timeOut int) {
 		commandOutput, err = io.ReadAll(combinedOutput)
 		if err != nil {
 			probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error reading pipe: %s", err), "")
-			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+			publish(probeResult)
 			return
 		}
 
@@ -442,13 +461,13 @@ func execProbe(probePath string, timeOut int) {
 
 			// Create error probe
 			probeResult = wigo.NewProbeResult(probeName, 500, exitCode, fmt.Sprintf("error: %s", err), string(commandOutput))
-			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+			publish(probeResult)
 			log.Printf(" - Probe %s in directory %s failed to exec : %s - %s\n", probeResult.Name, probeDirectory, err, probeResult.Detail)
 			return
 
 		} else {
 			probeResult = wigo.NewProbeResultFromJson(probeName, commandOutput)
-			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+			publish(probeResult)
 
 			log.Printf(" - Probe %s in directory %s responded with status : %d\n", probeResult.Name, probeDirectory, probeResult.Status)
 
@@ -460,7 +479,7 @@ func execProbe(probePath string, timeOut int) {
 
 	case <-time.After(time.Second * time.Duration(timeOut)):
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, "Probe timeout", "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 
 		log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory)
 
@@ -629,6 +648,9 @@ func threadHttp(config *wigo.HttpConfig) {
 	r.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
 	r.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
 	r.Get("/api/probes/:probe/logs", wigo.HttpLogsHandler)
+	r.Get("/api/probes", wigo.HttpProbesHandler)
+	r.Post("/api/probes/:probe/disable", wigo.HttpProbeDisableHandler)
+	r.Post("/api/probes/:probe/interval", wigo.HttpProbeIntervalHandler)
 	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
 	r.Post("/api/authority/hosts/:uuid/allow", wigo.HttpAuthorityAllowHandler)
 	r.Post("/api/authority/hosts/:uuid/revoke", wigo.HttpAuthorityRevokeHandler)

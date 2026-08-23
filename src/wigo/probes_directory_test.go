@@ -306,3 +306,51 @@ func TestProbeLocationsListsEverything(t *testing.T) {
 		t.Errorf("check_mdadm should be reported as disabled")
 	}
 }
+
+// A probe leaving an interval directory has not necessarily gone away : it may
+// have been repitched. Its result belongs to whichever directory holds it now,
+// and the one it left must not drop it.
+func TestProbeIsScheduled(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load", "disabled/check_mdadm")
+
+	if !probeIsScheduledIn(root, "check_load") {
+		t.Errorf("check_load runs every 60 seconds and should be reported as scheduled")
+	}
+	if probeIsScheduledIn(root, "check_mdadm") {
+		t.Errorf("check_mdadm is disabled and should not be reported as scheduled")
+	}
+	if probeIsScheduledIn(root, "check_ntp") {
+		t.Errorf("check_ntp is not installed and should not be reported as scheduled")
+	}
+	if probeIsScheduledIn(root, "../../etc/passwd") {
+		t.Errorf("An invalid name must never be reported as scheduled")
+	}
+}
+
+func TestProbeIsScheduledAfterBeingRepitched(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load")
+
+	if err := scheduleProbeIn(root, "check_load", 900); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	// The 60 directory no longer holds it, but 900 does : the result must stay
+	if !probeIsScheduledIn(root, "check_load") {
+		t.Errorf("A repitched probe must still be reported as scheduled")
+	}
+
+	// Once disabled there is nothing left to run it
+	if err := unscheduleProbeIn(root, "check_load"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if probeIsScheduledIn(root, "check_load") {
+		t.Errorf("A disabled probe must not be reported as scheduled")
+	}
+}
+
+// A missing probes directory must not be read as "everything is scheduled"
+func TestProbeIsScheduledWithoutProbesDirectory(t *testing.T) {
+	if probeIsScheduledIn(filepath.Join(t.TempDir(), "gone"), "check_load") {
+		t.Errorf("An unreadable probes directory must not report a probe as scheduled")
+	}
+}
