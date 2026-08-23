@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"container/list"
 	"errors"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -38,15 +38,16 @@ type Wigo struct {
 	LocalHost   *Host
 	RemoteWigos *concurrentMapWigos
 
-	Hostname       string
-	config         *Config
-	locker         *sync.RWMutex
-	logfilehandle  *os.File
-	gopentsdb      *gopentsdb.OpenTsdb
-	disabledProbes *list.List
-	uuidObj        *uuid.UUID
-	sqlLiteConn    *sql.DB
-	sqlLiteLock    *sync.Mutex
+	Hostname           string
+	config             *Config
+	locker             *sync.RWMutex
+	logfilehandle      *os.File
+	gopentsdb          *gopentsdb.OpenTsdb
+	disabledProbes     map[string]bool
+	disabledProbesLock *sync.RWMutex
+	uuidObj            *uuid.UUID
+	sqlLiteConn        *sql.DB
+	sqlLiteLock        *sync.Mutex
 
 	push       *PushServer
 	LastUpdate int64
@@ -121,7 +122,8 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 
 	// Private vars
 	this.locker = new(sync.RWMutex)
-	this.disabledProbes = new(list.List)
+	this.disabledProbes = make(map[string]bool)
+	this.disabledProbesLock = new(sync.RWMutex)
 
 	return
 }
@@ -660,42 +662,43 @@ func (this *Wigo) ToJsonString() (string, error) {
 }
 
 // Disabled probes
-func (this *Wigo) GetDisabledProbes() *list.List {
-	return this.disabledProbes
-}
-func (this *Wigo) DisableProbe(probeName string) {
-	alreadyDisabled := false
+//
+// Probes that asked to be skipped by exiting with the special code 13. This is
+// transient state, cleared by a restart, and has nothing to do with a probe an
+// operator disabled: that one is expressed in the probes directory itself.
+//
+// DisableProbe is called from the probe execution goroutines while
+// IsProbeDisabled is read by the scheduling loops, hence the lock.
 
+func (this *Wigo) GetDisabledProbes() []string {
+	this.disabledProbesLock.RLock()
+	defer this.disabledProbesLock.RUnlock()
+
+	probes := make([]string, 0, len(this.disabledProbes))
+	for probeName := range this.disabledProbes {
+		probes = append(probes, probeName)
+	}
+	sort.Strings(probes)
+
+	return probes
+}
+
+func (this *Wigo) DisableProbe(probeName string) {
 	if probeName == "" {
 		return
 	}
 
-	// Check if not already disabled
-	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
-		if p, ok := e.Value.(string); ok {
-			if p == probeName {
-				alreadyDisabled = true
-			}
-		}
-	}
+	this.disabledProbesLock.Lock()
+	defer this.disabledProbesLock.Unlock()
 
-	if !alreadyDisabled {
-		this.disabledProbes.PushBack(probeName)
-	}
-
-	return
+	this.disabledProbes[probeName] = true
 }
+
 func (this *Wigo) IsProbeDisabled(probeName string) bool {
+	this.disabledProbesLock.RLock()
+	defer this.disabledProbesLock.RUnlock()
 
-	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
-		if p, ok := e.Value.(string); ok {
-			if p == probeName {
-				return true
-			}
-		}
-	}
-
-	return false
+	return this.disabledProbes[probeName]
 }
 
 // Summaries

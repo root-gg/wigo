@@ -81,6 +81,7 @@ debs: releases
 	@mkdir -p $(DEBSRC)/usr/local/wigo/bin
 	@mkdir -p $(DEBSRC)/usr/local/wigo/etc/conf.d
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/examples
+	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/disabled
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/60
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/120
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/300
@@ -151,6 +152,7 @@ run-dev: build-dev
 	@echo "Starting Wigo development server"
 	mkdir -p $(BASE_DIR)/dev; \
 	mkdir -p $(BASE_DIR)/dev/probes/; \
+	mkdir -p $(BASE_DIR)/dev/probes/disabled; \
 	if [ ! -d $(BASE_DIR)/dev/probes/60 ]; then mkdir -p $(BASE_DIR)/dev/probes/60; fi; \
 	for probe in hardware_load_average hardware_disks hardware_memory ifstat supervisord needrestart check_mdadm check_process haproxy lm-sensors iostat check_uptime smart check_ntp packages-apt; do \
 		if [ ! -e $(BASE_DIR)/dev/probes/60/$$probe ]; then \

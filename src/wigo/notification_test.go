@@ -1,7 +1,6 @@
 package wigo
 
 import (
-	"container/list"
 	"database/sql"
 	"log"
 	"os"
@@ -32,7 +31,8 @@ func TestMain(m *testing.M) {
 	LocalWigo.LocalHost.Name = "test-host"
 	LocalWigo.LocalHost.SetParentWigo(LocalWigo)
 	LocalWigo.RemoteWigos = NewConcurrentMapWigos()
-	LocalWigo.disabledProbes = list.New()
+	LocalWigo.disabledProbes = make(map[string]bool)
+	LocalWigo.disabledProbesLock = new(sync.RWMutex)
 
 	// Give the asynchronous log writes a real database to work on
 	conn, err := sql.Open("sqlite", ":memory:")
@@ -70,7 +70,8 @@ func setupTestWigo(t *testing.T, group string) *Wigo {
 	LocalWigo.LocalHost.Group = group
 	LocalWigo.LocalHost.SetParentWigo(LocalWigo)
 	LocalWigo.RemoteWigos = NewConcurrentMapWigos()
-	LocalWigo.disabledProbes = list.New()
+	LocalWigo.disabledProbes = make(map[string]bool)
+	LocalWigo.disabledProbesLock = new(sync.RWMutex)
 	LocalWigo.push = nil
 
 	Channels = new(Chans)
@@ -100,7 +101,8 @@ func newTestRemoteWigo(uuid string, hostname string, group string) *Wigo {
 	this.LocalHost.Group = group
 	this.LocalHost.SetParentWigo(this)
 	this.RemoteWigos = NewConcurrentMapWigos()
-	this.disabledProbes = list.New()
+	this.disabledProbes = make(map[string]bool)
+	this.disabledProbesLock = new(sync.RWMutex)
 
 	return this
 }

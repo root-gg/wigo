@@ -14,6 +14,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -138,8 +139,12 @@ func threadWatch(ci chan wigo.Event) {
 
 func threadLocalChecks() {
 
-	// Directory list
-	var checksDirectories list.List
+	// Directories currently scheduled, each with the channel that stops it.
+	// Written here by the event loop and read by the goroutines it spawns, so
+	// it needs a lock : the previous version scanned a shared container/list
+	// from every directory goroutine without one.
+	activeDirectories := make(map[string]chan struct{})
+	var activeDirectoriesLock sync.Mutex
 
 	// Listen events
 	go func() {
@@ -151,121 +156,143 @@ func threadLocalChecks() {
 
 				var directory string = ev.Value.(string)
 
-				log.Println("Adding directory", directory)
-				checksDirectories.PushBack(directory)
-
-				// Create local list of probes to detect removes
-				currentProbesList, err := wigo.ListProbesInDirectory(directory)
-				if err != nil {
-					log.Printf("Fail to read directory %s : %s", directory, err)
+				// A probes directory is named after its check interval in
+				// seconds. Anything else (examples, disabled, ...) is not a
+				// schedule and is skipped on purpose.
+				interval, err := strconv.Atoi(path.Base(directory))
+				if err != nil || interval < 1 {
+					log.Printf("Skipping directory %s : its name is not a check interval\n", directory)
+					continue
 				}
 
-				go func() {
-					for {
+				activeDirectoriesLock.Lock()
+				if _, alreadyScheduled := activeDirectories[directory]; alreadyScheduled {
+					activeDirectoriesLock.Unlock()
+					continue
+				}
+				stop := make(chan struct{})
+				activeDirectories[directory] = stop
+				activeDirectoriesLock.Unlock()
 
-						// Am I still a valid directory ?
-						stillValid := false
-						for e := checksDirectories.Front(); e != nil; e = e.Next() {
-							if e.Value == directory {
-								stillValid = true
-							}
-						}
-						if !stillValid {
-
-							// Delete probes results of this directory
-							for c := currentProbesList.Front(); c != nil; c = c.Next() {
-								probeName := c.Value.(string)
-								if _, ok := wigo.GetLocalWigo().GetLocalHost().Probes.Get(probeName); ok {
-									wigo.GetLocalWigo().GetLocalHost().Probes.Remove(probeName)
-								}
-							}
-
-							return
-						}
-
-						// Guess sleep time from dir
-						sleepTime := path.Base(directory)
-						sleepTImeInt, err := strconv.Atoi(sleepTime)
-						if err != nil {
-							log.Printf(" - Weird folder name %s. Doing nothing...\n", directory)
-							return
-						}
-
-						// Update probes list
-						newProbesList, err := wigo.ListProbesInDirectory(directory)
-						if err != nil {
-							break
-						}
-
-						// Check new probes
-						for n := newProbesList.Front(); n != nil; n = n.Next() {
-							newProbeName := n.Value.(string)
-							probeIsNew := true
-
-							// Add probe if new
-							for j := currentProbesList.Front(); j != nil; j = j.Next() {
-								probeName := j.Value.(string)
-
-								if probeName == newProbeName {
-									probeIsNew = false
-								}
-							}
-
-							if probeIsNew {
-								currentProbesList.PushBack(newProbeName)
-								log.Printf("Probe %s has been added in directory %s\n", newProbeName, directory)
-							}
-						}
-
-						// Check deleted probes
-						for c := currentProbesList.Front(); c != nil; c = c.Next() {
-							probeName := c.Value.(string)
-							probeIsDeleted := true
-
-							for n := newProbesList.Front(); n != nil; n = n.Next() {
-								newProbeName := n.Value.(string)
-
-								if probeName == newProbeName {
-									probeIsDeleted = false
-								}
-							}
-
-							if probeIsDeleted {
-								log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName)
-								currentProbesList.Remove(c)
-								wigo.GetLocalWigo().LocalHost.DeleteProbeByName(probeName)
-								continue
-							}
-						}
-
-						// Launching probes
-						log.Printf("Launching probes of directory %s", directory)
-
-						for c := currentProbesList.Front(); c != nil; c = c.Next() {
-							probeName := c.Value.(string)
-
-							if wigo.GetLocalWigo().IsProbeDisabled(probeName) {
-								log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName)
-							} else {
-								go execProbe(directory+"/"+probeName, sleepTImeInt-1)
-							}
-						}
-
-						time.Sleep(time.Second * time.Duration(sleepTImeInt))
-					}
-				}()
+				log.Println("Adding directory", directory)
+				go scheduleProbesDirectory(directory, interval, stop)
 
 			case wigo.REMOVEDIRECTORY:
-				for el := checksDirectories.Front(); el != nil; el = el.Next() {
-					if el.Value == ev.Value {
-						log.Println("Removing directory ", ev.Value)
-						checksDirectories.Remove(el)
-						break
-					}
+
+				var directory string = ev.Value.(string)
+
+				activeDirectoriesLock.Lock()
+				if stop, scheduled := activeDirectories[directory]; scheduled {
+					log.Println("Removing directory ", directory)
+					close(stop)
+					delete(activeDirectories, directory)
 				}
+				activeDirectoriesLock.Unlock()
 			}
 		}
 	}()
+}
+
+// scheduleProbesDirectory runs every probe of a directory, every interval
+// seconds, until stop is closed.
+func scheduleProbesDirectory(directory string, interval int, stop chan struct{}) {
+
+	// Local view of the directory, to detect the probes that appear and go away
+	currentProbesList, err := wigo.ListProbesInDirectory(directory)
+	if err != nil {
+		log.Printf("Fail to read directory %s : %s", directory, err)
+		currentProbesList = list.New()
+	}
+
+	for {
+		if newProbesList, err := wigo.ListProbesInDirectory(directory); err == nil {
+			for _, probeName := range reconcileProbesList(directory, currentProbesList, newProbesList) {
+				wigo.GetLocalWigo().LocalHost.DeleteProbeByName(probeName)
+			}
+		}
+
+		// Launching probes
+		log.Printf("Launching probes of directory %s", directory)
+
+		for c := currentProbesList.Front(); c != nil; c = c.Next() {
+			probeName := c.Value.(string)
+
+			if wigo.GetLocalWigo().IsProbeDisabled(probeName) {
+				log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName)
+			} else {
+				go execProbe(directory+"/"+probeName, interval-1)
+			}
+		}
+
+		select {
+		case <-stop:
+			// Drop the results of a directory that is gone
+			for c := currentProbesList.Front(); c != nil; c = c.Next() {
+				probeName := c.Value.(string)
+				if _, ok := wigo.GetLocalWigo().GetLocalHost().Probes.Get(probeName); ok {
+					wigo.GetLocalWigo().GetLocalHost().Probes.Remove(probeName)
+				}
+			}
+			return
+
+		case <-time.After(time.Second * time.Duration(interval)):
+		}
+	}
+}
+
+// reconcileProbesList updates the known probes of a directory in place with
+// what is on disk, and returns the names of the ones that disappeared so the
+// caller can forget their results.
+func reconcileProbesList(directory string, current *list.List, found *list.List) (removed []string) {
+
+	// Check new probes
+	for n := found.Front(); n != nil; n = n.Next() {
+		newProbeName := n.Value.(string)
+		probeIsNew := true
+
+		for c := current.Front(); c != nil; c = c.Next() {
+			if c.Value.(string) == newProbeName {
+				probeIsNew = false
+				break
+			}
+		}
+
+		if probeIsNew {
+			current.PushBack(newProbeName)
+			log.Printf("Probe %s has been added in directory %s\n", newProbeName, directory)
+		}
+	}
+
+	// Check deleted probes. The elements are collected before being removed :
+	// removing one while ranging clears its next pointer, which silently ended
+	// the loop and left every other deleted probe behind until the next cycle.
+	deleted := make([]*list.Element, 0)
+
+	for c := current.Front(); c != nil; c = c.Next() {
+		probeName := c.Value.(string)
+		probeIsDeleted := true
+
+		for n := found.Front(); n != nil; n = n.Next() {
+			if n.Value.(string) == probeName {
+				probeIsDeleted = false
+				break
+			}
+		}
+
+		if probeIsDeleted {
+			deleted = append(deleted, c)
+		}
+	}
+
+	removed = make([]string, 0, len(deleted))
+	for _, c := range deleted {
+		probeName := c.Value.(string)
+		log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName)
+		current.Remove(c)
+		removed = append(removed, probeName)
+	}
+
+	return removed
 }
 
 func threadRemoteChecks(remoteWigos []wigo.AdvancedRemoteWigoConfig) {

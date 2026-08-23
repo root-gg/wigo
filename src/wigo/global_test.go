@@ -267,13 +267,13 @@ func TestWigoDisabledProbes(t *testing.T) {
 
 	// Disabling twice must not duplicate the entry
 	wigo.DisableProbe("load")
-	if wigo.GetDisabledProbes().Len() != 1 {
-		t.Errorf("Got %d disabled probes, expected 1", wigo.GetDisabledProbes().Len())
+	if len(wigo.GetDisabledProbes()) != 1 {
+		t.Errorf("Got %d disabled probes, expected 1", len(wigo.GetDisabledProbes()))
 	}
 
 	// An empty name is ignored
 	wigo.DisableProbe("")
-	if wigo.GetDisabledProbes().Len() != 1 {
+	if len(wigo.GetDisabledProbes()) != 1 {
 		t.Errorf("An empty probe name has been disabled")
 	}
 }
