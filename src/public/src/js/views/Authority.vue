@@ -1,6 +1,8 @@
 <template>
   <AppLayout
     :current-interval="interval"
+    :filterable="false"
+    title-context="Authority"
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>

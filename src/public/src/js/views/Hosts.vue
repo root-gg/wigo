@@ -11,7 +11,7 @@
           ><span>&nbsp;All hosts & groups </span>
         </a>
       </li>
-      <li v-for="group in sortedGroups" :key="group.Name" class="nav-item">
+      <li v-for="group in visibleGroups" :key="group.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
           :title="groupTitle(group)"
@@ -36,7 +36,7 @@
     </template>
 
     <div
-      v-for="group in sortedGroups"
+      v-for="group in visibleGroups"
       :key="group.Name"
       :id="group.Name"
       class="jump"
@@ -71,7 +71,7 @@
               </thead>
               <tbody>
                 <tr
-                  v-for="host in sortedHosts(group.Hosts)"
+                  v-for="host in group.visibleHosts"
                   :key="host.Name"
                   :class="getStatusRowClass(host.Status)"
                   class="cursor-pointer"
@@ -103,6 +103,10 @@
         </template>
       </StatusCard>
     </div>
+
+    <p v-if="loaded && !visibleGroups.length" class="text-body-secondary my-4">
+      <i class="fas fa-filter me-2"></i>No host matches the current filter.
+    </p>
   </AppLayout>
 </template>
 
@@ -115,36 +119,56 @@ import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useRefresh } from "../composables/useRefresh.js";
+import { useDashboardFilter } from "../composables/useDashboardFilter.js";
 
 const router = useRouter();
 const groups = ref([]);
-const counts = ref({
-  OK: 0,
-  INFO: 0,
-  WARNING: 0,
-  CRITICAL: 0,
-  ERROR: 0,
-});
+const loaded = ref(false);
+const counts = ref(emptyCounts());
 
-const sortedGroups = computed(() => {
-  return [...groups.value].sort((a, b) => {
-    if (b.Status !== a.Status) return b.Status - a.Status;
-    return a.Name.localeCompare(b.Name);
-  });
-});
+const { matches } = useDashboardFilter();
 
-function sortedHosts(hosts) {
-  return [...hosts].sort((a, b) => {
-    if (b.Status !== a.Status) return b.Status - a.Status;
-    return a.Name.localeCompare(b.Name);
-  });
+function emptyCounts() {
+  return {
+    OK: 0,
+    INFO: 0,
+    WARNING: 0,
+    CRITICAL: 0,
+    ERROR: 0,
+  };
 }
 
+function byStatusThenName(a, b) {
+  if (b.Status !== a.Status) return b.Status - a.Status;
+  return a.Name.localeCompare(b.Name);
+}
+
+const sortedGroups = computed(() => [...groups.value].sort(byStatusThenName));
+
+/**
+ * Les compteurs de la vue d'accueil comptent des hosts : le filtre porte donc
+ * sur les hosts, et un groupe sans host visible disparaît.
+ */
+const visibleGroups = computed(() =>
+  sortedGroups.value
+    .map((group) => ({
+      ...group,
+      visibleHosts: [...group.Hosts]
+        .sort(byStatusThenName)
+        .filter((host) =>
+          matches(
+            host.Level,
+            host.Name,
+            group.Name,
+            ...host.Probes.map((probe) => probe.Name),
+          ),
+        ),
+    }))
+    .filter((group) => group.visibleHosts.length > 0),
+);
+
 function sortedProbes(probes) {
-  return [...probes].sort((a, b) => {
-    if (b.Status !== a.Status) return b.Status - a.Status;
-    return a.Name.localeCompare(b.Name);
-  });
+  return [...probes].sort(byStatusThenName);
 }
 
 function gotoGroup(groupName) {
@@ -183,33 +207,33 @@ function groupTitle(group) {
 }
 
 async function load() {
-  groups.value = [];
-  counts.value = {
-    OK: 0,
-    INFO: 0,
-    WARNING: 0,
-    CRITICAL: 0,
-    ERROR: 0,
-  };
-
   try {
     const groupNames = await api.getGroups();
 
-    for (const groupName of groupNames) {
-      const group = await api.getGroup(groupName);
+    // Les groupes sont chargés en parallèle, et l'affichage n'est remplacé
+    // qu'une fois tout arrivé : pas de cascade de requêtes ni de page vide
+    // entre deux rafraîchissements.
+    const results = await Promise.all(
+      groupNames.map((groupName) =>
+        api.getGroup(groupName).catch((error) => {
+          console.error(`Error loading group ${groupName}:`, error);
+          return null;
+        }),
+      ),
+    );
 
-      group.counts = {
-        OK: 0,
-        INFO: 0,
-        WARNING: 0,
-        CRITICAL: 0,
-        ERROR: 0,
-      };
+    const nextCounts = emptyCounts();
+    const nextGroups = [];
+
+    for (const group of results) {
+      if (!group) continue;
+
+      group.counts = emptyCounts();
       group.Level = getLevel(group.Status);
 
       for (const host of group.Hosts) {
         host.Level = getLevel(host.Status);
-        counts.value[host.Level]++;
+        nextCounts[host.Level]++;
         group.counts[host.Level]++;
 
         for (const probe of host.Probes) {
@@ -217,8 +241,12 @@ async function load() {
         }
       }
 
-      groups.value.push(group);
+      nextGroups.push(group);
     }
+
+    groups.value = nextGroups;
+    counts.value = nextCounts;
+    loaded.value = true;
   } catch (error) {
     console.error("Error loading hosts:", error);
   }

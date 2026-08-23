@@ -54,7 +54,7 @@ defineEmits(["toggle"]);
 .sidebar {
   width: 280px;
   min-width: 280px;
-  background-color: #3b65e3;
+  background-color: var(--wigo-sidebar-bg);
   transition:
     width 0.2s ease,
     min-width 0.2s ease;

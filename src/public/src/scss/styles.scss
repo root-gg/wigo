@@ -2,6 +2,71 @@
 
 :root {
   --navbar-block-height: 3.5rem; /* same height for the navbar and the arrow bar of the sidebar */
+  --wigo-sidebar-bg: #3b65e3;
+}
+
+[data-bs-theme="dark"] {
+  /* Slightly deeper blue, the light-theme one is too bright next to a dark page */
+  --wigo-sidebar-bg: #2c4bab;
+}
+
+/*
+ * The ERROR level maps to the "dark" Bootstrap variant, which is unreadable on
+ * a dark background. Repaint both the solid and the outline flavours.
+ */
+[data-bs-theme="dark"] {
+  .btn-outline-dark {
+    --bs-btn-color: #dee2e6;
+    --bs-btn-border-color: #6c757d;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #495057;
+    --bs-btn-hover-border-color: #6c757d;
+  }
+
+  .btn-dark {
+    --bs-btn-bg: #6c757d;
+    --bs-btn-border-color: #6c757d;
+    --bs-btn-hover-bg: #5c636a;
+    --bs-btn-hover-border-color: #565e64;
+  }
+
+  .bg-dark {
+    background-color: #6c757d !important;
+  }
+}
+
+/*
+ * Bootstrap keeps the contextual table variants light in the dark theme, so a
+ * status row ends up as a pale block on a dark page. Repaint them as dark tints
+ * that keep the same hue coding.
+ */
+[data-bs-theme="dark"] {
+  @each $name, $bg,
+    $fg
+      in (
+        (success, #133929, #a3cfbb),
+        (info, #032830, #9eeaf9),
+        (warning, #332701, #ffda6a),
+        (danger, #341316, #ea868f),
+        (primary, #031633, #6ea8fe),
+        (dark, #2b3035, #dee2e6)
+      )
+  {
+    .table-#{$name} {
+      --bs-table-color: #{$fg};
+      --bs-table-bg: #{$bg};
+      --bs-table-border-color: #{mix($fg, $bg, 20%)};
+      --bs-table-striped-color: #{$fg};
+      --bs-table-striped-bg: #{mix($fg, $bg, 5%)};
+      --bs-table-active-color: #{$fg};
+      --bs-table-active-bg: #{mix($fg, $bg, 12%)};
+      --bs-table-hover-color: #{$fg};
+      --bs-table-hover-bg: #{mix($fg, $bg, 10%)};
+
+      color: var(--bs-table-color);
+      border-color: var(--bs-table-border-color);
+    }
+  }
 }
 
 /* Wigo Logo: same font everywhere (sidebar + navbar) */
@@ -33,6 +98,12 @@
 }
 
 /* Utilities */
+
+/* Lets a flex child shrink below its content width instead of overflowing */
+.min-width-0 {
+  min-width: 0;
+}
+
 .text-truncate {
   overflow: hidden;
   text-overflow: ellipsis;

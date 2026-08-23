@@ -2,6 +2,7 @@
   <AppLayout
     :counts="counts"
     :current-interval="interval"
+    :title-context="groupName"
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
@@ -29,7 +30,7 @@
         </a>
       </li>
 
-      <li v-for="host in sortedHosts" :key="host.Name" class="nav-item">
+      <li v-for="host in visibleHosts" :key="host.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
           :title="hostTitle(host)"
@@ -57,7 +58,7 @@
     </template>
 
     <div
-      v-for="host in sortedHosts"
+      v-for="host in visibleHosts"
       :key="host.Name"
       :id="host.Name"
       class="jump"
@@ -92,7 +93,7 @@
               </thead>
               <tbody>
                 <tr
-                  v-for="probe in sortedProbes(host.Probes)"
+                  v-for="probe in host.visibleProbes"
                   :key="probe.Name"
                   :class="getStatusRowClass(probe.Status)"
                   class="cursor-pointer"
@@ -107,11 +108,15 @@
         </template>
       </StatusCard>
     </div>
+
+    <p v-if="loaded && !visibleHosts.length" class="text-body-secondary my-4">
+      <i class="fas fa-filter me-2"></i>No probe matches the current filter.
+    </p>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "../api/client.js";
 import { getLevel, getStatusRowClass } from "../utils/status.js";
@@ -119,33 +124,51 @@ import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useRefresh } from "../composables/useRefresh.js";
+import { useDashboardFilter } from "../composables/useDashboardFilter.js";
 
 const route = useRoute();
 const router = useRouter();
 const groupName = ref(route.query.name || "");
 const group = ref(null);
 const hosts = ref([]);
-const counts = ref({
-  OK: 0,
-  INFO: 0,
-  WARNING: 0,
-  CRITICAL: 0,
-  ERROR: 0,
-});
+const loaded = ref(false);
+const counts = ref(emptyCounts());
 
-const sortedHosts = computed(() => {
-  return [...hosts.value].sort((a, b) => {
-    if (b.Status !== a.Status) return b.Status - a.Status;
-    return a.Name.localeCompare(b.Name);
-  });
-});
+const { matches } = useDashboardFilter();
 
-function sortedProbes(probes) {
-  return [...probes].sort((a, b) => {
-    if (b.Status !== a.Status) return b.Status - a.Status;
-    return a.Name.localeCompare(b.Name);
-  });
+function emptyCounts() {
+  return {
+    OK: 0,
+    INFO: 0,
+    WARNING: 0,
+    CRITICAL: 0,
+    ERROR: 0,
+  };
 }
+
+function byStatusThenName(a, b) {
+  if (b.Status !== a.Status) return b.Status - a.Status;
+  return a.Name.localeCompare(b.Name);
+}
+
+const sortedHosts = computed(() => [...hosts.value].sort(byStatusThenName));
+
+/**
+ * Les compteurs de la vue groupe comptent des probes : le filtre porte donc
+ * sur les probes, et un host sans probe visible disparaît.
+ */
+const visibleHosts = computed(() =>
+  sortedHosts.value
+    .map((host) => ({
+      ...host,
+      visibleProbes: [...host.Probes]
+        .sort(byStatusThenName)
+        .filter((probe) =>
+          matches(probe.Level, probe.Name, probe.Message, host.Name),
+        ),
+    }))
+    .filter((host) => host.visibleProbes.length > 0),
+);
 
 function gotoHost(hostName) {
   router.push({ path: "/host", query: { name: hostName } });
@@ -180,40 +203,32 @@ function hostTitle(host) {
 }
 
 async function load() {
-  hosts.value = [];
-  counts.value = {
-    OK: 0,
-    INFO: 0,
-    WARNING: 0,
-    CRITICAL: 0,
-    ERROR: 0,
-  };
-
   if (!groupName.value) return;
 
   try {
     const groupData = await api.getGroup(groupName.value);
-    group.value = groupData;
-    group.value.Level = getLevel(group.value.Status);
+    groupData.Level = getLevel(groupData.Status);
+
+    const nextCounts = emptyCounts();
+    const nextHosts = [];
 
     for (const host of groupData.Hosts) {
-      host.counts = {
-        OK: 0,
-        INFO: 0,
-        WARNING: 0,
-        CRITICAL: 0,
-        ERROR: 0,
-      };
+      host.counts = emptyCounts();
       host.Level = getLevel(host.Status);
 
       for (const probe of host.Probes) {
         probe.Level = getLevel(probe.Status);
-        counts.value[probe.Level]++;
+        nextCounts[probe.Level]++;
         host.counts[probe.Level]++;
       }
 
-      hosts.value.push(host);
+      nextHosts.push(host);
     }
+
+    group.value = groupData;
+    hosts.value = nextHosts;
+    counts.value = nextCounts;
+    loaded.value = true;
   } catch (error) {
     console.error("Error loading group:", error);
   }
@@ -227,6 +242,20 @@ const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(
 function handleRefreshSettings(seconds) {
   setRefreshInterval(seconds);
 }
+
+// Le composant n'est pas remonté quand seul le paramètre change
+// (/group?name=a -> /group?name=b) : il faut recharger explicitement.
+watch(
+  () => route.query.name,
+  (name) => {
+    groupName.value = name || "";
+    hosts.value = [];
+    group.value = null;
+    loaded.value = false;
+    counts.value = emptyCounts();
+    load();
+  },
+);
 
 onMounted(() => {
   groupName.value = route.query.name || "";

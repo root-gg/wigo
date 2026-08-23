@@ -1,6 +1,8 @@
 <template>
   <AppLayout
     :current-interval="interval"
+    :filterable="false"
+    title-context="Logs"
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>

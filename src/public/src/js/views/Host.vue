@@ -2,6 +2,7 @@
   <AppLayout
     :counts="counts"
     :current-interval="interval"
+    :title-context="hostName"
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
@@ -35,7 +36,7 @@
         </a>
       </li>
 
-      <li v-for="probe in sortedProbes" :key="probe.Name" class="nav-item">
+      <li v-for="probe in visibleProbes" :key="probe.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
           :title="`${probe.Name} - ${probe.Status}`"
@@ -53,7 +54,7 @@
     </template>
 
     <div
-      v-for="probe in sortedProbes"
+      v-for="probe in visibleProbes"
       :key="probe.Name"
       :id="probe.Name"
       class="jump"
@@ -66,46 +67,62 @@
           <p class="mb-3">{{ probe.Message }}</p>
           <div v-if="probe.Detail" class="mt-3">
             <pre
-              class="border rounded p-3 bg-light"
+              class="border rounded p-3 bg-body-tertiary"
               style="max-height: 400px; overflow: auto"
-              >{{ JSON.stringify(probe.Detail, null, 2) }}</pre
-            >
+              >{{ JSON.stringify(probe.Detail, null, 2) }}</pre>
           </div>
         </template>
       </StatusCard>
     </div>
+
+    <p v-if="loaded && !visibleProbes.length" class="text-body-secondary my-4">
+      <i class="fas fa-filter me-2"></i>No probe matches the current filter.
+    </p>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { useRoute } from "vue-router";
 import api from "../api/client.js";
 import { getLevel } from "../utils/status.js";
 import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useRefresh } from "../composables/useRefresh.js";
+import { useDashboardFilter } from "../composables/useDashboardFilter.js";
 
 const route = useRoute();
-const router = useRouter();
 const hostName = ref(route.query.name || "");
 const host = ref(null);
 const probes = ref([]);
-const counts = ref({
-  OK: 0,
-  INFO: 0,
-  WARNING: 0,
-  CRITICAL: 0,
-  ERROR: 0,
-});
+const loaded = ref(false);
+const counts = ref(emptyCounts());
 
-const sortedProbes = computed(() => {
-  return [...probes.value].sort((a, b) => {
+const { matches } = useDashboardFilter();
+
+function emptyCounts() {
+  return {
+    OK: 0,
+    INFO: 0,
+    WARNING: 0,
+    CRITICAL: 0,
+    ERROR: 0,
+  };
+}
+
+const sortedProbes = computed(() =>
+  [...probes.value].sort((a, b) => {
     if (b.Status !== a.Status) return b.Status - a.Status;
     return a.Name.localeCompare(b.Name);
-  });
-});
+  }),
+);
+
+const visibleProbes = computed(() =>
+  sortedProbes.value.filter((probe) =>
+    matches(probe.Level, probe.Name, probe.Message),
+  ),
+);
 
 function gotoAnchor(anchor) {
   const element = document.getElementById(anchor);
@@ -115,37 +132,34 @@ function gotoAnchor(anchor) {
 }
 
 async function load() {
-  probes.value = [];
-  counts.value = {
-    OK: 0,
-    INFO: 0,
-    WARNING: 0,
-    CRITICAL: 0,
-    ERROR: 0,
-  };
-
   if (!hostName.value) return;
 
   try {
     const hostData = await api.getHost(hostName.value);
-    host.value = hostData;
-    host.value.LocalHost.Level = getLevel(host.value.LocalHost.Status);
-    host.value.GlobalLevel = getLevel(host.value.GlobalStatus);
+    hostData.LocalHost.Level = getLevel(hostData.LocalHost.Status);
+    hostData.GlobalLevel = getLevel(hostData.GlobalStatus);
 
-    // Convert Probes from object (map) to array if needed
+    // Probes peut arriver sous forme de tableau ou de map selon la source
     let probesArray = hostData.LocalHost?.Probes;
     if (!probesArray) {
       probesArray = [];
     } else if (!Array.isArray(probesArray)) {
-      // If Probes is an object (map), convert it to an array
       probesArray = Object.values(probesArray);
     }
 
+    const nextCounts = emptyCounts();
+    const nextProbes = [];
+
     for (const probe of probesArray) {
       probe.Level = getLevel(probe.Status);
-      counts.value[probe.Level]++;
-      probes.value.push(probe);
+      nextCounts[probe.Level]++;
+      nextProbes.push(probe);
     }
+
+    host.value = hostData;
+    probes.value = nextProbes;
+    counts.value = nextCounts;
+    loaded.value = true;
 
     // Scroll to anchor if hash is present
     if (route.hash) {
@@ -166,6 +180,20 @@ const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(
 function handleRefreshSettings(seconds) {
   setRefreshInterval(seconds);
 }
+
+// Le composant n'est pas remonté quand seul le paramètre change
+// (/host?name=a -> /host?name=b) : il faut recharger explicitement.
+watch(
+  () => route.query.name,
+  (name) => {
+    hostName.value = name || "";
+    probes.value = [];
+    host.value = null;
+    loaded.value = false;
+    counts.value = emptyCounts();
+    load();
+  },
+);
 
 onMounted(() => {
   hostName.value = route.query.name || "";

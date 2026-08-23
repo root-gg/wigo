@@ -100,6 +100,23 @@ export function getBtnLevelClass(level) {
 }
 
 /**
+ * Retourne la classe CSS Bootstrap pour un bouton en contour selon le niveau,
+ * utilisée pour les niveaux désactivés dans les filtres
+ * @param {string} level - Niveau de statut
+ * @returns {string} Classe CSS
+ */
+export function getBtnOutlineLevelClass(level) {
+  const classes = {
+    OK: "btn-outline-success",
+    INFO: "btn-outline-info",
+    WARNING: "btn-outline-warning",
+    CRITICAL: "btn-outline-danger",
+    ERROR: "btn-outline-dark",
+  };
+  return classes[level] || "btn-outline-secondary";
+}
+
+/**
  * Retourne la classe CSS Bootstrap pour une ligne de tableau selon le statut
  * @param {number} status - Code de statut
  * @returns {string} Classe CSS
