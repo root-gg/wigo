@@ -3,7 +3,6 @@ package wigo
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -400,7 +399,6 @@ func HttpProbeDisableHandler(params martini.Params) (int, string) {
 	}
 
 	GetLocalWigo().AddLog(nil, INFO, fmt.Sprintf("Probe %s has been disabled through the API", probeName))
-	log.Printf("Probe %s has been disabled through the API", probeName)
 
 	return HttpProbesHandler()
 }
@@ -433,7 +431,6 @@ func HttpProbeIntervalHandler(params martini.Params, r *http.Request) (int, stri
 	}
 
 	GetLocalWigo().AddLog(nil, INFO, fmt.Sprintf("Probe %s is now scheduled every %d seconds through the API", probeName, interval))
-	log.Printf("Probe %s is now scheduled every %d seconds through the API", probeName, interval)
 
 	return HttpProbesHandler()
 }

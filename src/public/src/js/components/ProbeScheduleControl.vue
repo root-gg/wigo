@@ -9,7 +9,7 @@
       :title="
         schedule.Enabled
           ? `Runs every ${formatInterval(schedule.Interval)}`
-          : 'Disabled: this probe is not executed at all'
+          : 'Disabled: nothing schedules this probe, so it is never executed'
       "
     >
       <i
@@ -104,7 +104,7 @@
             <i class="fas fa-fw fa-ban"></i> Disable this probe
           </a>
           <span v-else class="dropdown-item-text text-body-secondary small">
-            Pick an interval above to enable it again
+            Pick an interval above to enable it
           </span>
         </li>
 

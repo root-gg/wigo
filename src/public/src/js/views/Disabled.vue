@@ -55,8 +55,8 @@
     >
       <i class="fas fa-fw fa-check"></i>
       <span>
-        No probe is disabled on any host that could be read. Every check that is
-        installed is running.
+        No probe is disabled on any host that could be read. Every probe
+        installed on them is running.
       </span>
     </div>
 
@@ -133,6 +133,10 @@ const schedules = ref([]);
 const unreachable = ref([]);
 const loaded = ref(false);
 
+// Une probe désactivée est une probe qu'aucun répertoire d'intervalle
+// n'ordonnance. La plupart n'ont été coupées par personne : wigo en livre une
+// trentaine et le packaging en active la moitié. Le résultat est le même, une
+// vérification qui n'a pas lieu, et c'est ce que cette page recense.
 const hostsWithDisabled = computed(() =>
   schedules.value
     .map((schedule) => ({

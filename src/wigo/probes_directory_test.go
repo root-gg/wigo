@@ -164,18 +164,18 @@ func TestUnscheduleAndRescheduleProbe(t *testing.T) {
 	if probeIsIn(t, root, "60", "check_load") {
 		t.Errorf("The probe is still scheduled")
 	}
-	if !probeIsIn(t, root, DisabledProbesDirectory, "check_load") {
-		t.Errorf("The probe is not in the disabled directory")
+	if probeIsScheduledIn(root, "check_load") {
+		t.Errorf("The probe should be reported as disabled")
 	}
 
 	if err := scheduleProbeIn(root, "check_load", 120); err != nil {
 		t.Fatalf("Unexpected error : %s", err)
 	}
-	if probeIsIn(t, root, DisabledProbesDirectory, "check_load") {
-		t.Errorf("The probe is still disabled")
-	}
 	if !probeIsIn(t, root, "120", "check_load") {
 		t.Errorf("The probe has not been scheduled again")
+	}
+	if !probeIsScheduledIn(root, "check_load") {
+		t.Errorf("The probe should be running again")
 	}
 }
 
@@ -196,13 +196,21 @@ func TestMoveUnknownProbeFails(t *testing.T) {
 	}
 }
 
-// A probe sitting in examples/ only is not installed anywhere, and examples is
-// not a location we may move things out of.
-func TestProbeInExamplesOnlyIsNotInstalled(t *testing.T) {
-	root := newTestProbesDirectory(t)
-	if err := os.WriteFile(filepath.Join(root, "examples", "check_ntp"), []byte("#!/bin/sh\n"), 0755); err != nil {
-		t.Fatalf("Fail to create the example : %s", err)
+// shipProbe installs a probe without scheduling it, which is to say disabled :
+// the state of the fifteen probes wigo ships and the packaging does not link.
+func shipProbe(t *testing.T, root string, name string) {
+	t.Helper()
+
+	if err := os.WriteFile(filepath.Join(root, "examples", name), []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatalf("Fail to create the example %s : %s", name, err)
 	}
+}
+
+// A disabled probe is scheduled from nowhere, so it is not one of the places
+// anything may be moved out of.
+func TestDisabledProbeIsScheduledNowhere(t *testing.T) {
+	root := newTestProbesDirectory(t)
+	shipProbe(t, root, "check_ntp")
 
 	locations, err := findProbeLocationsIn(root, "check_ntp")
 	if err != nil {
@@ -212,8 +220,299 @@ func TestProbeInExamplesOnlyIsNotInstalled(t *testing.T) {
 		t.Errorf("Got %v, expected the probe not to be installed", locations)
 	}
 
-	if err := scheduleProbeIn(root, "check_ntp", 60); err == nil {
-		t.Errorf("Scheduling a probe that only exists as an example should fail")
+	if probeIsScheduledIn(root, "check_ntp") {
+		t.Errorf("A probe that is merely shipped is not scheduled")
+	}
+}
+
+// Half of the probes wigo ships are never linked by the packaging, and they are
+// not running any more than one somebody turned off. Being disabled is the
+// absence of a schedule, so both are the same state and both are listed.
+func TestListingIncludesEveryProbeNothingSchedules(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load")
+	shipProbe(t, root, "hbase-master")
+
+	locations, err := probeLocationsIn(root)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if len(locations) != 2 {
+		t.Fatalf("Got %+v, expected the two probes", locations)
+	}
+
+	byName := make(map[string]ProbeLocation)
+	for _, location := range locations {
+		byName[location.Name] = location
+	}
+
+	disabled := byName["hbase-master"]
+	if disabled.Enabled || disabled.Directory != ExampleProbesDirectory || disabled.Interval != 0 {
+		t.Errorf("Got %+v, expected hbase-master to be listed as disabled", disabled)
+	}
+	if !byName["check_load"].Enabled || byName["check_load"].Interval != 60 {
+		t.Errorf("Got %+v for check_load", byName["check_load"])
+	}
+}
+
+// A probe that runs must not also be listed as disabled from the file its
+// schedule links to.
+func TestListingDoesNotRepeatAScheduledProbe(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load")
+
+	locations, err := probeLocationsIn(root)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if len(locations) != 1 {
+		t.Errorf("Got %+v, expected check_load once", locations)
+	}
+}
+
+// Enabling a disabled probe is creating the link the packaging would have
+// created. The probe itself never moves.
+func TestScheduleLinksADisabledProbe(t *testing.T) {
+	root := newTestProbesDirectory(t)
+	shipProbe(t, root, "hbase-master")
+
+	if err := scheduleProbeIn(root, "hbase-master", 300); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if !probeIsIn(t, root, "300", "hbase-master") {
+		t.Fatalf("The probe has not been scheduled")
+	}
+	if _, err := os.Lstat(filepath.Join(root, "examples", "hbase-master")); err != nil {
+		t.Errorf("The probe itself should not have moved : %s", err)
+	}
+
+	target, err := os.Readlink(filepath.Join(root, "300", "hbase-master"))
+	if err != nil {
+		t.Fatalf("The schedule should be a symlink : %s", err)
+	}
+	if want := filepath.Join("..", "examples", "hbase-master"); target != want {
+		t.Errorf("Got a link to %q, expected %q", target, want)
+	}
+
+	// And it behaves like any other scheduled probe from there on
+	if err := scheduleProbeIn(root, "hbase-master", 60); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if probeIsIn(t, root, "300", "hbase-master") || !probeIsIn(t, root, "60", "hbase-master") {
+		t.Errorf("The freshly scheduled probe could not be repitched")
+	}
+}
+
+// Disabling means no interval directory links to the probe any more. Nothing is
+// parked anywhere : there is no such place.
+func TestDisableRemovesEverySchedule(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load")
+
+	if err := unscheduleProbeIn(root, "check_load"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if probeIsIn(t, root, "60", "check_load") {
+		t.Errorf("The probe is still scheduled")
+	}
+	if probeIsIn(t, root, DisabledProbesDirectory, "check_load") {
+		t.Errorf("Nothing should be parked in a disabled directory, there is no such state")
+	}
+	if !probeIsIn(t, root, ExampleProbesDirectory, "check_load") {
+		t.Errorf("The probe itself should still be installed")
+	}
+	if probeIsScheduledIn(root, "check_load") {
+		t.Errorf("The probe should no longer be scheduled")
+	}
+}
+
+// A probe scheduled at several intervals is disabled once, everywhere.
+func TestDisableRemovesEveryScheduleOfAnAmbiguousProbe(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/iostat", "300/iostat", "900/iostat")
+
+	if err := unscheduleProbeIn(root, "iostat"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	for _, directory := range []string{"60", "300", "900"} {
+		if probeIsIn(t, root, directory, "iostat") {
+			t.Errorf("The probe is still scheduled in %s", directory)
+		}
+	}
+	if !probeIsIn(t, root, ExampleProbesDirectory, "iostat") {
+		t.Errorf("The probe itself should still be installed")
+	}
+}
+
+// Disabling a probe nothing schedules is asking for the state it is already in.
+// Refusing would make an interface unable to agree with itself.
+func TestDisableAnAlreadyDisabledProbeIsANoop(t *testing.T) {
+	root := newTestProbesDirectory(t)
+	shipProbe(t, root, "hbase-master")
+
+	if err := unscheduleProbeIn(root, "hbase-master"); err != nil {
+		t.Errorf("Disabling an already disabled probe should succeed : %s", err)
+	}
+	if !probeIsIn(t, root, ExampleProbesDirectory, "hbase-master") {
+		t.Errorf("The probe should have been left alone")
+	}
+}
+
+// Disabling must not destroy anything. An administrator may drop a script
+// straight into an interval directory rather than link to one : deleting it
+// would be the only copy gone, and the probe would vanish from the listing with
+// no way to turn it back on.
+func TestDisableKeepsAProbeThatIsNotALink(t *testing.T) {
+	root := newTestProbesDirectory(t)
+	if err := os.MkdirAll(filepath.Join(root, "60"), 0755); err != nil {
+		t.Fatalf("Fail to create the directory : %s", err)
+	}
+	script := "#!/bin/sh\necho mine\n"
+	if err := os.WriteFile(filepath.Join(root, "60", "mycheck"), []byte(script), 0755); err != nil {
+		t.Fatalf("Fail to create the probe : %s", err)
+	}
+
+	if err := unscheduleProbeIn(root, "mycheck"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if probeIsIn(t, root, "60", "mycheck") {
+		t.Errorf("The probe is still scheduled")
+	}
+
+	kept, err := os.ReadFile(filepath.Join(root, ExampleProbesDirectory, "mycheck"))
+	if err != nil {
+		t.Fatalf("The probe has been destroyed instead of kept : %s", err)
+	}
+	if string(kept) != script {
+		t.Errorf("Got %q, the probe was not kept as it was", kept)
+	}
+
+	// And it is still listed, as disabled, so it can be turned back on
+	locations, err := probeLocationsIn(root)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if len(locations) != 1 || locations[0].Name != "mycheck" || locations[0].Enabled {
+		t.Errorf("Got %+v, expected mycheck listed as disabled", locations)
+	}
+}
+
+// A schedule pointing outside the probes tree is the same case : the link is
+// the only record of where that probe lives.
+func TestDisableKeepsALinkPointingOutside(t *testing.T) {
+	root := newTestProbesDirectory(t)
+	outside := filepath.Join(t.TempDir(), "custom_check")
+	if err := os.WriteFile(outside, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatalf("Fail to create the probe : %s", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "60"), 0755); err != nil {
+		t.Fatalf("Fail to create the directory : %s", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "60", "custom_check")); err != nil {
+		t.Fatalf("Fail to link the probe : %s", err)
+	}
+
+	if err := unscheduleProbeIn(root, "custom_check"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	target, err := os.Readlink(filepath.Join(root, ExampleProbesDirectory, "custom_check"))
+	if err != nil {
+		t.Fatalf("The link has been destroyed instead of kept : %s", err)
+	}
+	if target != outside {
+		t.Errorf("Got a link to %q, expected %q", target, outside)
+	}
+}
+
+// A probe parked in the disabled directory by an earlier version of this
+// feature is still disabled, and must stay visible rather than quietly vanish.
+func TestLegacyDisabledDirectoryIsStillRead(t *testing.T) {
+	root := newTestProbesDirectory(t, "disabled/smart")
+
+	locations, err := probeLocationsIn(root)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if len(locations) != 1 || locations[0].Name != "smart" || locations[0].Enabled {
+		t.Fatalf("Got %+v, expected smart listed as disabled", locations)
+	}
+
+	// And scheduling it moves it out of there for good
+	if err := scheduleProbeIn(root, "smart", 300); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if probeIsIn(t, root, DisabledProbesDirectory, "smart") {
+		t.Errorf("The probe should have left the disabled directory")
+	}
+	if !probeIsIn(t, root, "300", "smart") {
+		t.Errorf("The probe has not been scheduled")
+	}
+}
+
+// Disabling one parked there by the earlier version empties it too, rather than
+// leaving the probe in a directory that no longer means anything.
+func TestLegacyDisabledDirectoryIsEmptiedOnDisable(t *testing.T) {
+	root := newTestProbesDirectory(t, "disabled/smart")
+
+	if err := unscheduleProbeIn(root, "smart"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if probeIsIn(t, root, DisabledProbesDirectory, "smart") {
+		t.Errorf("The probe should have left the disabled directory")
+	}
+	if !probeIsIn(t, root, ExampleProbesDirectory, "smart") {
+		t.Errorf("The probe itself should still be installed")
+	}
+}
+
+// A probe that is not installed at all is still refused, and no link may be
+// created for one.
+func TestScheduleStillRefusesAProbeThatDoesNotExist(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load")
+
+	if err := scheduleProbeIn(root, "check_absent", 300); err == nil {
+		t.Errorf("Scheduling a probe that is not installed should fail")
+	}
+	if probeIsIn(t, root, "300", "check_absent") {
+		t.Errorf("A link has been created for a probe that does not exist")
+	}
+}
+
+func TestExamplePathRefusesEscapes(t *testing.T) {
+	root := "/usr/local/wigo/probes"
+
+	for _, name := range []string{"../../etc/passwd", "", "..", "sub/probe", ".hidden"} {
+		if _, err := examplePath(root, name); err == nil {
+			t.Errorf("%q should not produce an example path", name)
+		}
+	}
+
+	path, err := examplePath(root, "hbase-master")
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if want := "/usr/local/wigo/probes/examples/hbase-master"; path != want {
+		t.Errorf("Got %q, expected %q", path, want)
+	}
+}
+
+// A directory in examples/ is not a probe, and neither is a name we would never
+// accept from a request.
+func TestShippedListingSkipsWhatIsNotAProbe(t *testing.T) {
+	root := newTestProbesDirectory(t)
+	shipProbe(t, root, "hbase-master")
+	if err := os.MkdirAll(filepath.Join(root, "examples", "lib"), 0755); err != nil {
+		t.Fatalf("Fail to create the directory : %s", err)
+	}
+	shipProbe(t, root, ".gitkeep")
+
+	locations, err := probeLocationsIn(root)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if len(locations) != 1 || locations[0].Name != "hbase-master" {
+		t.Errorf("Got %+v, expected only hbase-master", locations)
 	}
 }
 
@@ -256,22 +555,6 @@ func TestMoveConsolidatesAnAmbiguousProbe(t *testing.T) {
 	}
 }
 
-// Disabling an ambiguous probe has to stop every copy, not just one.
-func TestDisableConsolidatesAnAmbiguousProbe(t *testing.T) {
-	root := newTestProbesDirectory(t, "60/iostat", "300/iostat")
-
-	if err := unscheduleProbeIn(root, "iostat"); err != nil {
-		t.Fatalf("Unexpected error : %s", err)
-	}
-
-	if probeIsIn(t, root, "60", "iostat") || probeIsIn(t, root, "300", "iostat") {
-		t.Errorf("The probe is still scheduled somewhere")
-	}
-	if !probeIsIn(t, root, DisabledProbesDirectory, "iostat") {
-		t.Errorf("The probe is not in the disabled directory")
-	}
-}
-
 // One copy already in the target directory is the one kept, so nothing is moved
 // and the others simply go.
 func TestMoveKeepsTheCopyAlreadyInPlace(t *testing.T) {
@@ -289,9 +572,9 @@ func TestMoveKeepsTheCopyAlreadyInPlace(t *testing.T) {
 	}
 }
 
-// A probe both scheduled and sitting in disabled/ is not disabled at all : it
-// still runs. Disabling it has to remove the scheduled copy.
-func TestDisableConsolidatesWithAnExistingDisabledCopy(t *testing.T) {
+// A probe left in the old disabled directory by an earlier version while also
+// being scheduled was not disabled at all : it ran. Disabling it empties both.
+func TestDisableEmptiesTheLegacyDirectoryAndTheSchedule(t *testing.T) {
 	root := newTestProbesDirectory(t, "60/iostat", "disabled/iostat")
 
 	if err := unscheduleProbeIn(root, "iostat"); err != nil {
@@ -301,14 +584,17 @@ func TestDisableConsolidatesWithAnExistingDisabledCopy(t *testing.T) {
 	if probeIsIn(t, root, "60", "iostat") {
 		t.Errorf("The probe is still scheduled every 60 seconds")
 	}
-	if !probeIsIn(t, root, DisabledProbesDirectory, "iostat") {
-		t.Errorf("The probe should have stayed in the disabled directory")
+	if probeIsIn(t, root, DisabledProbesDirectory, "iostat") {
+		t.Errorf("The probe should have left the disabled directory")
+	}
+	if !probeIsIn(t, root, ExampleProbesDirectory, "iostat") {
+		t.Errorf("The probe itself should still be installed")
 	}
 }
 
-// The same the other way round : re-enabling has to remove the disabled copy,
+// The same the other way round : scheduling has to empty the legacy directory,
 // otherwise the probe would look disabled while running.
-func TestScheduleConsolidatesWithAnExistingDisabledCopy(t *testing.T) {
+func TestScheduleEmptiesTheLegacyDisabledDirectory(t *testing.T) {
 	root := newTestProbesDirectory(t, "60/iostat", "disabled/iostat")
 
 	if err := scheduleProbeIn(root, "iostat", 60); err != nil {

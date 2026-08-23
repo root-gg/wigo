@@ -269,12 +269,9 @@ Subdirectory name is the check interval in **seconds** (60, 120, 300) (e.g. `/us
 
 Probes in subdirectories are symlinks to the actual probe executable located in the examples subdirectory (e.g. `/usr/local/wigo/probes/60/check_mdadm` -> `/usr/local/wigo/probes/examples/check_mdadm`).
 
-Two subdirectories are not check intervals and are never executed:
+`examples/` is not a check interval and is never executed: it holds the probe executables themselves, and the interval directories link to them.
 
-| Directory | Meaning |
-|---|---|
-| `examples/` | The probe executables themselves. A probe here is installed but not scheduled. |
-| `disabled/` | Probes turned off. Moving a symlink here stops it from running; moving it back into an interval directory starts it again. |
+**A probe no interval directory links to is disabled.** Being disabled is not a place a probe is put, it is the absence of any schedule, so there is no directory of disabled probes. Wigo ships around thirty probes and the package enables half of them, which means most disabled probes were never turned off by anyone — they were never turned on. Either way the check is not happening, which is what matters.
 
 **This directory is the source of truth** for which probes run and how often. Changing a probe's interval means moving its symlink to another interval directory, creating it if needed — `probes/900/` is as valid as `probes/60/`. Nothing else records that state, so a database that disagreed with the directory can never silently stop the monitoring.
 
@@ -287,14 +284,16 @@ Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf
 | Endpoint | Description |
 |---|---|
 | `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. Answers `{ "Hostname", "WriteActionsAllowed", "Probes" }`, so a client knows which host it is looking at and whether changing it would be refused. |
-| `POST /api/probes/:probe/disable` | Move the probe to `disabled/`. |
-| `POST /api/probes/:probe/interval?seconds=300` | Run the probe every 300 seconds, re-enabling it if it was disabled. |
+| `POST /api/probes/:probe/disable` | Remove every schedule of the probe. Already disabled is not an error. |
+| `POST /api/probes/:probe/interval?seconds=300` | Run the probe every 300 seconds, enabling it if it was disabled. |
 
 The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the `[Http]` section. They act on the probes directory directly, so the change takes effect on the next cycle without a restart, and it survives one.
 
-A probe must already be installed to be acted upon: a name that only exists in `examples/`, or does not exist at all, is refused.
+A probe must be installed to be acted upon: a name that exists nowhere under `probes/` is refused.
 
-A probe installed in **several** directories at once runs several times per cycle. Asking for an interval means asking for it to run every so often — once — so the extra copies are removed and the probe ends up installed exactly once. Each removal is logged with the symlink it pointed at. Moving one copy and leaving the others would keep the probe running from them, which is the very state being corrected.
+**Disabling never destroys anything.** A schedule is usually a symlink into `examples/`, where the probe itself stays, so the symlink is simply removed. But an administrator may have dropped a script straight into an interval directory, or linked to one outside the probes tree — deleting that would be the only copy gone, and the probe would not even be listed any more, so there would be no way to turn it back on. In that case the entry is moved into `examples/` instead. Either way the probe ends up installed and unscheduled, which is what disabled means.
+
+A probe scheduled from **several** directories at once runs several times per cycle. Asking for an interval means asking for it to run every so often — once — so the extra symlinks are removed and the probe ends up scheduled exactly once. Each removal is logged with the symlink it pointed at. Moving one and leaving the others would keep the probe running from them, which is the very state being corrected.
 
 ### Managing the probes of a remote host
 
@@ -336,7 +335,7 @@ A host sitting **behind another wigo** is neither polled nor pushing here, and a
 
 #### Finding what is turned off
 
-A disabled probe is a blind spot, and on a fleet it is invisible from the host it sits on. The **Disabled probes** page of the web interface lists every one of them across every host the master can read, with a control to bring each back.
+A disabled probe is a blind spot, and on a fleet it is invisible from the host it sits on. The **Disabled probes** page of the web interface lists every one of them across every host the master can read, with a control to bring each back. Probes shipped but never enabled are listed too — nothing schedules them either.
 
 It says out loud when a host could not be read, and names it: a list that quietly skipped a host would be worse than no list at all.
 
