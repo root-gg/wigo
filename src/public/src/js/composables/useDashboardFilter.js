@@ -63,9 +63,11 @@ export function useDashboardFilter() {
 
   const search = computed(() => String(route.query.q || "").trim());
 
-  const isFiltered = computed(
-    () => activeLevels.value.length !== STATUS_LEVELS.length || !!search.value,
+  const allLevelsActive = computed(
+    () => activeLevels.value.length === STATUS_LEVELS.length,
   );
+
+  const isFiltered = computed(() => !allLevelsActive.value || !!search.value);
 
   const problemsOnly = computed(
     () =>
@@ -136,8 +138,25 @@ export function useDashboardFilter() {
     );
   }
 
+  /**
+   * Une probe désactivée n'a aucun statut : elle est montrée quand aucun
+   * niveau n'est filtré, et cachée dès qu'on filtre par niveau — y compris en
+   * "problems only", où elle n'a rien à faire.
+   * @param {...string} haystack - Textes cherchés par la recherche
+   */
+  function matchesWithoutLevel(...haystack) {
+    if (!allLevelsActive.value) return false;
+    if (!search.value) return true;
+
+    const needle = search.value.toLowerCase();
+    return haystack.some(
+      (text) => text && String(text).toLowerCase().includes(needle),
+    );
+  }
+
   return {
     activeLevels,
+    allLevelsActive,
     search,
     isFiltered,
     problemsOnly,
@@ -147,5 +166,6 @@ export function useDashboardFilter() {
     setSearch,
     clearFilters,
     matches,
+    matchesWithoutLevel,
   };
 }

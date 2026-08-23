@@ -188,6 +188,44 @@ export const api = {
   },
 
   /**
+   * Récupère l'ordonnancement des probes du host qui sert cette interface :
+   * intervalle de chacune, y compris celles qui sont désactivées et n'ont donc
+   * aucun résultat.
+   * @returns {Promise<{Hostname: string, WriteActionsAllowed: boolean, Probes: Array}>}
+   */
+  async getProbesSchedule() {
+    const response = await apiClient.get("/probes");
+    return response.data;
+  },
+
+  /**
+   * Désactive une probe : elle n'est plus exécutée du tout
+   * @param {string} probeName - Nom de la probe
+   * @returns {Promise<Object>} L'ordonnancement mis à jour
+   */
+  async disableProbe(probeName) {
+    const response = await apiClient.post(
+      `/probes/${encodeURIComponent(probeName)}/disable`,
+    );
+    return response.data;
+  },
+
+  /**
+   * Change l'intervalle d'une probe, ce qui la réactive si elle était désactivée
+   * @param {string} probeName - Nom de la probe
+   * @param {number} seconds - Intervalle en secondes
+   * @returns {Promise<Object>} L'ordonnancement mis à jour
+   */
+  async setProbeInterval(probeName, seconds) {
+    const response = await apiClient.post(
+      `/probes/${encodeURIComponent(probeName)}/interval`,
+      null,
+      { params: { seconds } },
+    );
+    return response.data;
+  },
+
+  /**
    * Récupère la liste des hosts en attente/autorisation
    * @returns {Promise<Object>}
    */

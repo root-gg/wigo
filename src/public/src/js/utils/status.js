@@ -15,6 +15,13 @@ export const LOG_LEVELS = [
 export const STATUS_LEVELS = ["OK", "INFO", "WARNING", "CRITICAL", "ERROR"];
 
 /**
+ * Niveau des probes désactivées. Elles ne sont pas exécutées, n'ont donc aucun
+ * statut, et ne font pas partie de STATUS_LEVELS : elles ne sont ni comptées
+ * ni filtrables par niveau.
+ */
+export const DISABLED_LEVEL = "DISABLED";
+
+/**
  * Convertit un code de statut numérique en niveau de statut
  * @param {number} status - Code de statut
  * @returns {string} Niveau de statut
@@ -42,6 +49,7 @@ export function getLevel(status) {
  */
 export function getTextLevelClass(level) {
   const classes = {
+    DISABLED: "text-secondary",
     OK: "text-success",
     INFO: "text-primary",
     WARNING: "text-warning",
@@ -58,6 +66,7 @@ export function getTextLevelClass(level) {
  */
 export function getBgLevelClass(level) {
   const classes = {
+    DISABLED: "bg-secondary",
     OK: "bg-success",
     INFO: "bg-primary",
     WARNING: "bg-warning",
@@ -74,6 +83,7 @@ export function getBgLevelClass(level) {
  */
 export function getBadgeLevelClass(level) {
   const classes = {
+    DISABLED: "badge bg-secondary",
     OK: "badge bg-success",
     INFO: "badge bg-primary",
     WARNING: "badge bg-warning",

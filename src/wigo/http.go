@@ -340,6 +340,15 @@ func HttpAuthorityRevokeHandler(params martini.Params) (int, string) {
 // The probes directory is the source of truth, so these handlers read it and
 // write to it directly rather than going through any cached state.
 
+// ProbesSchedule is what GET /api/probes answers. The hostname and the write
+// flag come along so a client knows which host these probes belong to, and
+// whether acting on them would be refused, without having to try.
+type ProbesSchedule struct {
+	Hostname            string
+	WriteActionsAllowed bool
+	Probes              []ProbeLocation
+}
+
 // HttpProbesHandler lists the probes of this host with their schedule,
 // including the ones that are currently disabled and therefore have no result.
 func HttpProbesHandler() (int, string) {
@@ -349,7 +358,13 @@ func HttpProbesHandler() (int, string) {
 		return 500, fmt.Sprintf("Fail to read the probes directory : %s", err)
 	}
 
-	body, err := json.Marshal(locations)
+	schedule := ProbesSchedule{
+		Hostname:            GetLocalWigo().GetHostname(),
+		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions,
+		Probes:              locations,
+	}
+
+	body, err := json.Marshal(schedule)
 	if err != nil {
 		return 500, fmt.Sprintf("Fail to encode the probes list : %s", err)
 	}

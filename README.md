@@ -286,7 +286,7 @@ Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. |
+| `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. Answers `{ "Hostname", "WriteActionsAllowed", "Probes" }`, so a client knows which host it is looking at and whether changing it would be refused. |
 | `POST /api/probes/:probe/disable` | Move the probe to `disabled/`. |
 | `POST /api/probes/:probe/interval?seconds=300` | Run the probe every 300 seconds, re-enabling it if it was disabled. |
 
