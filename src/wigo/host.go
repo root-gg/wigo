@@ -33,13 +33,22 @@ func NewHost() (this *Host) {
 func (this *Host) RecomputeStatus() {
 
 	this.Status = 0
+	hasProbe := false
 
 	for item := range this.Probes.IterBuffered() {
 		probe := item.Val.(*ProbeResult)
+		hasProbe = true
 
 		if probe.Status > this.Status {
 			this.Status = probe.Status
 		}
+	}
+
+	// A host without any probe has nothing to report, which is not an error.
+	// Left at zero it would be rendered as ERROR, since the whole scale treats
+	// anything below 100 as one, and NewHost already starts at 100.
+	if !hasProbe {
+		this.Status = 100
 	}
 
 	return

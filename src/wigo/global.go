@@ -342,14 +342,23 @@ func (this *Wigo) Up() {
 func (this *Wigo) RecomputeGlobalStatus() {
 
 	this.GlobalStatus = 0
+	hasProbe := false
 
 	// Local probes
 	for item := range this.LocalHost.Probes.IterBuffered() {
 		probe := item.Val.(*ProbeResult)
+		hasProbe = true
 
 		if probe.Status > this.GlobalStatus {
 			this.GlobalStatus = probe.Status
 		}
+	}
+
+	// Same as Host.RecomputeStatus : no probe is not an error. A master that
+	// only aggregates remotes and runs none of its own is a normal setup, and
+	// it used to report itself as being in error.
+	if !hasProbe {
+		this.GlobalStatus = 100
 	}
 
 	return
