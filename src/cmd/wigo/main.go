@@ -159,8 +159,8 @@ func threadLocalChecks() {
 				// A probes directory is named after its check interval in
 				// seconds. Anything else (examples, disabled, ...) is not a
 				// schedule and is skipped on purpose.
-				interval, err := strconv.Atoi(path.Base(directory))
-				if err != nil || interval < 1 {
+				interval, isSchedule := wigo.ProbeDirectoryInterval(path.Base(directory))
+				if !isSchedule {
 					log.Printf("Skipping directory %s : its name is not a check interval\n", directory)
 					continue
 				}

@@ -69,6 +69,10 @@ func NewConfig(configFile string) (this *Config) {
 	this.Http.Password = ""
 	this.Http.Gzip = true
 
+	// Off by default : until it is turned on the API stays read only, so an
+	// upgrade never opens anything that was closed before.
+	this.Http.AllowWriteActions = false
+
 	// Push server
 	this.PushServer.Enabled = false
 	this.PushServer.Address = "0.0.0.0"
@@ -88,6 +92,10 @@ func NewConfig(configFile string) (this *Config) {
 	this.PushClient.SslCert = "/etc/wigo/ssl/wigo.crt"
 	this.PushClient.UuidSig = "/etc/wigo/ssl/uuid.sig"
 	this.PushClient.PushInterval = 15
+
+	// Off by default : a client never lets its master act on it unless its own
+	// administrator opted in on that machine.
+	this.PushClient.AllowRemoteControl = false
 
 	// Remote Wigos
 	this.RemoteWigos.List = nil
@@ -202,6 +210,11 @@ type HttpConfig struct {
 	Login      string
 	Password   string
 	Gzip       bool
+
+	// Lets the API change this host : enable, disable and repitch its probes.
+	// Anyone able to reach the dashboard can then switch monitoring off, so it
+	// stays closed until an administrator opens it.
+	AllowWriteActions bool
 }
 
 type PushServerConfig struct {
@@ -224,6 +237,11 @@ type PushClientConfig struct {
 	SslCert      string
 	UuidSig      string
 	PushInterval int
+
+	// Lets the push server this client connects to act on it : enable, disable
+	// and repitch its probes. Separate from Http.AllowWriteActions on purpose,
+	// so opening the local API never opens the machine to its master as well.
+	AllowRemoteControl bool
 }
 
 type RemoteWigoConfig struct {

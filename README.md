@@ -120,6 +120,7 @@ HTTP API (used by the web UI and by PULL mode).
 | `SslEnabled` | Use HTTPS. |
 | `SslCert`, `SslKey` | Paths to the server certificate and private key. |
 | `Login`, `Password` | Optional HTTP Basic Auth for the API. |
+| `AllowWriteActions` | Allow the API to change this host (enable, disable and repitch its probes). **Default `false`** — anyone reaching the dashboard could otherwise switch monitoring off. |
 
 ### `[PushServer]`
 
@@ -146,6 +147,7 @@ Client side for PUSH mode (this instance pushes to a central Wigo).
 | `SslCert` | Path to the **server’s** certificate (e.g. `/var/lib/wigo/master.crt`) so the client can verify the server. |
 | `UuidSig` | Path where the server’s signature of this client’s UUID is stored. |
 | `PushInterval` | Seconds between state pushes (e.g. `10`). |
+| `AllowRemoteControl` | Allow the push server to act on this client (enable, disable and repitch its probes). **Default `false`**, and separate from `[Http] AllowWriteActions` on purpose: opening the local API never hands the machine over to its master as well. |
 
 ### `[RemoteWigos]`
 
@@ -266,6 +268,17 @@ Probes live under `ProbesDirectory` (e.g. `/usr/local/wigo/probes`).
 Subdirectory name is the check interval in **seconds** (60, 120, 300) (e.g. `/usr/local/wigo/probes/60`). They are executed automatically every time the interval is reached.
 
 Probes in subdirectories are symlinks to the actual probe executable located in the examples subdirectory (e.g. `/usr/local/wigo/probes/60/check_mdadm` -> `/usr/local/wigo/probes/examples/check_mdadm`).
+
+Two subdirectories are not check intervals and are never executed:
+
+| Directory | Meaning |
+|---|---|
+| `examples/` | The probe executables themselves. A probe here is installed but not scheduled. |
+| `disabled/` | Probes turned off. Moving a symlink here stops it from running; moving it back into an interval directory starts it again. |
+
+**This directory is the source of truth** for which probes run and how often. Changing a probe's interval means moving its symlink to another interval directory, creating it if needed — `probes/900/` is as valid as `probes/60/`. Nothing else records that state, so a database that disagreed with the directory can never silently stop the monitoring.
+
+The Debian package only seeds the default symlinks on a **fresh install**, so upgrading never re-enables a probe you disabled nor recreates one you moved.
 
 Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf.d`).
 

@@ -405,6 +405,57 @@ func TestNewConfigDefaults(t *testing.T) {
 	}
 }
 
+// Both gates that let something change a host must stay closed until an
+// administrator opens them, so upgrading an existing install never widens what
+// it exposes.
+func TestNewConfigWriteActionsAreClosedByDefault(t *testing.T) {
+
+	config := NewConfig(filepath.Join(t.TempDir(), "does-not-exist.conf"))
+
+	if config.Http.AllowWriteActions {
+		t.Errorf("Http.AllowWriteActions must be off by default")
+	}
+	if config.PushClient.AllowRemoteControl {
+		t.Errorf("PushClient.AllowRemoteControl must be off by default")
+	}
+}
+
+// A configuration file that predates these options must keep them closed.
+func TestNewConfigWriteActionsStayClosedOnAnOldConfigFile(t *testing.T) {
+
+	path := filepath.Join(t.TempDir(), "wigo.conf")
+	old := `
+[Global]
+Hostname = "legacy"
+
+[Http]
+Enabled = true
+Port = 4000
+Login = "admin"
+Password = "secret"
+
+[PushClient]
+Enabled = true
+Address = "master.domain.tld"
+PushInterval = 10
+`
+	if err := os.WriteFile(path, []byte(old), 0644); err != nil {
+		t.Fatalf("Fail to write the configuration file : %s", err)
+	}
+
+	config := NewConfig(path)
+
+	if config.Global.Hostname != "legacy" {
+		t.Fatalf("Hostname = %s, the file has not been read", config.Global.Hostname)
+	}
+	if config.Http.AllowWriteActions {
+		t.Errorf("An old configuration file must not enable Http.AllowWriteActions")
+	}
+	if config.PushClient.AllowRemoteControl {
+		t.Errorf("An old configuration file must not enable PushClient.AllowRemoteControl")
+	}
+}
+
 // Without any apprise configuration the defaults must keep apprise disabled.
 func TestNewConfigAppriseDefaults(t *testing.T) {
 
