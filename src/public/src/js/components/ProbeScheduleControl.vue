@@ -32,7 +32,12 @@
 
     <div v-else-if="editable" class="dropdown" @click.stop>
       <button
-        class="btn btn-sm btn-outline-secondary dropdown-toggle"
+        :class="[
+          'btn',
+          'btn-sm',
+          'dropdown-toggle',
+          onColor ? 'btn-light' : 'btn-outline-secondary',
+        ]"
         type="button"
         data-bs-toggle="dropdown"
         data-bs-auto-close="outside"
@@ -133,7 +138,7 @@
 
     <span
       v-else-if="schedule && !ambiguous"
-      class="text-body-secondary"
+      :class="onColor ? 'text-white' : 'text-body-secondary'"
       :title="readOnlyReason"
     >
       <i class="fas fa-fw fa-lock"></i>
@@ -171,6 +176,15 @@ const props = defineProps({
   readOnlyReason: {
     type: String,
     default: "",
+  },
+  /**
+   * Vrai quand ce contrôle est posé sur une surface colorée, l'en-tête d'une
+   * StatusCard : un bouton en contour gris y disparaît presque, alors qu'il est
+   * le plus lisible sur le fond neutre d'un tableau.
+   */
+  onColor: {
+    type: Boolean,
+    default: false,
   },
 });
 

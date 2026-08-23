@@ -87,6 +87,7 @@
           <ProbeScheduleControl
             :host-name="hostName"
             :probe-name="probe.Name"
+            on-color
             :schedule="scheduleOf(probe.Name)"
             :editable="canEditSchedule"
             :read-only-reason="readOnlyReason"
