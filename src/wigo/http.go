@@ -346,6 +346,13 @@ type ProbesSchedule struct {
 	Hostname            string
 	WriteActionsAllowed bool
 	Probes              []ProbeLocation
+
+	// Probes that ran, exited with the special code 13 and asked not to be run
+	// again -- usually because there is nothing for them to check on this host,
+	// check_mdadm on a machine with no raid array being the typical case. They
+	// are scheduled and produce no result, which is indistinguishable from
+	// never having run unless it is said. Cleared by a restart.
+	SkippedProbes []string
 }
 
 // HttpProbesHandler lists the probes of this host with their schedule,
@@ -361,6 +368,7 @@ func HttpProbesHandler() (int, string) {
 		Hostname:            GetLocalWigo().GetHostname(),
 		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions,
 		Probes:              locations,
+		SkippedProbes:       GetLocalWigo().GetDisabledProbes(),
 	}
 
 	body, err := json.Marshal(schedule)

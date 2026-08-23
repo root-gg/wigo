@@ -283,7 +283,7 @@ Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. Answers `{ "Hostname", "WriteActionsAllowed", "Probes" }`, so a client knows which host it is looking at and whether changing it would be refused. |
+| `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. Answers `{ "Hostname", "WriteActionsAllowed", "Probes", "SkippedProbes" }`, so a client knows which host it is looking at, whether changing it would be refused, and which probes asked not to be run again. |
 | `POST /api/probes/:probe/disable` | Remove every schedule of the probe. Already disabled is not an error. |
 | `POST /api/probes/:probe/interval?seconds=300` | Run the probe every 300 seconds, enabling it if it was disabled. |
 
@@ -320,6 +320,8 @@ Credentials used to reach a remote never appear in the API output.
 #### Hosts that push instead of being polled
 
 A push client sits behind a NAT and cannot be called, so it asks for its orders on the connection it already keeps open, at every `PushInterval`. The API answers **202** and says so: the change is applied on the next push, not straight away.
+
+`SkippedProbes` lists the probes that ran, exited with the special code **13** and asked not to be run again — `check_mdadm` on a machine with no raid array is the usual case. They are scheduled and produce no result, which from the outside is indistinguishable from a probe that has never run, so they are named rather than left to be guessed at. A restart clears the list and tries them again.
 
 A push client also reports its **whole probe schedule** on every update. Without it a probe it has disabled would be invisible from the server: a disabled probe produces no result, and results are all a client used to send. A client too old to report one is listed as unreadable rather than as having nothing disabled.
 

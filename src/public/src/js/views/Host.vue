@@ -95,10 +95,21 @@
           />
         </template>
         <template #body>
+          <!-- Elle a tourné et a demandé qu'on la laisse tranquille : ce n'est
+               ni une panne ni une attente, et le seul geste utile est de la
+               désactiver pour de bon si la machine ne la concerne pas. -->
+          <p v-if="probe.Skipped" class="mb-0 text-body-secondary">
+            <i class="fas fa-fw fa-circle-info"></i>
+            This probe ran and asked not to be run again, which usually means
+            there is nothing for it to check on this host. It is still scheduled
+            every {{ formatInterval(probe.Interval) }} and will be tried again
+            after a restart of wigo.
+          </p>
+
           <!-- Elle vient d'être activée : le résultat n'arrivera qu'au premier
                passage, et la carte doit le dire plutôt que de disparaître de la
                page en attendant. -->
-          <p v-if="probe.Pending" class="mb-0 text-body-secondary">
+          <p v-else-if="probe.Pending" class="mb-0 text-body-secondary">
             <i class="fas fa-fw fa-hourglass-half"></i>
             This probe is now scheduled every
             {{ formatInterval(probe.Interval) }}. It has not run yet, so its
@@ -202,14 +213,24 @@ function scheduleOf(probeName) {
 }
 
 /**
- * Les probes sans résultat, que seul l'ordonnancement sur disque connaît. Deux
- * raisons de ne pas en avoir : rien ne les ordonnance, ou elles viennent d'être
- * activées et n'ont pas encore tourné.
+ * Les probes sans résultat, que seul l'ordonnancement sur disque connaît. Trois
+ * raisons de ne pas en avoir, qui se ressemblent de loin et n'appellent pas du
+ * tout la même chose :
  *
- * La seconde compte autant que la première. Sans elle, activer une probe la
- * faisait disparaître de la page jusqu'à sa première exécution, soit une heure
- * entière si c'est l'intervalle qu'on vient de choisir.
+ * - rien ne les ordonnance, elles sont désactivées ;
+ * - elles ont tourné et sont sorties en code 13, demandant à ne plus l'être ;
+ * - elles viennent d'être activées et n'ont pas encore tourné.
+ *
+ * La dernière est celle qui manquait : sans elle, activer une probe la faisait
+ * disparaître de la page jusqu'à sa première exécution, soit une heure entière
+ * si c'est l'intervalle qu'on vient de choisir. Et sans la deuxième, une probe
+ * comme check_mdadm sur une machine sans grappe RAID restait éternellement
+ * annoncée comme sur le point de tourner.
  */
+const skippedProbes = computed(
+  () => new Set(hasSchedule.value ? schedule.value.SkippedProbes || [] : []),
+);
+
 const probesWithoutResult = computed(() => {
   if (!hasSchedule.value) return [];
 
@@ -221,7 +242,8 @@ const probesWithoutResult = computed(() => {
       Name: location.Name,
       Level: DISABLED_LEVEL,
       Disabled: !location.Enabled,
-      Pending: location.Enabled,
+      Skipped: location.Enabled && skippedProbes.value.has(location.Name),
+      Pending: location.Enabled && !skippedProbes.value.has(location.Name),
       Interval: location.Interval,
       Status: null,
       Message: "",
@@ -251,6 +273,7 @@ const visibleProbes = computed(() => {
     .filter((probe) => matchesWithoutLevel(probe.Name))
     .sort((a, b) => {
       if (a.Pending !== b.Pending) return a.Pending ? -1 : 1;
+      if (a.Skipped !== b.Skipped) return a.Skipped ? -1 : 1;
       return a.Name.localeCompare(b.Name);
     });
 
@@ -265,12 +288,16 @@ function formatInterval(seconds) {
 }
 
 function probeBadge(probe) {
+  if (probe.Skipped) return "n/a";
   if (probe.Pending) return "…";
   if (probe.Disabled) return "off";
   return probe.Status;
 }
 
 function probeTitle(probe) {
+  if (probe.Skipped) {
+    return `${probe.Name} - ran and asked not to be run again, nothing for it to check here`;
+  }
   if (probe.Pending) {
     return `${probe.Name} - scheduled every ${formatInterval(probe.Interval)}, waiting for its first result`;
   }

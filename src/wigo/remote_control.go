@@ -224,7 +224,7 @@ func pushClientSchedule(hostname string) (int, string, bool) {
 		return 0, "", false
 	}
 
-	locations, reported := ClientProbesSchedule(remote.Uuid)
+	locations, skipped, reported := ClientProbesSchedule(remote.Uuid)
 	if !reported {
 		return 501, fmt.Sprintf("%s pushes to this host but has not reported its probes schedule. "+
 			"It runs a version that does not send one yet, so a probe it has disabled cannot be seen from here.",
@@ -237,6 +237,7 @@ func pushClientSchedule(hostname string) (int, string, bool) {
 		Hostname:            hostname,
 		WriteActionsAllowed: ClientAcceptsRemoteControl(remote.Uuid),
 		Probes:              locations,
+		SkippedProbes:       skipped,
 	}
 
 	body, err := json.Marshal(schedule)

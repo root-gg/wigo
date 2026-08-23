@@ -45,10 +45,12 @@ var pushCommands = struct {
 	pending  map[string][]ProbeCommand
 	accepted map[string]bool
 	schedule map[string][]ProbeLocation
+	skipped  map[string][]string
 }{
 	pending:  make(map[string][]ProbeCommand),
 	accepted: make(map[string]bool),
 	schedule: make(map[string][]ProbeLocation),
+	skipped:  make(map[string][]string),
 }
 
 // SetClientAcceptsRemoteControl records what a client said about being driven.
@@ -87,7 +89,7 @@ func ClientAcceptsRemoteControl(uuid string) bool {
 // disabled would be invisible from here : a disabled probe produces no result,
 // and results are all a client used to send. It reports its whole schedule on
 // every update instead.
-func SetClientProbesSchedule(uuid string, locations []ProbeLocation) {
+func SetClientProbesSchedule(uuid string, locations []ProbeLocation, skipped []string) {
 	if uuid == "" {
 		return
 	}
@@ -96,17 +98,18 @@ func SetClientProbesSchedule(uuid string, locations []ProbeLocation) {
 	defer pushCommands.Unlock()
 
 	pushCommands.schedule[uuid] = locations
+	pushCommands.skipped[uuid] = skipped
 }
 
 // ClientProbesSchedule returns what a client last reported about its probes,
 // and whether it reported anything at all. A client too old to send it is
 // indistinguishable from one with no probe, so the caller has to know which.
-func ClientProbesSchedule(uuid string) ([]ProbeLocation, bool) {
+func ClientProbesSchedule(uuid string) ([]ProbeLocation, []string, bool) {
 	pushCommands.Lock()
 	defer pushCommands.Unlock()
 
 	locations, reported := pushCommands.schedule[uuid]
-	return locations, reported
+	return locations, pushCommands.skipped[uuid], reported
 }
 
 // QueueProbeCommand records an order for a client to pick up.
