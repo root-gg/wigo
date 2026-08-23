@@ -31,6 +31,17 @@ type ProbeCommand struct {
 	Action   string
 	Probe    string
 	Interval int
+
+	// Why the probe is being turned off and at whose request. The operator is
+	// at the master, so this is the only way the client can record who decided.
+	Reason string
+	Author string
+
+	// How long the disable is meant to last, in seconds, zero for no end date.
+	// A duration and not a deadline : the client computes it against its own
+	// clock, so the two machines disagreeing about the time cannot turn "for an
+	// hour" into "already expired" or "for a week".
+	Duration int64
 }
 
 // CommandBatch is what a client gets back when it asks for its orders.
@@ -46,11 +57,13 @@ var pushCommands = struct {
 	accepted map[string]bool
 	schedule map[string][]ProbeLocation
 	skipped  map[string][]string
+	disabled map[string][]ProbeDisableRecord
 }{
 	pending:  make(map[string][]ProbeCommand),
 	accepted: make(map[string]bool),
 	schedule: make(map[string][]ProbeLocation),
 	skipped:  make(map[string][]string),
+	disabled: make(map[string][]ProbeDisableRecord),
 }
 
 // SetClientAcceptsRemoteControl records what a client said about being driven.
@@ -89,7 +102,7 @@ func ClientAcceptsRemoteControl(uuid string) bool {
 // disabled would be invisible from here : a disabled probe produces no result,
 // and results are all a client used to send. It reports its whole schedule on
 // every update instead.
-func SetClientProbesSchedule(uuid string, locations []ProbeLocation, skipped []string) {
+func SetClientProbesSchedule(uuid string, locations []ProbeLocation, skipped []string, disabled []ProbeDisableRecord) {
 	if uuid == "" {
 		return
 	}
@@ -99,17 +112,18 @@ func SetClientProbesSchedule(uuid string, locations []ProbeLocation, skipped []s
 
 	pushCommands.schedule[uuid] = locations
 	pushCommands.skipped[uuid] = skipped
+	pushCommands.disabled[uuid] = disabled
 }
 
 // ClientProbesSchedule returns what a client last reported about its probes,
 // and whether it reported anything at all. A client too old to send it is
 // indistinguishable from one with no probe, so the caller has to know which.
-func ClientProbesSchedule(uuid string) ([]ProbeLocation, []string, bool) {
+func ClientProbesSchedule(uuid string) ([]ProbeLocation, []string, []ProbeDisableRecord, bool) {
 	pushCommands.Lock()
 	defer pushCommands.Unlock()
 
 	locations, reported := pushCommands.schedule[uuid]
-	return locations, pushCommands.skipped[uuid], reported
+	return locations, pushCommands.skipped[uuid], pushCommands.disabled[uuid], reported
 }
 
 // QueueProbeCommand records an order for a client to pick up.
@@ -165,10 +179,17 @@ func ApplyProbeCommand(command ProbeCommand) error {
 	switch command.Action {
 
 	case CommandDisableProbe:
-		return UnscheduleProbe(command.Probe)
+		return DisableProbeWithReason(command.Probe, command.Reason, command.Author, command.Duration)
 
 	case CommandSetProbeInterval:
-		return ScheduleProbe(command.Probe, command.Interval)
+		if err := ScheduleProbe(command.Probe, command.Interval); err != nil {
+			return err
+		}
+		// It runs again, so whatever was noted about it being off is now false
+		if err := forgetProbeDisabled(command.Probe); err != nil {
+			log.Printf("Probe %s runs again but its disable record could not be dropped : %s", command.Probe, err)
+		}
+		return nil
 
 	default:
 		return fmt.Errorf("unknown order %q", command.Action)

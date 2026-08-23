@@ -213,6 +213,11 @@ Options:
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
 	}
 
+	_, err = LocalWigo.sqlLiteConn.Exec(createDisabledProbesTable)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
 	// Configure SQLite busy timeout to handle concurrent access
 	_, err = LocalWigo.sqlLiteConn.Exec("PRAGMA busy_timeout = 5000")
 	if err != nil {

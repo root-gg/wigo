@@ -83,6 +83,7 @@
               <thead>
                 <tr>
                   <th>Probe</th>
+                  <th>Why it is off</th>
                   <th class="text-end">Bring it back</th>
                 </tr>
               </thead>
@@ -106,6 +107,21 @@
                     >
                       <i class="fas fa-fw fa-check"></i>
                       enabled, it will run from now on
+                    </span>
+                  </td>
+
+                  <!-- Sans cette colonne la page ne dit que « pas surveillé ».
+                       Avec, elle dit s'il s'agit d'une décision, de qui, et si
+                       elle était censée être temporaire. -->
+                  <td class="align-middle small">
+                    <template v-if="probe.Record">
+                      <div>{{ describeDisable(probe.Record) }}</div>
+                      <div class="text-body-secondary">
+                        {{ describeExpiry(probe.Record) }}
+                      </div>
+                    </template>
+                    <span v-else class="text-body-secondary">
+                      Never enabled on this host, so nobody turned it off.
                     </span>
                   </td>
                   <td>
@@ -140,6 +156,11 @@ import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
 import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
 import { useRefresh } from "../composables/useRefresh.js";
+import {
+  disableRecordsByProbe,
+  describeDisable,
+  describeExpiry,
+} from "../utils/disable.js";
 
 const router = useRouter();
 const schedules = ref([]);
@@ -168,9 +189,11 @@ function enabledKey(hostName, probeName) {
 const hostsWithDisabled = computed(() =>
   schedules.value
     .map((schedule) => {
-      const disabled = (schedule.Probes || []).filter(
-        (location) => !location.Enabled,
-      );
+      const records = disableRecordsByProbe(schedule);
+
+      const disabled = (schedule.Probes || [])
+        .filter((location) => !location.Enabled)
+        .map((location) => ({ ...location, Record: records[location.Name] }));
       const stillListed = new Set(disabled.map((location) => location.Name));
 
       const enabled = [...justEnabled.value.entries()]
@@ -185,9 +208,15 @@ const hostsWithDisabled = computed(() =>
         Name: schedule.Hostname,
         WriteActionsAllowed: !!schedule.WriteActionsAllowed,
         DisabledCount: disabled.length,
-        Probes: [...disabled, ...enabled].sort((a, b) =>
-          a.Name.localeCompare(b.Name),
-        ),
+        // Triées par ancienneté : celle qui est éteinte depuis huit mois est
+        // celle qu'il faut voir, et elle est en haut. Les sondes que personne
+        // n'a jamais activées n'ont pas d'âge et ferment la liste.
+        Probes: [...disabled, ...enabled].sort((a, b) => {
+          if (!!a.Record !== !!b.Record) return a.Record ? -1 : 1;
+          if (a.Record && b.Record)
+            return a.Record.CreatedAt - b.Record.CreatedAt;
+          return a.Name.localeCompare(b.Name);
+        }),
       };
     })
     .filter((host) => host.Probes.length > 0)

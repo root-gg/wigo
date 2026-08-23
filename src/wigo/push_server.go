@@ -217,7 +217,7 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 				wigo.SetParentHostsInProbes()
 				SetClientAcceptsRemoteControl(req.Uuid, req.AllowRemoteControl)
 				if req.ProbesSchedule != nil {
-					SetClientProbesSchedule(req.Uuid, req.ProbesSchedule, req.SkippedProbes)
+					SetClientProbesSchedule(req.Uuid, req.ProbesSchedule, req.SkippedProbes, req.DisableRecords)
 				}
 				// TODO this should return an error
 				LocalWigo.AddOrUpdateRemoteWigo(wigo)
@@ -334,6 +334,11 @@ type UpdateRequest struct {
 	// on the same reasoning : they are scheduled and produce no result, so from
 	// the server they look like probes that have never run.
 	SkippedProbes []string
+
+	// Why somebody turned a probe off here. Same reasoning again : the server
+	// cannot ask, and without this a client's disabled probes all look like
+	// probes nobody ever enabled.
+	DisableRecords []ProbeDisableRecord
 }
 
 func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
@@ -356,6 +361,7 @@ func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
 		log.Printf("Push client : unable to read the probes directory : %s", err)
 	}
 	this.SkippedProbes = GetLocalWigo().GetDisabledProbes()
+	this.DisableRecords = ProbeDisableRecords()
 
 	return
 }

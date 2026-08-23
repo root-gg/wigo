@@ -224,7 +224,7 @@ func pushClientSchedule(hostname string) (int, string, bool) {
 		return 0, "", false
 	}
 
-	locations, skipped, reported := ClientProbesSchedule(remote.Uuid)
+	locations, skipped, disabled, reported := ClientProbesSchedule(remote.Uuid)
 	if !reported {
 		return 501, fmt.Sprintf("%s pushes to this host but has not reported its probes schedule. "+
 			"It runs a version that does not send one yet, so a probe it has disabled cannot be seen from here.",
@@ -238,6 +238,7 @@ func pushClientSchedule(hostname string) (int, string, bool) {
 		WriteActionsAllowed: ClientAcceptsRemoteControl(remote.Uuid),
 		Probes:              locations,
 		SkippedProbes:       skipped,
+		DisableRecords:      disabled,
 	}
 
 	body, err := json.Marshal(schedule)
@@ -250,7 +251,7 @@ func pushClientSchedule(hostname string) (int, string, bool) {
 
 // HttpHostProbeDisableHandler stops a probe from being scheduled on any host of
 // the tree.
-func HttpHostProbeDisableHandler(params martini.Params) (int, string) {
+func HttpHostProbeDisableHandler(params martini.Params, r *http.Request) (int, string) {
 
 	hostname := params["hostname"]
 	if hostname == "" {
@@ -258,16 +259,30 @@ func HttpHostProbeDisableHandler(params martini.Params) (int, string) {
 	}
 
 	if hostname == GetLocalWigo().GetHostname() {
-		return HttpProbeDisableHandler(params)
+		return HttpProbeDisableHandler(params, r)
 	}
 
 	if !IsValidProbeName(params["probe"]) {
 		return 400, fmt.Sprintf("invalid probe name %q", params["probe"])
 	}
 
+	// Checked here too so an obviously wrong duration never leaves this host
+	duration, err := parseDisableDuration(r.URL.Query().Get("for"))
+	if err != nil {
+		return 400, err.Error()
+	}
+
+	// The operator is at this host, not at the one that will apply the change,
+	// so who they are travels with the order.
+	reason := r.URL.Query().Get("reason")
+	author := httpAuthor(r, r.URL.Query().Get("author"))
+
 	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
-		Action: CommandDisableProbe,
-		Probe:  params["probe"],
+		Action:   CommandDisableProbe,
+		Probe:    params["probe"],
+		Reason:   reason,
+		Author:   author,
+		Duration: duration,
 	}); isPushClient {
 		return status, message
 	}
@@ -277,7 +292,18 @@ func HttpHostProbeDisableHandler(params martini.Params) (int, string) {
 		return 400, err.Error()
 	}
 
-	return forwardWriteToRemote(hostname, "POST", path, nil)
+	query := url.Values{}
+	if reason != "" {
+		query.Set("reason", reason)
+	}
+	if author != "" {
+		query.Set("author", author)
+	}
+	if forValue := r.URL.Query().Get("for"); forValue != "" {
+		query.Set("for", forValue)
+	}
+
+	return forwardWriteToRemote(hostname, "POST", path, query)
 }
 
 // HttpHostProbeIntervalHandler sets how often a probe runs on any host of the

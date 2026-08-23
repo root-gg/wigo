@@ -284,7 +284,7 @@ Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf
 | Endpoint | Description |
 |---|---|
 | `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. Answers `{ "Hostname", "WriteActionsAllowed", "Probes", "SkippedProbes" }`, so a client knows which host it is looking at, whether changing it would be refused, and which probes asked not to be run again. |
-| `POST /api/probes/:probe/disable` | Remove every schedule of the probe. Already disabled is not an error. |
+| `POST /api/probes/:probe/disable` | Remove every schedule of the probe. Already disabled is not an error. Takes `?reason=` and `?for=` (a duration, `1h` / `24h` / `168h`). |
 | `POST /api/probes/:probe/interval?seconds=300` | Run the probe every 300 seconds, enabling it if it was disabled. |
 
 The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the `[Http]` section. They act on the probes directory directly, so the change takes effect on the next cycle without a restart, and it survives one.
@@ -320,6 +320,14 @@ Credentials used to reach a remote never appear in the API output.
 #### Hosts that push instead of being polled
 
 A push client sits behind a NAT and cannot be called, so it asks for its orders on the connection it already keeps open, at every `PushInterval`. The API answers **202** and says so: the change is applied on the next push, not straight away.
+
+`DisableRecords` says who turned a probe off, when, why and until when — one entry per probe an operator actually decided about. Most disabled probes are not in it: they were never enabled, and attributing those to somebody would be a lie.
+
+The record is **metadata and nothing else**. Whether a probe runs is decided by the probes directory alone, so a database that is missing, corrupted or read-only cannot silently stop the monitoring. It is read to act in exactly one place — the expiry loop, which can only ever *start* a probe. A probe put back by hand, by a package upgrade or by anything not going through the API leaves a stale record behind; the directory is what is true, so such a record is deleted rather than reported.
+
+`?for=` records a deadline and the interval the probe was running at, and the probe is scheduled again at that interval once the deadline passes. It is refused on a probe that is not currently running, since there would be nothing to bring it back to. Without it a probe stays off until somebody turns it back on — which is the right default for "no raid on this host", and the wrong one for "quiet during the migration".
+
+There is no author to record yet: the API is behind a single shared basic auth credential, so `Author` is the login that was used and the address it came from. When a master drives another host, the author it recorded travels with the order and is kept *alongside* who actually connected, not instead of it — it is a claim, not a fact, until F8 lands.
 
 `SkippedProbes` lists the probes that ran, exited with the special code **13** and asked not to be run again — `check_mdadm` on a machine with no raid array is the usual case. They are scheduled and produce no result, which from the outside is indistinguishable from a probe that has never run, so they are named rather than left to be guessed at. A restart clears the list and tries them again.
 

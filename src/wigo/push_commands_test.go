@@ -14,6 +14,7 @@ func resetPushCommands() {
 	pushCommands.accepted = make(map[string]bool)
 	pushCommands.schedule = make(map[string][]ProbeLocation)
 	pushCommands.skipped = make(map[string][]string)
+	pushCommands.disabled = make(map[string][]ProbeDisableRecord)
 }
 
 // A client cannot be asked anything, so a probe it disabled is invisible from
@@ -24,16 +25,18 @@ func resetPushCommands() {
 func TestClientProbesSchedule(t *testing.T) {
 	resetPushCommands()
 
-	if _, _, reported := ClientProbesSchedule(commandTestUuid); reported {
+	if _, _, _, reported := ClientProbesSchedule(commandTestUuid); reported {
 		t.Errorf("A client that never reported must not look like one with no probe")
 	}
 
 	SetClientProbesSchedule(commandTestUuid, []ProbeLocation{
 		{Name: "check_load", Directory: "60", Interval: 60, Enabled: true},
 		{Name: "smart", Directory: ExampleProbesDirectory, Enabled: false},
-	}, []string{"check_mdadm"})
+	}, []string{"check_mdadm"}, []ProbeDisableRecord{
+		{Probe: "smart", Reason: "disk swapped out", Author: "germain from 10.0.0.2", Interval: 300},
+	})
 
-	locations, skipped, reported := ClientProbesSchedule(commandTestUuid)
+	locations, skipped, disabled, reported := ClientProbesSchedule(commandTestUuid)
 	if !reported {
 		t.Fatalf("The schedule should have been recorded")
 	}
@@ -47,11 +50,18 @@ func TestClientProbesSchedule(t *testing.T) {
 		t.Errorf("Got %+v, expected check_mdadm to be reported as skipped", skipped)
 	}
 
+	// And a probe somebody turned off is not one that was never turned on, so
+	// the reason travels with the schedule too
+	if len(disabled) != 1 || disabled[0].Probe != "smart" || disabled[0].Reason != "disk swapped out" {
+		t.Errorf("Got %+v, expected the reason smart was turned off", disabled)
+	}
+
 	// A client with genuinely no probe reports an empty list, which is a report
-	SetClientProbesSchedule(commandTestUuid, []ProbeLocation{}, nil)
-	locations, skipped, reported = ClientProbesSchedule(commandTestUuid)
-	if !reported || len(locations) != 0 || len(skipped) != 0 {
-		t.Errorf("Got %+v %+v reported=%v, expected an empty but present schedule", locations, skipped, reported)
+	SetClientProbesSchedule(commandTestUuid, []ProbeLocation{}, nil, nil)
+	locations, skipped, disabled, reported = ClientProbesSchedule(commandTestUuid)
+	if !reported || len(locations) != 0 || len(skipped) != 0 || len(disabled) != 0 {
+		t.Errorf("Got %+v %+v %+v reported=%v, expected an empty but present schedule",
+			locations, skipped, disabled, reported)
 	}
 }
 

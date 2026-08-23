@@ -94,18 +94,63 @@
         </li>
 
         <li><hr class="dropdown-divider" /></li>
-        <li>
+
+        <!-- Désactiver, c'est se créer un angle mort. Demander pourquoi et
+             jusqu'à quand est le prix d'entrée : dans six mois, personne ne se
+             souviendra, et sans échéance la sonde reste éteinte pour toujours. -->
+        <li v-if="!asking">
           <a
             v-if="schedule?.Enabled"
             class="dropdown-item text-danger"
             href="#"
-            @click.prevent="disable"
+            @click.prevent="asking = true"
           >
             <i class="fas fa-fw fa-ban"></i> Disable this probe
           </a>
           <span v-else class="dropdown-item-text text-body-secondary small">
             Pick an interval above to enable it
           </span>
+        </li>
+
+        <li v-else class="px-3 pb-2">
+          <form @submit.prevent="disable">
+            <h6 class="dropdown-header px-0">Disable this probe</h6>
+
+            <input
+              v-model="reason"
+              type="text"
+              class="form-control form-control-sm mb-2"
+              placeholder="Why? e.g. no raid on this host"
+              aria-label="Why this probe is being disabled"
+            />
+
+            <select
+              v-model="duration"
+              class="form-select form-select-sm mb-2"
+              aria-label="How long it stays disabled"
+            >
+              <option
+                v-for="choice in DURATIONS"
+                :key="choice.value"
+                :value="choice.value"
+              >
+                {{ choice.label }}
+              </option>
+            </select>
+
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-danger flex-grow-1" type="submit">
+                Disable
+              </button>
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                @click="asking = false"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </li>
 
         <!-- Le message vit dans le menu : le slot qui accueille ce composant
@@ -190,7 +235,23 @@ const props = defineProps({
 
 const emit = defineEmits(["changed"]);
 
+/**
+ * "Jusqu'à ce que quelqu'un la rallume" en premier parce que c'est le cas le
+ * plus courant -- une sonde sans objet sur cette machine -- mais les échéances
+ * sont là pour que la maintenance de cet après-midi ne dure pas huit mois.
+ */
+const DURATIONS = [
+  { value: "", label: "Until someone enables it again" },
+  { value: "1h", label: "For 1 hour" },
+  { value: "4h", label: "For 4 hours" },
+  { value: "24h", label: "For 1 day" },
+  { value: "168h", label: "For 1 week" },
+];
+
 const busy = ref(false);
+const asking = ref(false);
+const reason = ref("");
+const duration = ref("");
 const error = ref("");
 const notice = ref("");
 const custom = ref("");
@@ -259,6 +320,20 @@ function applyCustom() {
 }
 
 function disable() {
-  return run(() => api.disableHostProbe(props.hostName, props.probeName));
+  const reasonGiven = reason.value.trim();
+  const durationGiven = duration.value;
+
+  asking.value = false;
+  reason.value = "";
+  duration.value = "";
+
+  return run(() =>
+    api.disableHostProbe(
+      props.hostName,
+      props.probeName,
+      reasonGiven,
+      durationGiven,
+    ),
+  );
 }
 </script>

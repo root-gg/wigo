@@ -51,6 +51,11 @@ func main() {
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 	go threadRemoteChecks(config.RemoteWigos.AdvancedList)
 
+	// Brings back the probes whose disable was meant to be temporary. It is the
+	// only thing that reads that table to act, and it can only ever start a
+	// probe, never stop one.
+	wigo.StartDisabledProbesExpiry()
+
 	if config.Http.Enabled {
 		go threadHttp(config.Http)
 	}

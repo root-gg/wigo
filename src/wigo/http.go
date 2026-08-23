@@ -3,9 +3,11 @@ package wigo
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/codegangsta/martini"
 )
@@ -353,6 +355,11 @@ type ProbesSchedule struct {
 	// are scheduled and produce no result, which is indistinguishable from
 	// never having run unless it is said. Cleared by a restart.
 	SkippedProbes []string
+
+	// Why somebody turned a probe off, and until when. Only the probes an
+	// operator actually decided about are in here : most disabled probes were
+	// simply never enabled, and attributing those to somebody would be a lie.
+	DisableRecords []ProbeDisableRecord
 }
 
 // HttpProbesHandler lists the probes of this host with their schedule,
@@ -369,6 +376,7 @@ func HttpProbesHandler() (int, string) {
 		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions,
 		Probes:              locations,
 		SkippedProbes:       GetLocalWigo().GetDisabledProbes(),
+		DisableRecords:      ProbeDisableRecords(),
 	}
 
 	body, err := json.Marshal(schedule)
@@ -391,7 +399,7 @@ func httpWriteActionsAllowed() (int, string, bool) {
 }
 
 // HttpProbeDisableHandler stops a probe from being scheduled.
-func HttpProbeDisableHandler(params martini.Params) (int, string) {
+func HttpProbeDisableHandler(params martini.Params, r *http.Request) (int, string) {
 
 	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
 		return status, message
@@ -402,13 +410,147 @@ func HttpProbeDisableHandler(params martini.Params) (int, string) {
 		return 404, "No probe name set in url"
 	}
 
-	if err := UnscheduleProbe(probeName); err != nil {
+	duration, err := parseDisableDuration(r.URL.Query().Get("for"))
+	if err != nil {
 		return 400, err.Error()
 	}
 
-	GetLocalWigo().AddLog(nil, INFO, fmt.Sprintf("Probe %s has been disabled through the API", probeName))
+	if err := DisableProbeWithReason(probeName, r.URL.Query().Get("reason"),
+		httpAuthor(r, r.URL.Query().Get("author")), duration); err != nil {
+		return 400, err.Error()
+	}
 
 	return HttpProbesHandler()
+}
+
+// DisableProbeWithReason turns a probe off and notes why, for how long and at
+// whose request. Shared by the API and by an order coming from a master.
+func DisableProbeWithReason(probeName string, reason string, author string, duration int64) error {
+
+	// Captured before the probe stops : once it is disabled there is nothing
+	// left to read the interval from, and an expiring disable needs to know
+	// what to put the probe back to.
+	interval := scheduledIntervalOf(probeName)
+
+	if duration > 0 && interval < MinProbeInterval {
+		return fmt.Errorf("probe %q is not running, so there is no interval to bring it back to "+
+			"when the disable expires. Disable it without a duration, or give it an interval first.", probeName)
+	}
+
+	if err := UnscheduleProbe(probeName); err != nil {
+		return err
+	}
+
+	record := ProbeDisableRecord{
+		Probe:     probeName,
+		Reason:    reason,
+		Author:    author,
+		Interval:  interval,
+		CreatedAt: time.Now().Unix(),
+	}
+	if duration > 0 {
+		record.Until = record.CreatedAt + duration
+	}
+
+	// The probe is already stopped. Failing to take a note about it must not
+	// turn a successful disable into an error, or the interface would end up
+	// disagreeing with the disk.
+	if err := recordProbeDisabled(record); err != nil {
+		log.Printf("Probe %s has been disabled but no record could be kept of it : %s", probeName, err)
+	}
+
+	GetLocalWigo().AddLog(nil, INFO, describeDisable(record))
+
+	return nil
+}
+
+// describeDisable is what ends up in the logs table, and it is the only trace
+// left if the record itself cannot be written.
+func describeDisable(record ProbeDisableRecord) string {
+	message := fmt.Sprintf("Probe %s has been disabled through the API by %s",
+		record.Probe, describeAuthor(record.Author))
+
+	if record.Reason != "" {
+		message += fmt.Sprintf(" : %s", record.Reason)
+	}
+	if record.Until > 0 {
+		message += fmt.Sprintf(" (until %s)", time.Unix(record.Until, 0).Format(dateLayout))
+	}
+
+	return message
+}
+
+// scheduledIntervalOf returns the interval a probe currently runs at, or zero
+// when nothing schedules it. The shortest one wins if it somehow runs at
+// several : that is the pace it actually keeps.
+func scheduledIntervalOf(probeName string) int {
+	locations, err := FindProbeLocations(probeName)
+	if err != nil {
+		return 0
+	}
+
+	interval := 0
+	for _, location := range locations {
+		if !location.Enabled {
+			continue
+		}
+		if interval == 0 || location.Interval < interval {
+			interval = location.Interval
+		}
+	}
+
+	return interval
+}
+
+// parseDisableDuration reads how long a disable is meant to last. Empty means
+// until somebody turns it back on.
+func parseDisableDuration(value string) (int64, error) {
+	if value == "" {
+		return 0, nil
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q, expected something like 1h, 12h or 168h", value)
+	}
+
+	if duration < time.Minute || duration > maxDisableDuration {
+		return 0, fmt.Errorf("a disable must last between a minute and a year, got %s", duration)
+	}
+
+	return int64(duration.Seconds()), nil
+}
+
+// A year. Past that it is not a temporary disable, and pretending otherwise
+// would put a deadline nobody will ever see on a permanent decision.
+const maxDisableDuration = 365 * 24 * time.Hour
+
+// httpAuthor records who asked, as far as that can be known.
+//
+// There is no identity system : the API sits behind one shared basic auth
+// credential, so the honest answer is the login that was used and the address
+// it came from. F8 replaces this with a real author.
+//
+// A master driving this host forwards the author it recorded on its own side,
+// because the operator clicked there and not here. That is a claim, not a fact
+// -- the credential is shared and anyone able to reach this endpoint could send
+// any string -- so it is kept alongside who actually connected rather than
+// instead of it.
+func httpAuthor(r *http.Request, claimed string) string {
+	connected := r.RemoteAddr
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		connected = forwarded
+	}
+
+	if login, _, ok := r.BasicAuth(); ok && login != "" {
+		connected = fmt.Sprintf("%s from %s", login, connected)
+	}
+
+	if claimed != "" {
+		return fmt.Sprintf("%s via %s", claimed, connected)
+	}
+
+	return connected
 }
 
 // HttpProbeIntervalHandler sets how often a probe runs, scheduling it again
@@ -436,6 +578,11 @@ func HttpProbeIntervalHandler(params martini.Params, r *http.Request) (int, stri
 
 	if err := ScheduleProbe(probeName, interval); err != nil {
 		return 400, err.Error()
+	}
+
+	// It runs again, so whatever was noted about it being off is now false
+	if err := forgetProbeDisabled(probeName); err != nil {
+		log.Printf("Probe %s runs again but its disable record could not be dropped : %s", probeName, err)
 	}
 
 	GetLocalWigo().AddLog(nil, INFO, fmt.Sprintf("Probe %s is now scheduled every %d seconds through the API", probeName, interval))

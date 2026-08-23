@@ -115,10 +115,22 @@
             {{ formatInterval(probe.Interval) }}. It has not run yet, so its
             first result will appear on the next cycle.
           </p>
-          <p v-else-if="probe.Disabled" class="mb-0 text-body-secondary">
-            This probe is disabled: nothing schedules it, so it is never
-            executed and nothing about it is being monitored.
-          </p>
+          <div v-else-if="probe.Disabled" class="text-body-secondary">
+            <p class="mb-0">
+              This probe is disabled: nothing schedules it, so it is never
+              executed and nothing about it is being monitored.
+            </p>
+
+            <!-- Quelqu'un l'a décidé. Le reste des sondes désactivées n'a
+                 jamais été activé, ce qui ne s'attribue à personne. -->
+            <p v-if="disableRecordOf(probe.Name)" class="mb-0 mt-2">
+              <i class="fas fa-fw fa-user-clock"></i>
+              {{ describeDisable(disableRecordOf(probe.Name)) }}
+              <span class="d-block ms-4 ps-1">
+                {{ describeExpiry(disableRecordOf(probe.Name)) }}
+              </span>
+            </p>
+          </div>
           <template v-else>
             <p class="mb-3">{{ probe.Message }}</p>
             <div v-if="probe.Detail" class="mt-3">
@@ -149,6 +161,11 @@ import StatusBadge from "../components/StatusBadge.vue";
 import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";
+import {
+  disableRecordsByProbe,
+  describeDisable,
+  describeExpiry,
+} from "../utils/disable.js";
 
 const route = useRoute();
 const hostName = ref(route.query.name || "");
@@ -227,6 +244,14 @@ function scheduleOf(probeName) {
  * comme check_mdadm sur une machine sans grappe RAID restait éternellement
  * annoncée comme sur le point de tourner.
  */
+const disableRecords = computed(() =>
+  hasSchedule.value ? disableRecordsByProbe(schedule.value) : {},
+);
+
+function disableRecordOf(probeName) {
+  return disableRecords.value[probeName] || null;
+}
+
 const skippedProbes = computed(
   () => new Set(hasSchedule.value ? schedule.value.SkippedProbes || [] : []),
 );

@@ -208,9 +208,22 @@ export const api = {
    * @param {string} probeName - Nom de la probe
    * @returns {Promise<Object>} L'ordonnancement mis à jour
    */
-  async disableHostProbe(hostname, probeName) {
+  /**
+   * Désactive une probe. La raison et la durée sont facultatives : sans durée
+   * la probe reste désactivée jusqu'à ce que quelqu'un la rallume.
+   *
+   * @param {string} [reason] pourquoi, tel quel
+   * @param {string} [duration] une durée Go, "1h" ou "168h", vide pour aucune
+   */
+  async disableHostProbe(hostname, probeName, reason, duration) {
+    const params = {};
+    if (reason) params.reason = reason;
+    if (duration) params.for = duration;
+
     const response = await apiClient.post(
       `/hosts/${encodeURIComponent(hostname)}/probes/${encodeURIComponent(probeName)}/disable`,
+      null,
+      { params },
     );
     return response.data;
   },
