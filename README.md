@@ -294,6 +294,28 @@ The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the
 
 A probe must already be installed to be acted upon: a name that only exists in `examples/`, or does not exist at all, is refused. A probe installed in **several** interval directories at once is also refused rather than half-moved — resolve it by hand first.
 
+### Managing the probes of a remote host
+
+The same three actions exist for any host a master polls, so the web interface works the same whether you are looking at the master or at one of its remotes:
+
+| Endpoint |
+|---|
+| `GET /api/hosts/:hostname/schedule` |
+| `POST /api/hosts/:hostname/probes/:probe/disable` |
+| `POST /api/hosts/:hostname/probes/:probe/interval?seconds=300` |
+
+The master **forwards** the call to the remote's own API, so **both ends must allow it**:
+
+| `AllowWriteActions` on the master | on the remote | Result |
+|---|---|---|
+| true | true | applied |
+| true | false | **403**, refused by the remote in its own words |
+| false | either | **403**, the master will not forward |
+
+A master that has write actions off performs none and will not act as a jump host onto the fleet either. A remote cannot tell a forwarded call from an administrator running `curl`, so its own flag is the one that actually protects it.
+
+Only hosts the master polls **directly** can be reached: a host sitting behind another wigo, or one pushing to the master, answers **501** with an explanation. Credentials used to reach a remote never appear in the API output.
+
 ### Writing a probe
 
 A probe is an **executable** (any language) that prints a single JSON object to stdout. Required field: **`Status`** (integer, see [Status codes](#status-codes)). Optional: `Message`, `Detail`, `Version`, `Metrics` (for OpenTSDB).

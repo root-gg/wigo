@@ -202,6 +202,21 @@ func moveProbeIn(root string, name string, targetDirectory string) error {
 	return nil
 }
 
+// parseProbeInterval reads a check interval coming from a request and checks it
+// is one we may schedule.
+func parseProbeInterval(seconds string) (int, error) {
+	interval, err := strconv.Atoi(seconds)
+	if err != nil {
+		return 0, fmt.Errorf("invalid interval %q, expected a number of seconds", seconds)
+	}
+
+	if interval < MinProbeInterval || interval > MaxProbeInterval {
+		return 0, fmt.Errorf("interval must be between %d and %d seconds, got %d", MinProbeInterval, MaxProbeInterval, interval)
+	}
+
+	return interval, nil
+}
+
 func scheduleProbeIn(root string, name string, interval int) error {
 	if interval < MinProbeInterval || interval > MaxProbeInterval {
 		return fmt.Errorf("interval must be between %d and %d seconds, got %d", MinProbeInterval, MaxProbeInterval, interval)

@@ -54,6 +54,14 @@
     </template>
 
     <div
+      v-if="scheduleError"
+      class="alert alert-secondary d-flex align-items-center gap-2 mt-4 mb-0 py-2"
+    >
+      <i class="fas fa-fw fa-circle-info"></i>
+      <span>{{ scheduleError }}</span>
+    </div>
+
+    <div
       v-if="disabledCount"
       class="alert alert-secondary d-flex align-items-center gap-2 mt-4 mb-0 py-2"
     >
@@ -77,6 +85,7 @@
         </template>
         <template #badges>
           <ProbeScheduleControl
+            :host-name="hostName"
             :probe-name="probe.Name"
             :schedule="scheduleOf(probe.Name)"
             :editable="canEditSchedule"
@@ -125,6 +134,7 @@ const hostName = ref(route.query.name || "");
 const host = ref(null);
 const probes = ref([]);
 const schedule = ref(null);
+const scheduleError = ref("");
 const loaded = ref(false);
 const counts = ref(emptyCounts());
 
@@ -141,27 +151,25 @@ function emptyCounts() {
 }
 
 /**
- * L'ordonnancement ne concerne que le host qui sert cette interface : les
- * endpoints d'écriture agissent sur lui, pas sur un remote.
+ * Le master relaie la demande au host visé, donc l'ordonnancement décrit bien
+ * ce host-là. On vérifie quand même qu'il se reconnaît sous ce nom.
  */
-const isLocalHost = computed(
+const hasSchedule = computed(
   () => !!schedule.value && schedule.value.Hostname === hostName.value,
 );
 
 const canEditSchedule = computed(
-  () => isLocalHost.value && !!schedule.value?.WriteActionsAllowed,
+  () => hasSchedule.value && !!schedule.value.WriteActionsAllowed,
 );
 
-const readOnlyReason = computed(() => {
-  if (!isLocalHost.value) {
-    return "Changing a remote host from here is not supported yet";
-  }
-  return "Read only: set AllowWriteActions in the [Http] section of the configuration file";
-});
+const readOnlyReason = computed(
+  () =>
+    `Read only: set AllowWriteActions in the [Http] section of the configuration file on ${hostName.value}`,
+);
 
 const scheduleByName = computed(() => {
   const byName = {};
-  if (!isLocalHost.value) return byName;
+  if (!hasSchedule.value) return byName;
 
   // Une probe installée à plusieurs intervalles apparaît une fois par
   // emplacement. On garde la liste : l'API refuse d'agir sur elle, l'interface
@@ -185,7 +193,7 @@ function scheduleOf(probeName) {
 
 /** Probes désactivées : elles n'ont aucun résultat, seul le disque les connaît */
 const disabledProbes = computed(() => {
-  if (!isLocalHost.value) return [];
+  if (!hasSchedule.value) return [];
 
   const withResult = new Set(probes.value.map((probe) => probe.Name));
 
@@ -239,12 +247,16 @@ function onScheduleChanged(updated) {
 
 async function loadSchedule() {
   try {
-    schedule.value = await api.getProbesSchedule();
+    schedule.value = await api.getHostProbesSchedule(hostName.value);
+    scheduleError.value = "";
   } catch (error) {
-    // Un wigo trop ancien n'a pas cet endpoint : la page reste utilisable,
-    // simplement sans les contrôles d'ordonnancement.
+    // Un wigo trop ancien n'a pas cet endpoint, et un host que ce master ne
+    // sonde pas directement n'est pas joignable. La page reste utilisable,
+    // simplement sans les contrôles, et on dit pourquoi.
     schedule.value = null;
-    console.error("Error loading the probes schedule:", error);
+    scheduleError.value =
+      error.response?.data ||
+      "The schedule of this host could not be read from here";
   }
 }
 

@@ -423,9 +423,9 @@ func HttpProbeIntervalHandler(params martini.Params, r *http.Request) (int, stri
 		return 400, "No interval set in url, expected ?seconds=300"
 	}
 
-	interval, err := strconv.Atoi(seconds)
+	interval, err := parseProbeInterval(seconds)
 	if err != nil {
-		return 400, fmt.Sprintf("Invalid interval %q : %s", seconds, err)
+		return 400, err.Error()
 	}
 
 	if err := ScheduleProbe(probeName, interval); err != nil {

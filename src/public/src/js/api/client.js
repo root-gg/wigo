@@ -188,37 +188,43 @@ export const api = {
   },
 
   /**
-   * Récupère l'ordonnancement des probes du host qui sert cette interface :
-   * intervalle de chacune, y compris celles qui sont désactivées et n'ont donc
-   * aucun résultat.
+   * Récupère l'ordonnancement des probes d'un host : intervalle de chacune, y
+   * compris celles qui sont désactivées et n'ont donc aucun résultat. Le master
+   * relaie la demande au host visé, donc l'appel a la même forme qu'il s'agisse
+   * de lui-même ou d'un remote.
+   * @param {string} hostname - Nom du host
    * @returns {Promise<{Hostname: string, WriteActionsAllowed: boolean, Probes: Array}>}
    */
-  async getProbesSchedule() {
-    const response = await apiClient.get("/probes");
+  async getHostProbesSchedule(hostname) {
+    const response = await apiClient.get(
+      `/hosts/${encodeURIComponent(hostname)}/schedule`,
+    );
     return response.data;
   },
 
   /**
    * Désactive une probe : elle n'est plus exécutée du tout
+   * @param {string} hostname - Nom du host
    * @param {string} probeName - Nom de la probe
    * @returns {Promise<Object>} L'ordonnancement mis à jour
    */
-  async disableProbe(probeName) {
+  async disableHostProbe(hostname, probeName) {
     const response = await apiClient.post(
-      `/probes/${encodeURIComponent(probeName)}/disable`,
+      `/hosts/${encodeURIComponent(hostname)}/probes/${encodeURIComponent(probeName)}/disable`,
     );
     return response.data;
   },
 
   /**
    * Change l'intervalle d'une probe, ce qui la réactive si elle était désactivée
+   * @param {string} hostname - Nom du host
    * @param {string} probeName - Nom de la probe
    * @param {number} seconds - Intervalle en secondes
    * @returns {Promise<Object>} L'ordonnancement mis à jour
    */
-  async setProbeInterval(probeName, seconds) {
+  async setHostProbeInterval(hostname, probeName, seconds) {
     const response = await apiClient.post(
-      `/probes/${encodeURIComponent(probeName)}/interval`,
+      `/hosts/${encodeURIComponent(hostname)}/probes/${encodeURIComponent(probeName)}/interval`,
       null,
       { params: { seconds } },
     );

@@ -135,6 +135,10 @@ const MAX_INTERVAL = 86400;
 const INTERVAL_PRESETS = [60, 120, 300, 600, 900, 3600];
 
 const props = defineProps({
+  hostName: {
+    type: String,
+    required: true,
+  },
   probeName: {
     type: String,
     required: true,
@@ -191,7 +195,9 @@ async function run(action) {
 }
 
 function apply(seconds) {
-  return run(() => api.setProbeInterval(props.probeName, seconds));
+  return run(() =>
+    api.setHostProbeInterval(props.hostName, props.probeName, seconds),
+  );
 }
 
 function applyCustom() {
@@ -213,6 +219,6 @@ function applyCustom() {
 }
 
 function disable() {
-  return run(() => api.disableProbe(props.probeName));
+  return run(() => api.disableHostProbe(props.hostName, props.probeName));
 }
 </script>

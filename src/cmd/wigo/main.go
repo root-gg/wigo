@@ -580,6 +580,12 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			continue
 		}
 
+		// Remember where this remote answered, so a call can later be
+		// forwarded to it. Only known once it has replied : the configuration
+		// holds a network address, while the rest of the API works with the
+		// hostname the remote reports for itself, and the two often differ.
+		wigo.RegisterRemoteEndpoint(wigoObj.Uuid, protocol+host, login, password)
+
 		// Send it to main
 		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(wigoObj)
 
@@ -651,6 +657,9 @@ func threadHttp(config *wigo.HttpConfig) {
 	r.Get("/api/probes", wigo.HttpProbesHandler)
 	r.Post("/api/probes/:probe/disable", wigo.HttpProbeDisableHandler)
 	r.Post("/api/probes/:probe/interval", wigo.HttpProbeIntervalHandler)
+	r.Get("/api/hosts/:hostname/schedule", wigo.HttpHostScheduleHandler)
+	r.Post("/api/hosts/:hostname/probes/:probe/disable", wigo.HttpHostProbeDisableHandler)
+	r.Post("/api/hosts/:hostname/probes/:probe/interval", wigo.HttpHostProbeIntervalHandler)
 	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
 	r.Post("/api/authority/hosts/:uuid/allow", wigo.HttpAuthorityAllowHandler)
 	r.Post("/api/authority/hosts/:uuid/revoke", wigo.HttpAuthorityRevokeHandler)
