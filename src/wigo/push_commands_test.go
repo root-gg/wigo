@@ -12,6 +12,40 @@ func resetPushCommands() {
 
 	pushCommands.pending = make(map[string][]ProbeCommand)
 	pushCommands.accepted = make(map[string]bool)
+	pushCommands.schedule = make(map[string][]ProbeLocation)
+}
+
+// A client cannot be asked anything, so a probe it disabled is invisible from
+// the server unless the client reports its whole schedule. Never having
+// reported has to be distinguishable from having no probe at all, otherwise
+// the server would claim a client is fully monitored when it simply predates
+// this.
+func TestClientProbesSchedule(t *testing.T) {
+	resetPushCommands()
+
+	if _, reported := ClientProbesSchedule(commandTestUuid); reported {
+		t.Errorf("A client that never reported must not look like one with no probe")
+	}
+
+	SetClientProbesSchedule(commandTestUuid, []ProbeLocation{
+		{Name: "check_load", Directory: "60", Interval: 60, Enabled: true},
+		{Name: "smart", Directory: DisabledProbesDirectory, Enabled: false},
+	})
+
+	locations, reported := ClientProbesSchedule(commandTestUuid)
+	if !reported {
+		t.Fatalf("The schedule should have been recorded")
+	}
+	if len(locations) != 2 || locations[1].Name != "smart" || locations[1].Enabled {
+		t.Errorf("Got %+v", locations)
+	}
+
+	// A client with genuinely no probe reports an empty list, which is a report
+	SetClientProbesSchedule(commandTestUuid, []ProbeLocation{})
+	locations, reported = ClientProbesSchedule(commandTestUuid)
+	if !reported || len(locations) != 0 {
+		t.Errorf("Got %+v reported=%v, expected an empty but present schedule", locations, reported)
+	}
 }
 
 // A client that never said anything -- including one running a version that

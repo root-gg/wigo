@@ -216,6 +216,9 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 				log.Printf("Push server : Update from %s with uuid %s", req.WigoHostname, req.Uuid)
 				wigo.SetParentHostsInProbes()
 				SetClientAcceptsRemoteControl(req.Uuid, req.AllowRemoteControl)
+				if req.ProbesSchedule != nil {
+					SetClientProbesSchedule(req.Uuid, req.ProbesSchedule)
+				}
 				// TODO this should return an error
 				LocalWigo.AddOrUpdateRemoteWigo(wigo)
 			}
@@ -321,6 +324,11 @@ type UpdateRequest struct {
 	// leaves it false, which is a refusal, so an upgrade of the server alone
 	// never opens a single client.
 	AllowRemoteControl bool
+
+	// Every probe of this client with its interval, the disabled ones included.
+	// A disabled probe produces no result, and results are all that used to
+	// travel, so without this one is simply invisible from the server.
+	ProbesSchedule []ProbeLocation
 }
 
 func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
@@ -336,5 +344,12 @@ func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
 	// rebuilt from json carries none, and what we are reporting here is whether
 	// this machine accepts being driven.
 	this.AllowRemoteControl = GetLocalWigo().GetConfig().PushClient.AllowRemoteControl
+
+	if locations, err := ProbeLocations(); err == nil {
+		this.ProbesSchedule = locations
+	} else {
+		log.Printf("Push client : unable to read the probes directory : %s", err)
+	}
+
 	return
 }

@@ -1,6 +1,7 @@
 package wigo
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -140,8 +141,8 @@ func forwardToRemote(hostname string, method string, path string, query url.Valu
 
 	endpoint, known := remoteEndpointFor(remote.Uuid)
 	if !known {
-		return 501, fmt.Sprintf("%s cannot be reached from here : this wigo does not poll it directly, "+
-			"and it does not push to it either. A host sitting behind another wigo is not reachable.", hostname)
+		return 501, fmt.Sprintf("%s cannot be reached from here : this wigo neither polls it nor receives "+
+			"its pushes. A host sitting behind another wigo is only reachable from the one that polls it.", hostname)
 	}
 
 	target := endpoint.baseUrl + path
@@ -198,7 +199,52 @@ func HttpHostScheduleHandler(params martini.Params) (int, string) {
 		return HttpProbesHandler()
 	}
 
+	if status, body, isPushClient := pushClientSchedule(hostname); isPushClient {
+		return status, body
+	}
+
 	return forwardToRemote(hostname, "GET", "/api/probes", nil)
+}
+
+// pushClientSchedule answers for a host that pushes to us, from what it last
+// reported. We cannot call such a host, so this is the only thing we have.
+func pushClientSchedule(hostname string) (int, string, bool) {
+
+	remote := GetLocalWigo().FindRemoteWigoByHostname(hostname)
+	if remote == nil || GetLocalWigo().push == nil {
+		return 0, "", false
+	}
+
+	// A host we poll is asked directly instead, which is always fresher
+	if _, polled := remoteEndpointFor(remote.Uuid); polled {
+		return 0, "", false
+	}
+
+	if !GetLocalWigo().push.authority.IsAllowed(remote.Uuid) {
+		return 0, "", false
+	}
+
+	locations, reported := ClientProbesSchedule(remote.Uuid)
+	if !reported {
+		return 501, fmt.Sprintf("%s pushes to this host but has not reported its probes schedule. "+
+			"It runs a version that does not send one yet, so a probe it has disabled cannot be seen from here.",
+			hostname), true
+	}
+
+	// What decides whether this host may be changed from here is its own
+	// AllowRemoteControl, not the AllowWriteActions of its local API.
+	schedule := ProbesSchedule{
+		Hostname:            hostname,
+		WriteActionsAllowed: ClientAcceptsRemoteControl(remote.Uuid),
+		Probes:              locations,
+	}
+
+	body, err := json.Marshal(schedule)
+	if err != nil {
+		return 500, fmt.Sprintf("Fail to encode the probes list : %s", err), true
+	}
+
+	return 200, string(body), true
 }
 
 // HttpHostProbeDisableHandler stops a probe from being scheduled on any host of

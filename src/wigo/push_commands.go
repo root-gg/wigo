@@ -44,9 +44,11 @@ var pushCommands = struct {
 	sync.Mutex
 	pending  map[string][]ProbeCommand
 	accepted map[string]bool
+	schedule map[string][]ProbeLocation
 }{
 	pending:  make(map[string][]ProbeCommand),
 	accepted: make(map[string]bool),
+	schedule: make(map[string][]ProbeLocation),
 }
 
 // SetClientAcceptsRemoteControl records what a client said about being driven.
@@ -77,6 +79,34 @@ func ClientAcceptsRemoteControl(uuid string) bool {
 	defer pushCommands.Unlock()
 
 	return pushCommands.accepted[uuid]
+}
+
+// SetClientProbesSchedule records what a client last said about its probes.
+//
+// We cannot ask a client anything, it sits behind a NAT, so a probe it has
+// disabled would be invisible from here : a disabled probe produces no result,
+// and results are all a client used to send. It reports its whole schedule on
+// every update instead.
+func SetClientProbesSchedule(uuid string, locations []ProbeLocation) {
+	if uuid == "" {
+		return
+	}
+
+	pushCommands.Lock()
+	defer pushCommands.Unlock()
+
+	pushCommands.schedule[uuid] = locations
+}
+
+// ClientProbesSchedule returns what a client last reported about its probes,
+// and whether it reported anything at all. A client too old to send it is
+// indistinguishable from one with no probe, so the caller has to know which.
+func ClientProbesSchedule(uuid string) ([]ProbeLocation, bool) {
+	pushCommands.Lock()
+	defer pushCommands.Unlock()
+
+	locations, reported := pushCommands.schedule[uuid]
+	return locations, reported
 }
 
 // QueueProbeCommand records an order for a client to pick up.

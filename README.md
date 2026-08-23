@@ -320,6 +320,8 @@ Credentials used to reach a remote never appear in the API output.
 
 A push client sits behind a NAT and cannot be called, so it asks for its orders on the connection it already keeps open, at every `PushInterval`. The API answers **202** and says so: the change is applied on the next push, not straight away.
 
+A push client also reports its **whole probe schedule** on every update. Without it a probe it has disabled would be invisible from the server: a disabled probe produces no result, and results are all a client used to send. A client too old to report one is listed as unreadable rather than as having nothing disabled.
+
 A client only ever receives an order if it opted in with `AllowRemoteControl` in its own `[PushClient]` section. It reports that on every update, so:
 
 - a client that never said anything — including one running a version that predates this — is treated as refusing, and the server answers **403** naming the option to set;
