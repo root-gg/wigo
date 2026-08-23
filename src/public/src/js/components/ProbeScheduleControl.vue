@@ -107,10 +107,25 @@
              est une ligne flex d'en-tête de carte, où un bloc d'erreur serait
              invisible. Le menu reste ouvert après une action, donc un refus
              venu de l'API se voit aussi. -->
-        <li v-if="error">
+        <li v-if="error || notice">
           <hr class="dropdown-divider" />
-          <div class="px-3 pb-2 text-danger small" role="alert">
-            <i class="fas fa-fw fa-triangle-exclamation"></i> {{ error }}
+          <div
+            :class="[
+              'px-3',
+              'pb-2',
+              'small',
+              error ? 'text-danger' : 'text-body-secondary',
+            ]"
+            role="alert"
+          >
+            <i
+              :class="[
+                'fas',
+                'fa-fw',
+                error ? 'fa-triangle-exclamation' : 'fa-hourglass-half',
+              ]"
+            ></i>
+            {{ error || notice }}
           </div>
         </li>
       </ul>
@@ -163,6 +178,7 @@ const emit = defineEmits(["changed"]);
 
 const busy = ref(false);
 const error = ref("");
+const notice = ref("");
 const custom = ref("");
 
 const ambiguous = computed(
@@ -179,9 +195,19 @@ function formatInterval(seconds) {
 async function run(action) {
   busy.value = true;
   error.value = "";
+  notice.value = "";
   try {
-    const schedule = await action();
-    emit("changed", schedule);
+    const answer = await action();
+
+    // Un host qui pousse vers ce master ne peut pas être appelé : l'ordre est
+    // mis en file et l'API répond une phrase, pas l'ordonnancement. Rien n'a
+    // encore bougé, donc il ne faut surtout pas l'afficher comme appliqué.
+    if (typeof answer !== "object" || answer === null) {
+      notice.value = String(answer);
+      return;
+    }
+
+    emit("changed", answer);
   } catch (requestError) {
     // The API answers with a plain sentence explaining the refusal, which is
     // far more useful than a status code.

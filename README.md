@@ -314,7 +314,21 @@ The master **forwards** the call to the remote's own API, so **both ends must al
 
 A master that has write actions off performs none and will not act as a jump host onto the fleet either. A remote cannot tell a forwarded call from an administrator running `curl`, so its own flag is the one that actually protects it.
 
-Only hosts the master polls **directly** can be reached: a host sitting behind another wigo, or one pushing to the master, answers **501** with an explanation. Credentials used to reach a remote never appear in the API output.
+Credentials used to reach a remote never appear in the API output.
+
+#### Hosts that push instead of being polled
+
+A push client sits behind a NAT and cannot be called, so it asks for its orders on the connection it already keeps open, at every `PushInterval`. The API answers **202** and says so: the change is applied on the next push, not straight away.
+
+A client only ever receives an order if it opted in with `AllowRemoteControl` in its own `[PushClient]` section. It reports that on every update, so:
+
+- a client that never said anything — including one running a version that predates this — is treated as refusing, and the server answers **403** naming the option to set;
+- turning the option off drops whatever was already queued for it, so nothing is applied the day it reconnects for another reason;
+- a client that stops asking does not make the server grow: its queue is capped and the oldest orders are dropped.
+
+Orders go through the same checks as the local API, so a probe name arriving over the wire is validated and an interval bounded exactly as one arriving over HTTP: a server cannot reach outside a client's probes directory.
+
+A host sitting **behind another wigo** is neither polled nor pushing here, and answers **501** with an explanation.
 
 ### Writing a probe
 

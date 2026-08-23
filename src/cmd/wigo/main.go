@@ -724,6 +724,15 @@ func threadPush(config *wigo.PushClientConfig) {
 			if err != nil {
 				pushClient.Close()
 				pushClient = nil
+				continue
+			}
+
+			// Ask for our orders on the connection we already hold : the server
+			// cannot reach us, so nothing is ever pushed at us. Does nothing
+			// unless this client was configured to accept being driven.
+			if err = pushClient.PollCommands(); err != nil {
+				pushClient.Close()
+				pushClient = nil
 			}
 		}
 	}()

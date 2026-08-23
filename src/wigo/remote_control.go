@@ -89,6 +89,46 @@ func forwardWriteToRemote(hostname string, method string, path string, query url
 	return forwardToRemote(hostname, method, path, query)
 }
 
+// queueWriteForPushClient records an order for a host that pushes to us.
+//
+// We cannot call such a host, it sits behind a NAT, so the change is not
+// applied now : it is handed over the next time the client asks for its orders.
+// The answer says so rather than pretending the probe already moved.
+func queueWriteForPushClient(hostname string, command ProbeCommand) (int, string, bool) {
+
+	remote := GetLocalWigo().FindRemoteWigoByHostname(hostname)
+	if remote == nil || GetLocalWigo().push == nil {
+		return 0, "", false
+	}
+
+	// A host we poll is driven over its own API instead, synchronously
+	if _, polled := remoteEndpointFor(remote.Uuid); polled {
+		return 0, "", false
+	}
+
+	if !GetLocalWigo().push.authority.IsAllowed(remote.Uuid) {
+		return 0, "", false
+	}
+
+	if !GetLocalWigo().GetConfig().Http.AllowWriteActions {
+		return 403, "Write actions are disabled on this host, so it will not drive a client either. " +
+			"Set AllowWriteActions in the [Http] section of its configuration file to allow them.", true
+	}
+
+	if !ClientAcceptsRemoteControl(remote.Uuid) {
+		return 403, fmt.Sprintf("%s does not accept being driven from here. "+
+			"Set AllowRemoteControl in the [PushClient] section of its own configuration file, "+
+			"it tells us on its next push.", hostname), true
+	}
+
+	if err := QueueProbeCommand(remote.Uuid, command); err != nil {
+		return 400, err.Error(), true
+	}
+
+	return 202, fmt.Sprintf("Queued for %s. It pushes to this host, so it cannot be called : "+
+		"the change is applied the next time it asks for its orders.", hostname), true
+}
+
 // forwardToRemote passes a call on to the host named hostname and hands its
 // answer back untouched.
 func forwardToRemote(hostname string, method string, path string, query url.Values) (int, string) {
@@ -100,8 +140,8 @@ func forwardToRemote(hostname string, method string, path string, query url.Valu
 
 	endpoint, known := remoteEndpointFor(remote.Uuid)
 	if !known {
-		return 501, fmt.Sprintf("%s cannot be reached from here : this wigo does not poll it directly. "+
-			"Hosts that push to this one, and hosts sitting behind another wigo, are not reachable yet.", hostname)
+		return 501, fmt.Sprintf("%s cannot be reached from here : this wigo does not poll it directly, "+
+			"and it does not push to it either. A host sitting behind another wigo is not reachable.", hostname)
 	}
 
 	target := endpoint.baseUrl + path
@@ -174,6 +214,17 @@ func HttpHostProbeDisableHandler(params martini.Params) (int, string) {
 		return HttpProbeDisableHandler(params)
 	}
 
+	if !IsValidProbeName(params["probe"]) {
+		return 400, fmt.Sprintf("invalid probe name %q", params["probe"])
+	}
+
+	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
+		Action: CommandDisableProbe,
+		Probe:  params["probe"],
+	}); isPushClient {
+		return status, message
+	}
+
 	path, err := probeApiPath(params["probe"], "disable")
 	if err != nil {
 		return 400, err.Error()
@@ -195,18 +246,31 @@ func HttpHostProbeIntervalHandler(params martini.Params, r *http.Request) (int, 
 		return HttpProbeIntervalHandler(params, r)
 	}
 
-	path, err := probeApiPath(params["probe"], "interval")
-	if err != nil {
-		return 400, err.Error()
+	if !IsValidProbeName(params["probe"]) {
+		return 400, fmt.Sprintf("invalid probe name %q", params["probe"])
 	}
 
 	// Checked here too so an obviously wrong value never leaves this host, even
-	// though the remote is the one that decides.
+	// though the host that applies it decides for itself.
 	seconds := r.URL.Query().Get("seconds")
 	if seconds == "" {
 		return 400, "No interval set in url, expected ?seconds=300"
 	}
-	if _, err := parseProbeInterval(seconds); err != nil {
+	interval, err := parseProbeInterval(seconds)
+	if err != nil {
+		return 400, err.Error()
+	}
+
+	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
+		Action:   CommandSetProbeInterval,
+		Probe:    params["probe"],
+		Interval: interval,
+	}); isPushClient {
+		return status, message
+	}
+
+	path, err := probeApiPath(params["probe"], "interval")
+	if err != nil {
 		return 400, err.Error()
 	}
 

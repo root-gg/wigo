@@ -54,8 +54,15 @@ func TestMain(m *testing.M) {
 func setupTestWigo(t *testing.T, group string) *Wigo {
 	t.Helper()
 
+	// Every section a real configuration has : anything reading one that was
+	// left nil here would panic in a test while working perfectly in
+	// production, which says nothing useful.
 	config := new(Config)
 	config.Global = new(GeneralConfig)
+	config.Http = new(HttpConfig)
+	config.PushServer = new(PushServerConfig)
+	config.PushClient = new(PushClientConfig)
+	config.RemoteWigos = new(RemoteWigoConfig)
 	config.Notifications = new(NotificationConfig)
 	config.Notifications.MinLevelToSend = 250
 	config.OpenTSDB = new(OpenTSDBConfig)
