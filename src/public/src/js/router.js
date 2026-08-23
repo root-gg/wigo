@@ -4,6 +4,7 @@ import Group from "./views/Group.vue";
 import Host from "./views/Host.vue";
 import Logs from "./views/Logs.vue";
 import Authority from "./views/Authority.vue";
+import Disabled from "./views/Disabled.vue";
 
 const routes = [
   {
@@ -30,6 +31,11 @@ const routes = [
     path: "/authority",
     name: "authority",
     component: Authority,
+  },
+  {
+    path: "/disabled",
+    name: "disabled",
+    component: Disabled,
   },
 ];
 

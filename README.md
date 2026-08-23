@@ -330,6 +330,12 @@ Orders go through the same checks as the local API, so a probe name arriving ove
 
 A host sitting **behind another wigo** is neither polled nor pushing here, and answers **501** with an explanation.
 
+#### Finding what is turned off
+
+A disabled probe is a blind spot, and on a fleet it is invisible from the host it sits on. The **Disabled probes** page of the web interface lists every one of them across every host the master can read, with a control to bring each back.
+
+It says out loud when a host could not be read, and names it: a list that quietly skipped a host would be worse than no list at all.
+
 ### Writing a probe
 
 A probe is an **executable** (any language) that prints a single JSON object to stdout. Required field: **`Status`** (integer, see [Status codes](#status-codes)). Optional: `Message`, `Detail`, `Version`, `Metrics` (for OpenTSDB).

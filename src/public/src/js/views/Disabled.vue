@@ -1,0 +1,210 @@
+<template>
+  <AppLayout
+    :current-interval="interval"
+    :filterable="false"
+    title-context="Disabled probes"
+    @refresh-settings="handleRefreshSettings"
+  >
+    <template #sidebar>
+      <li class="nav-item sidebar-section-title">
+        <a class="nav-link px-3 py-1" title="Probes disabled across the fleet">
+          <i class="fas fa-fw fa-ban"></i><span>&nbsp;Disabled probes</span>
+        </a>
+      </li>
+
+      <li v-for="host in hostsWithDisabled" :key="host.Name" class="nav-item">
+        <a
+          class="nav-link px-3 py-1 cursor-pointer"
+          :title="`${host.Name} — ${host.Probes.length} disabled`"
+          @click="gotoAnchor(host.Name)"
+        >
+          <i class="fas fa-fw fa-server"></i
+          ><span
+            >&nbsp;{{ host.Name }}
+            <span class="badge bg-secondary ms-1">{{
+              host.Probes.length
+            }}</span>
+          </span>
+        </a>
+      </li>
+    </template>
+
+    <!-- Cette page est un filet de sécurité : si une partie du parc n'a pas
+         répondu, annoncer un total donnerait une fausse impression de
+         complétude. -->
+    <div
+      v-if="unreachable.length"
+      class="alert alert-warning d-flex align-items-start gap-2 mt-4 mb-0 py-2"
+    >
+      <i class="fas fa-fw fa-triangle-exclamation mt-1"></i>
+      <div>
+        <div>
+          The schedule of {{ unreachable.length }}
+          {{ unreachable.length > 1 ? "hosts" : "host" }} could not be read, so
+          this list may be incomplete.
+        </div>
+        <small class="text-body-secondary">
+          {{ unreachable.map((host) => host.Name).join(", ") }}
+        </small>
+      </div>
+    </div>
+
+    <div
+      v-if="loaded && !hostsWithDisabled.length"
+      class="alert alert-success d-flex align-items-center gap-2 mt-4 mb-0 py-2"
+    >
+      <i class="fas fa-fw fa-check"></i>
+      <span>
+        No probe is disabled on any host that could be read. Every check that is
+        installed is running.
+      </span>
+    </div>
+
+    <div
+      v-for="host in hostsWithDisabled"
+      :key="host.Name"
+      :id="host.Name"
+      class="jump"
+    >
+      <StatusCard level="DISABLED">
+        <template #title>
+          <strong>{{ host.Name }}</strong>
+        </template>
+        <template #badges>
+          <span class="badge text-bg-light">
+            {{ host.Probes.length }} disabled
+          </span>
+        </template>
+        <template #body>
+          <!-- Pas de table-responsive ici : son overflow rognerait le menu
+               d'ordonnancement, et deux colonnes n'ont rien a faire deborder. -->
+          <div>
+            <table class="table table-bordered table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Probe</th>
+                  <th class="text-end">Bring it back</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="probe in host.Probes" :key="probe.Name">
+                  <td class="align-middle">
+                    <a
+                      class="cursor-pointer"
+                      :title="`Open ${host.Name}`"
+                      @click="gotoHost(host.Name, probe.Name)"
+                    >
+                      {{ probe.Name }}
+                    </a>
+                  </td>
+                  <td>
+                    <div class="d-flex justify-content-end">
+                      <ProbeScheduleControl
+                        :host-name="host.Name"
+                        :probe-name="probe.Name"
+                        :schedule="probe"
+                        :editable="host.WriteActionsAllowed"
+                        :read-only-reason="`Read only: set AllowWriteActions in the [Http] section of the configuration file on ${host.Name}`"
+                        @changed="load"
+                      />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </StatusCard>
+    </div>
+  </AppLayout>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import api from "../api/client.js";
+import AppLayout from "../components/layout/AppLayout.vue";
+import StatusCard from "../components/StatusCard.vue";
+import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
+import { useRefresh } from "../composables/useRefresh.js";
+
+const router = useRouter();
+const schedules = ref([]);
+const unreachable = ref([]);
+const loaded = ref(false);
+
+const hostsWithDisabled = computed(() =>
+  schedules.value
+    .map((schedule) => ({
+      Name: schedule.Hostname,
+      WriteActionsAllowed: !!schedule.WriteActionsAllowed,
+      Probes: (schedule.Probes || [])
+        .filter((location) => !location.Enabled)
+        .sort((a, b) => a.Name.localeCompare(b.Name)),
+    }))
+    .filter((host) => host.Probes.length > 0)
+    .sort((a, b) => a.Name.localeCompare(b.Name)),
+);
+
+function gotoAnchor(anchor) {
+  const element = document.getElementById(anchor);
+  if (element) {
+    element.scrollIntoView({ behavior: "smooth" });
+  }
+}
+
+function gotoHost(hostName, probeName) {
+  router.push({
+    path: "/host",
+    query: { name: hostName },
+    hash: `#${probeName}`,
+  });
+}
+
+async function load() {
+  try {
+    const hostNames = await api.getHosts();
+
+    // Le master relaie une demande par host : rien n'est agrégé côté serveur,
+    // ce qui évite qu'un seul remote lent bloque toute la page.
+    const answers = await Promise.all(
+      hostNames.map((hostName) =>
+        api
+          .getHostProbesSchedule(hostName)
+          .then((schedule) => ({ hostName, schedule }))
+          .catch(() => ({ hostName, schedule: null })),
+      ),
+    );
+
+    schedules.value = answers
+      .filter((answer) => answer.schedule)
+      .map((answer) => answer.schedule);
+
+    unreachable.value = answers
+      .filter((answer) => !answer.schedule)
+      .map((answer) => ({ Name: answer.hostName }));
+
+    loaded.value = true;
+  } catch (error) {
+    console.error("Error loading the disabled probes:", error);
+  }
+}
+
+const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(
+  load,
+  60,
+);
+
+function handleRefreshSettings(seconds) {
+  setRefreshInterval(seconds);
+}
+
+onMounted(() => {
+  load();
+  startRefresh();
+});
+
+onUnmounted(() => {
+  stopRefresh();
+});
+</script>

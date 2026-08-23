@@ -157,6 +157,15 @@
           </ul>
         </li>
         <li class="nav-item">
+          <router-link
+            class="nav-link"
+            to="/disabled"
+            title="Probes disabled across the fleet"
+          >
+            <i class="fas fa-ban fa-fw"></i>
+          </router-link>
+        </li>
+        <li class="nav-item">
           <router-link class="nav-link" to="/logs" title="View logs">
             <i class="fas fa-list fa-fw"></i>
           </router-link>
