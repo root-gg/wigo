@@ -92,6 +92,7 @@
             :editable="canEditSchedule"
             :read-only-reason="readOnlyReason"
             @changed="onScheduleChanged"
+            @rechecked="load"
           />
         </template>
         <template #body>
@@ -102,8 +103,8 @@
             <i class="fas fa-fw fa-circle-info"></i>
             This probe ran and asked not to be run again, which usually means
             there is nothing for it to check on this host. It is still scheduled
-            every {{ formatInterval(probe.Interval) }} and will be tried again
-            after a restart of wigo.
+            every {{ formatInterval(probe.Interval) }}; recheck it to give it
+            another chance without restarting wigo.
           </p>
 
           <!-- Elle vient d'être activée : le résultat n'arrivera qu'au premier
@@ -321,7 +322,7 @@ function probeBadge(probe) {
 
 function probeTitle(probe) {
   if (probe.Skipped) {
-    return `${probe.Name} - ran and asked not to be run again, nothing for it to check here`;
+    return `${probe.Name} - ran and asked not to be run again, recheck it to try again`;
   }
   if (probe.Pending) {
     return `${probe.Name} - scheduled every ${formatInterval(probe.Interval)}, waiting for its first result`;

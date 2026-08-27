@@ -708,6 +708,22 @@ func (this *Wigo) DisableProbe(probeName string) {
 	this.disabledProbes[probeName] = true
 }
 
+// ClearSkippedProbe puts a probe that asked to be skipped back in the rotation.
+//
+// Until now the only way out was a restart, which the log line said in as many
+// words. Rechecking a probe on demand is that way out : whatever made it bow
+// out may well be fixed, and if it is not it exits 13 again on the spot.
+func (this *Wigo) ClearSkippedProbe(probeName string) {
+	if probeName == "" {
+		return
+	}
+
+	this.disabledProbesLock.Lock()
+	defer this.disabledProbesLock.Unlock()
+
+	delete(this.disabledProbes, probeName)
+}
+
 func (this *Wigo) IsProbeDisabled(probeName string) bool {
 	this.disabledProbesLock.RLock()
 	defer this.disabledProbesLock.RUnlock()

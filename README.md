@@ -286,6 +286,7 @@ Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf
 | `GET /api/probes` | Every probe of this host with its interval, including the disabled ones. Answers `{ "Hostname", "WriteActionsAllowed", "Probes", "SkippedProbes" }`, so a client knows which host it is looking at, whether changing it would be refused, and which probes asked not to be run again. |
 | `POST /api/probes/:probe/disable` | Remove every schedule of the probe. Already disabled is not an error. Takes `?reason=` and `?for=` (a duration, `1h` / `24h` / `168h`). |
 | `POST /api/probes/:probe/interval?seconds=300` | Run the probe every 300 seconds, enabling it if it was disabled. |
+| `POST /api/probes/:probe/run` | Run the probe now, out of band, and answer its fresh result. |
 
 The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the `[Http]` section. They act on the probes directory directly, so the change takes effect on the next cycle without a restart, and it survives one.
 
@@ -329,7 +330,9 @@ The record is **metadata and nothing else**. Whether a probe runs is decided by 
 
 There is no author to record yet: the API is behind a single shared basic auth credential, so `Author` is the login that was used and the address it came from. When a master drives another host, the author it recorded travels with the order and is kept *alongside* who actually connected, not instead of it — it is a claim, not a fact, until F8 lands.
 
-`SkippedProbes` lists the probes that ran, exited with the special code **13** and asked not to be run again — `check_mdadm` on a machine with no raid array is the usual case. They are scheduled and produce no result, which from the outside is indistinguishable from a probe that has never run, so they are named rather than left to be guessed at. A restart clears the list and tries them again.
+`SkippedProbes` lists the probes that ran, exited with the special code **13** and asked not to be run again — `check_mdadm` on a machine with no raid array is the usual case. They are scheduled and produce no result, which from the outside is indistinguishable from a probe that has never run, so they are named rather than left to be guessed at. A restart clears the list, and so does rechecking one: if nothing changed it exits 13 again during that very run and takes itself back out.
+
+`run` exists for the wait after a fix: an hourly probe that just went critical is an hour of not knowing whether the repair worked. The schedule is untouched — the probe runs once and its next scheduled run happens as it would have. A disabled probe is refused, since putting a fresh result on screen for a check that is not happening is the one thing being disabled has to stay visible as. The wait is capped at 30 seconds rather than the probe's usual interval-minus-one, because an HTTP request is held open on it.
 
 A push client also reports its **whole probe schedule** on every update. Without it a probe it has disabled would be invisible from the server: a disabled probe produces no result, and results are all a client used to send. A client too old to report one is listed as unreadable rather than as having nothing disabled.
 

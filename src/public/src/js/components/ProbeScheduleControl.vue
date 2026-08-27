@@ -43,7 +43,7 @@
         data-bs-auto-close="outside"
         aria-expanded="false"
         :disabled="busy"
-        title="Change how often this probe runs"
+        title="Recheck now, or change how often this probe runs"
       >
         <span
           v-if="busy"
@@ -54,6 +54,16 @@
       </button>
 
       <ul class="dropdown-menu dropdown-menu-end">
+        <!-- Après une réparation, attendre le prochain cycle pour savoir si ça
+             a marché est exactement ce qu'on ne veut pas : une sonde horaire,
+             c'est une heure d'incertitude. -->
+        <li v-if="schedule?.Enabled">
+          <a class="dropdown-item" href="#" @click.prevent="recheck">
+            <i class="fas fa-fw fa-rotate-right"></i> Recheck now
+          </a>
+        </li>
+        <li v-if="schedule?.Enabled"><hr class="dropdown-divider" /></li>
+
         <li>
           <h6 class="dropdown-header">Run every</h6>
         </li>
@@ -233,7 +243,10 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["changed"]);
+// Deux événements distincts parce que les réponses n'ont pas la même forme :
+// un changement d'ordonnancement répond l'ordonnancement, un recheck répond le
+// résultat de la sonde. Les confondre écraserait l'un par l'autre.
+const emit = defineEmits(["changed", "rechecked"]);
 
 /**
  * "Jusqu'à ce que quelqu'un la rallume" en premier parce que c'est le cas le
@@ -267,7 +280,7 @@ function formatInterval(seconds) {
   return `${seconds}s`;
 }
 
-async function run(action) {
+async function run(action, event = "changed") {
   busy.value = true;
   error.value = "";
   notice.value = "";
@@ -282,7 +295,7 @@ async function run(action) {
       return;
     }
 
-    emit("changed", answer);
+    emit(event, answer);
   } catch (requestError) {
     // The API answers with a plain sentence explaining the refusal, which is
     // far more useful than a status code.
@@ -317,6 +330,13 @@ function applyCustom() {
 
   custom.value = "";
   return apply(seconds);
+}
+
+function recheck() {
+  return run(
+    () => api.runHostProbe(props.hostName, props.probeName),
+    "rechecked",
+  );
 }
 
 function disable() {

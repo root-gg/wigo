@@ -48,6 +48,12 @@ const maxRemoteAnswerSize = 1 << 20
 
 var remoteControlClient = http.Client{Timeout: 10 * time.Second}
 
+// Running a probe on demand is the one call that legitimately takes a while :
+// the remote runs the probe before answering, and a probe worth rechecking by
+// hand is often one that talks to something slow. Everything else stays on the
+// short timeout, so an unhealthy remote cannot hold a page open.
+var remoteRecheckClient = http.Client{Timeout: (maxOnDemandProbeTimeout + 5) * time.Second}
+
 // RegisterRemoteEndpoint records where a remote answered, so a later call can
 // be forwarded to it. Called by the polling routine once it knows the uuid.
 func RegisterRemoteEndpoint(uuid string, baseUrl string, login string, password string) {
@@ -81,13 +87,17 @@ func remoteEndpointFor(uuid string) (remoteEndpoint, bool) {
 // here expects this wigo not to perform any, and being usable as a jump host to
 // reconfigure the whole fleet would make a lie of that.
 func forwardWriteToRemote(hostname string, method string, path string, query url.Values) (int, string) {
+	return forwardWriteToRemoteWith(&remoteControlClient, hostname, method, path, query)
+}
+
+func forwardWriteToRemoteWith(client *http.Client, hostname string, method string, path string, query url.Values) (int, string) {
 
 	if !GetLocalWigo().GetConfig().Http.AllowWriteActions {
 		return 403, "Write actions are disabled on this host, so it will not forward one either. " +
 			"Set AllowWriteActions in the [Http] section of its configuration file to allow them."
 	}
 
-	return forwardToRemote(hostname, method, path, query)
+	return forwardToRemoteWith(client, hostname, method, path, query)
 }
 
 // queueWriteForPushClient records an order for a host that pushes to us.
@@ -133,6 +143,10 @@ func queueWriteForPushClient(hostname string, command ProbeCommand) (int, string
 // forwardToRemote passes a call on to the host named hostname and hands its
 // answer back untouched.
 func forwardToRemote(hostname string, method string, path string, query url.Values) (int, string) {
+	return forwardToRemoteWith(&remoteControlClient, hostname, method, path, query)
+}
+
+func forwardToRemoteWith(client *http.Client, hostname string, method string, path string, query url.Values) (int, string) {
 
 	remote := GetLocalWigo().FindRemoteWigoByHostname(hostname)
 	if remote == nil {
@@ -159,7 +173,7 @@ func forwardToRemote(hostname string, method string, path string, query url.Valu
 		req.SetBasicAuth(endpoint.login, endpoint.password)
 	}
 
-	resp, err := remoteControlClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 502, fmt.Sprintf("Fail to reach %s : %s", hostname, err)
 	}

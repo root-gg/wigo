@@ -20,6 +20,7 @@ import (
 const (
 	CommandDisableProbe     = "disable"
 	CommandSetProbeInterval = "interval"
+	CommandRunProbe         = "run"
 )
 
 // A client that stops asking for its orders must not make the server grow
@@ -180,6 +181,9 @@ func ApplyProbeCommand(command ProbeCommand) error {
 
 	case CommandDisableProbe:
 		return DisableProbeWithReason(command.Probe, command.Reason, command.Author, command.Duration)
+
+	case CommandRunProbe:
+		return RunProbeNow(command.Probe)
 
 	case CommandSetProbeInterval:
 		if err := ScheduleProbe(command.Probe, command.Interval); err != nil {

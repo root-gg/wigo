@@ -209,6 +209,17 @@ export const api = {
    * @returns {Promise<Object>} L'ordonnancement mis à jour
    */
   /**
+   * Relance une probe immédiatement, hors de son cycle. Répond le résultat
+   * frais, ou une phrase quand le host pousse et que l'ordre a été mis en file.
+   */
+  async runHostProbe(hostname, probeName) {
+    const response = await apiClient.post(
+      `/hosts/${encodeURIComponent(hostname)}/probes/${encodeURIComponent(probeName)}/run`,
+    );
+    return response.data;
+  },
+
+  /**
    * Désactive une probe. La raison et la durée sont facultatives : sans durée
    * la probe reste désactivée jusqu'à ce que quelqu'un la rallume.
    *

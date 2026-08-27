@@ -51,6 +51,11 @@ func main() {
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 	go threadRemoteChecks(config.RemoteWigos.AdvancedList)
 
+	// The binary owns probe execution, so it hands the package a way to run one
+	// on demand. Synchronous : the caller is an http request waiting for the
+	// result it just asked for.
+	wigo.SetProbeRunner(execProbe)
+
 	// Brings back the probes whose disable was meant to be temporary. It is the
 	// only thing that reads that table to act, and it can only ever start a
 	// probe, never stop one.
@@ -234,7 +239,7 @@ func scheduleProbesDirectory(directory string, interval int, stop chan struct{})
 			if wigo.GetLocalWigo().IsProbeDisabled(probeName) {
 				log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName)
 			} else {
-				go execProbe(directory+"/"+probeName, interval)
+				go execProbe(directory+"/"+probeName, interval, interval-1)
 			}
 		}
 
@@ -353,13 +358,15 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 	}
 }
 
-func execProbe(probePath string, interval int) {
+// execProbe runs a probe once and publishes its result.
+//
+// The timeout is passed in rather than derived from the interval : a scheduled
+// run gets the whole interval minus a second, while one an operator asked for
+// is capped, since an http request waits on it.
+func execProbe(probePath string, interval int, timeOut int) {
 
 	// Get probe name
 	probeDirectory, probeName := path.Split(probePath)
-
-	// A probe gets its whole interval minus a second to answer
-	timeOut := interval - 1
 
 	// Create ProbeResult
 	var probeResult *wigo.ProbeResult
@@ -662,9 +669,11 @@ func threadHttp(config *wigo.HttpConfig) {
 	r.Get("/api/probes", wigo.HttpProbesHandler)
 	r.Post("/api/probes/:probe/disable", wigo.HttpProbeDisableHandler)
 	r.Post("/api/probes/:probe/interval", wigo.HttpProbeIntervalHandler)
+	r.Post("/api/probes/:probe/run", wigo.HttpProbeRunHandler)
 	r.Get("/api/hosts/:hostname/schedule", wigo.HttpHostScheduleHandler)
 	r.Post("/api/hosts/:hostname/probes/:probe/disable", wigo.HttpHostProbeDisableHandler)
 	r.Post("/api/hosts/:hostname/probes/:probe/interval", wigo.HttpHostProbeIntervalHandler)
+	r.Post("/api/hosts/:hostname/probes/:probe/run", wigo.HttpHostProbeRunHandler)
 	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
 	r.Post("/api/authority/hosts/:uuid/allow", wigo.HttpAuthorityAllowHandler)
 	r.Post("/api/authority/hosts/:uuid/revoke", wigo.HttpAuthorityRevokeHandler)

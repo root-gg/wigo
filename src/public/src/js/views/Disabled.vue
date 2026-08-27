@@ -135,6 +135,7 @@
                         @changed="
                           (updated) => onChanged(host.Name, probe.Name, updated)
                         "
+                        @rechecked="load"
                       />
                     </div>
                   </td>
