@@ -45,6 +45,9 @@ func TestMain(m *testing.M) {
 	if _, err := conn.Exec(createDisabledProbesTable); err != nil {
 		log.Fatalf("Fail to create the disabled probes table : %s", err)
 	}
+	if _, err := conn.Exec(createSuppressionsTable); err != nil {
+		log.Fatalf("Fail to create the suppressions table : %s", err)
+	}
 	LocalWigo.sqlLiteLock = new(sync.Mutex)
 	LocalWigo.sqlLiteConn = conn
 
@@ -94,6 +97,9 @@ func setupTestWigo(t *testing.T, group string) *Wigo {
 	}
 	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM disabled_probes`); err != nil {
 		t.Fatalf("Fail to clean the disabled probes table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM suppressions`); err != nil {
+		t.Fatalf("Fail to clean the suppressions table : %s", err)
 	}
 	LocalWigo.sqlLiteLock.Unlock()
 

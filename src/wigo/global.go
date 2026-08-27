@@ -218,6 +218,11 @@ Options:
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
 	}
 
+	_, err = LocalWigo.sqlLiteConn.Exec(createSuppressionsTable)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
 	// Configure SQLite busy timeout to handle concurrent access
 	_, err = LocalWigo.sqlLiteConn.Exec("PRAGMA busy_timeout = 5000")
 	if err != nil {
@@ -326,7 +331,10 @@ func (this *Wigo) Down() {
 	this.IsAlive = false
 
 	// Send notification
-	SendNotification(NewNotificationFromMessageForHost(fmt.Sprintf("Host %s DOWN", this.Hostname), this.Hostname, this.GetGroup()))
+	// A host that is gone is as bad as it gets : an ack taken while it was
+	// merely critical does not cover it going away entirely.
+	SendNotification(NewNotificationFromMessageForHost(
+		fmt.Sprintf("Host %s DOWN", this.Hostname), this.Hostname, this.GetGroup()).SetStatus(500))
 
 	// Add a log
 	LocalWigo.AddLog(this, CRITICAL, fmt.Sprintf("Wigo %s DOWN", this.Hostname))
@@ -337,7 +345,9 @@ func (this *Wigo) Up() {
 	this.IsAlive = true
 
 	// Send notification
-	SendNotification(NewNotificationFromMessageForHost(fmt.Sprintf("Host %s UP", this.Hostname), this.Hostname, this.GetGroup()))
+	// Back up, which clears whatever was acknowledged about it being down
+	SendNotification(NewNotificationFromMessageForHost(
+		fmt.Sprintf("Host %s UP", this.Hostname), this.Hostname, this.GetGroup()).SetStatus(100))
 
 	// Add a log
 	LocalWigo.AddLog(this, INFO, fmt.Sprintf("Wigo %s UP", this.Hostname))

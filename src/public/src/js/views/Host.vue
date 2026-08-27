@@ -53,6 +53,29 @@
       </li>
     </template>
 
+    <!-- Le host entier : une panne connue ne doit pas réveiller quelqu'un
+         toutes les cinq minutes pendant qu'elle est traitée. -->
+    <div
+      v-if="host"
+      class="d-flex align-items-center justify-content-between gap-2 mt-4"
+    >
+      <div v-if="hostSuppression" class="small text-body-secondary">
+        <i class="fas fa-fw fa-bell-slash"></i>
+        {{ describeSuppression(hostSuppression) }}
+      </div>
+      <div v-else class="small text-body-secondary">
+        Notifications about this host are on.
+      </div>
+
+      <SuppressionControl
+        :target="hostName"
+        :status="host.GlobalStatus"
+        :suppression="hostSuppression"
+        :editable="canSuppress"
+        @changed="onSuppressionsChanged"
+      />
+    </div>
+
     <div
       v-if="scheduleError"
       class="alert alert-secondary d-flex align-items-center gap-2 mt-4 mb-0 py-2"
@@ -84,6 +107,15 @@
           <strong>{{ probe.Name }}</strong>
         </template>
         <template #badges>
+          <SuppressionControl
+            :target="hostName"
+            :probe-name="probe.Name"
+            :status="probe.Status || 100"
+            :suppression="suppressionOf(probe.Name)"
+            :editable="canSuppress"
+            on-color
+            @changed="onSuppressionsChanged"
+          />
           <ProbeScheduleControl
             :host-name="hostName"
             :probe-name="probe.Name"
@@ -160,6 +192,7 @@ import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
+import SuppressionControl from "../components/SuppressionControl.vue";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";
 import {
@@ -167,6 +200,11 @@ import {
   describeDisable,
   describeExpiry,
 } from "../utils/disable.js";
+import {
+  suppressionIndex,
+  suppressionFor,
+  describeSuppression,
+} from "../utils/suppression.js";
 
 const route = useRoute();
 const hostName = ref(route.query.name || "");
@@ -176,6 +214,7 @@ const schedule = ref(null);
 const scheduleError = ref("");
 const loaded = ref(false);
 const counts = ref(emptyCounts());
+const suppressions = ref({ WriteActionsAllowed: false, Suppressions: [] });
 
 const { matches, matchesWithoutLevel } = useDashboardFilter();
 
@@ -245,6 +284,40 @@ function scheduleOf(probeName) {
  * comme check_mdadm sur une machine sans grappe RAID restait éternellement
  * annoncée comme sur le point de tourner.
  */
+// Les mises en sourdine sont décidées là où partent les notifications, donc
+// sur ce wigo-ci et pas sur le host distant : lui n'en envoie pas.
+const suppressed = computed(() =>
+  suppressionIndex(suppressions.value.Suppressions),
+);
+
+const hostSuppression = computed(() =>
+  suppressionFor(suppressed.value, "host", hostName.value, ""),
+);
+
+function suppressionOf(probeName) {
+  return suppressionFor(suppressed.value, "host", hostName.value, probeName);
+}
+
+// Faire taire est une décision locale : elle ne dépend pas de ce que le host
+// distant autorise, mais de ce que ce wigo-ci autorise.
+const canSuppress = computed(() => !!suppressions.value.WriteActionsAllowed);
+
+function onSuppressionsChanged(updated) {
+  if (updated && Array.isArray(updated.Suppressions)) {
+    suppressions.value = updated;
+  }
+}
+
+async function loadSuppressions() {
+  try {
+    suppressions.value = await api.getSuppressions();
+  } catch (error) {
+    // Un wigo trop ancien n'a pas cet endpoint : pas de sourdine, pas de
+    // contrôle, et le reste de la page marche comme avant.
+    console.warn("Suppressions unavailable:", error.message);
+  }
+}
+
 const disableRecords = computed(() =>
   hasSchedule.value ? disableRecordsByProbe(schedule.value) : {},
 );
@@ -401,7 +474,7 @@ async function load() {
 }
 
 async function loadAll() {
-  await Promise.all([load(), loadSchedule()]);
+  await Promise.all([load(), loadSchedule(), loadSuppressions()]);
 }
 
 const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(

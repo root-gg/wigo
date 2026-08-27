@@ -23,6 +23,10 @@ type Notification struct {
 	Message  string
 	Date     string
 	Summary  string
+
+	// How bad it is, on the probe scale, so a suppression can reason about it.
+	// A host going down defaults to the worst.
+	Status int
 }
 
 type INotification interface {
@@ -31,6 +35,14 @@ type INotification interface {
 	GetSummary() string
 	GetHostname() string
 	GetGroup() string
+
+	// What the notification is about, so an ack or a silence can be narrower
+	// than a whole host. Empty for anything that belongs to no probe.
+	GetProbe() string
+
+	// The status being reported, which is what tells an ack whether the
+	// situation is still the one that was acknowledged.
+	GetStatus() int
 }
 
 type NotificationWigo struct {
@@ -49,6 +61,9 @@ type NotificationProbe struct {
 func NewNotification() (this *Notification) {
 	this = new(Notification)
 	this.Date = time.Now().Format(dateLayout)
+	// Anything that does not say otherwise is treated as bad news, so a message
+	// nobody thought about cannot be swallowed by an ack taken on something else
+	this.Status = 500
 	return
 }
 
@@ -65,7 +80,34 @@ func NewNotificationFromMessageForHost(message string, hostname string, group st
 	return
 }
 
+// SetStatus says how bad the news is, on the probe scale, so an ack can tell
+// whether the situation is still the one that was acknowledged.
+func (this *Notification) SetStatus(status int) *Notification {
+	this.Status = status
+	return this
+}
+
+// SendNotification dispatches a notification unless something says not to.
+//
+// Every notification goes through here, which is what makes one place enough
+// to hold them back. An ack or a silence stops the message and nothing else :
+// the status is still computed, still displayed and still logged, so the only
+// thing lost is the interruption.
 func SendNotification(notification INotification) {
+	hostname := notification.GetHostname()
+	group := notification.GetGroup()
+	probe := notification.GetProbe()
+	status := notification.GetStatus()
+
+	// A situation that changed is not the one anybody acknowledged
+	clearAckOn(hostname, group, probe, status)
+
+	if suppression, held := suppressionFor(hostname, group, probe, status); held {
+		log.Printf("Notification held back by the %s on %s : %s",
+			suppression.Kind, describeSuppressionTarget(suppression), notification.GetMessage())
+		return
+	}
+
 	log.Printf("New notification : %s", notification.GetMessage())
 	Channels.ChanCallbacks <- notification
 }
@@ -131,7 +173,9 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 		}
 
 		if weSend {
-			Channels.ChanCallbacks <- this
+			// Through the same door as everything else : a probe notification
+			// that skipped it would be the one thing an ack could not hold back
+			SendNotification(this)
 		}
 	}
 
@@ -165,6 +209,38 @@ func (this *Notification) GetMessage() string {
 
 func (this *Notification) GetHostname() string {
 	return this.Hostname
+}
+
+// A plain notification is about a host, not a probe, and carries no status of
+// its own : a host going down is as bad as it gets, so an ack taken on it can
+// never be outranked.
+func (this *Notification) GetProbe() string {
+	return ""
+}
+
+func (this *Notification) GetStatus() int {
+	return this.Status
+}
+
+func (this *NotificationProbe) GetProbe() string {
+	if this.NewProbe != nil {
+		return this.NewProbe.Name
+	}
+	if this.OldProbe != nil {
+		return this.OldProbe.Name
+	}
+
+	return ""
+}
+
+func (this *NotificationProbe) GetStatus() int {
+	if this.NewProbe != nil {
+		return this.NewProbe.Status
+	}
+
+	// The probe is gone. Nothing worse can be said about it, so an ack on
+	// whatever it was doing does not cover its disappearance.
+	return 500
 }
 
 func (this *Notification) GetGroup() string {

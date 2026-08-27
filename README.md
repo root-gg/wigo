@@ -296,6 +296,31 @@ A probe must be installed to be acted upon: a name that exists nowhere under `pr
 
 A probe scheduled from **several** directories at once runs several times per cycle. Asking for an interval means asking for it to run every so often — once — so the extra symlinks are removed and the probe ends up scheduled exactly once. Each removal is logged with the symlink it pointed at. Moving one and leaving the others would keep the probe running from them, which is the very state being corrected.
 
+### Acknowledging and silencing
+
+Stopping the notifications about something without stopping to watch it. Not the same as disabling a probe: a suppressed check keeps running, keeps being displayed and keeps its history — only the message stops. Reaching for disable when you meant "stop telling me for two hours" is how a fleet ends up with blind spots nobody remembers creating.
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/suppressions` | What is currently held back, and whether this host allows changing it. |
+| `POST /api/hosts/:h/ack` | Acknowledge the current state of a host, or of one probe with `?probe=`. |
+| `POST /api/hosts/:h/silence?for=2h` | Hold back notifications about a host, or one probe, for a while. |
+| `POST /api/hosts/:h/unsuppress` | Notify again. |
+| `POST /api/groups/:g/silence?for=2h` | The same for a whole group. |
+| `POST /api/groups/:g/unsuppress` | |
+
+All of them take `?reason=`, and the `POST` endpoints return **403** unless `AllowWriteActions` is set.
+
+**An ack says "I know, I am on it".** It has no end date, because nobody knows when the fix will land. It records the status it was taken at, and **anything worse gets through**: acknowledging a WARNING must not swallow its turn to CRITICAL, since that is not what anyone acknowledged. It clears itself when the thing recovers, and when it gets worse — leaving one behind would silently hold back the next problem.
+
+**A silence is a window**, and it must have one: `?for=` is required, between a minute and a year. A silence with no end is an unmonitored host with extra steps.
+
+A group cannot be acknowledged — forty hosts have no single status to say "I am on it" about. Silencing one is fine, since that claims nothing about state.
+
+The most specific suppression wins: one on a probe beats one on its host, which beats one on its group.
+
+These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
+
 ### Managing the probes of a remote host
 
 The same three actions exist for any host a master polls, so the web interface works the same whether you are looking at the master or at one of its remotes:

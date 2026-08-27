@@ -674,6 +674,13 @@ func threadHttp(config *wigo.HttpConfig) {
 	r.Post("/api/hosts/:hostname/probes/:probe/disable", wigo.HttpHostProbeDisableHandler)
 	r.Post("/api/hosts/:hostname/probes/:probe/interval", wigo.HttpHostProbeIntervalHandler)
 	r.Post("/api/hosts/:hostname/probes/:probe/run", wigo.HttpHostProbeRunHandler)
+
+	r.Get("/api/suppressions", wigo.HttpSuppressionsHandler)
+	r.Post("/api/hosts/:hostname/ack", wigo.HttpHostAckHandler)
+	r.Post("/api/hosts/:hostname/silence", wigo.HttpHostSilenceHandler)
+	r.Post("/api/hosts/:hostname/unsuppress", wigo.HttpHostUnsuppressHandler)
+	r.Post("/api/groups/:group/silence", wigo.HttpGroupSilenceHandler)
+	r.Post("/api/groups/:group/unsuppress", wigo.HttpGroupUnsuppressHandler)
 	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
 	r.Post("/api/authority/hosts/:uuid/allow", wigo.HttpAuthorityAllowHandler)
 	r.Post("/api/authority/hosts/:uuid/revoke", wigo.HttpAuthorityRevokeHandler)

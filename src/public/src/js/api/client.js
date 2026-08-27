@@ -13,7 +13,18 @@ const apiClient = axios.create({
 /**
  * Service API pour remplacer Restangular
  */
-export const api = {
+export /** Les paramètres vides ne partent pas : l'API distingue absent de vide */
+async function postSuppression(path, params) {
+  const query = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query[key] = value;
+  }
+
+  const response = await apiClient.post(path, null, { params: query });
+  return response.data;
+}
+
+const api = {
   /**
    * Récupère la liste des groupes
    * @returns {Promise<Array<string>>}
@@ -208,6 +219,59 @@ export const api = {
    * @param {string} probeName - Nom de la probe
    * @returns {Promise<Object>} L'ordonnancement mis à jour
    */
+  /** Ce qui est actuellement mis en sourdine, tous scopes confondus */
+  async getSuppressions() {
+    const response = await apiClient.get("/suppressions");
+    return response.data;
+  },
+
+  /**
+   * Acquitte l'état courant d'un host, ou d'une de ses probes.
+   *
+   * L'ack ne porte que sur l'état au moment où il est pris : une aggravation
+   * repasse au travers, et un retour à la normale l'efface.
+   */
+  async ackHost(hostname, probeName, reason) {
+    return postSuppression(`/hosts/${encodeURIComponent(hostname)}/ack`, {
+      probe: probeName,
+      reason,
+    });
+  },
+
+  /** Fait taire un host, ou une de ses probes, pendant une durée donnée */
+  async silenceHost(hostname, probeName, duration, reason) {
+    return postSuppression(`/hosts/${encodeURIComponent(hostname)}/silence`, {
+      probe: probeName,
+      for: duration,
+      reason,
+    });
+  },
+
+  /** Fait taire tout un groupe */
+  async silenceGroup(groupName, duration, reason) {
+    return postSuppression(`/groups/${encodeURIComponent(groupName)}/silence`, {
+      for: duration,
+      reason,
+    });
+  },
+
+  /** Remet les notifications */
+  async unsuppressHost(hostname, probeName) {
+    return postSuppression(
+      `/hosts/${encodeURIComponent(hostname)}/unsuppress`,
+      {
+        probe: probeName,
+      },
+    );
+  },
+
+  async unsuppressGroup(groupName) {
+    return postSuppression(
+      `/groups/${encodeURIComponent(groupName)}/unsuppress`,
+      {},
+    );
+  },
+
   /**
    * Relance une probe immédiatement, hors de son cycle. Répond le résultat
    * frais, ou une phrase quand le host pousse et que l'ordre a été mis en file.
