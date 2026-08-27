@@ -55,6 +55,10 @@ type NotificationProbe struct {
 	OldProbe          *ProbeResult
 	NewProbe          *ProbeResult
 	HostProbesInError []string
+
+	// How steady the probe is. Not serialised : it is about the notification,
+	// not about the probe result being reported.
+	flap FlapState
 }
 
 // Constructors
@@ -130,6 +134,10 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 	} else if oldProbe != nil && newProbe == nil {
 		this.Hostname = oldProbe.GetHost().GetParentWigo().Hostname
 		this.Group = oldProbe.GetHost().Group
+
+		// It is gone : keeping its history would have it come back flapping for
+		// changes it made in a previous life.
+		forgetFlapping(this.Hostname, oldProbe.Name)
 		this.Message = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, this.Hostname, oldProbe.Status)
 
 		this.Summary += fmt.Sprintf("Probe %s has been deleted on host %s : \n\n", oldProbe.Name, this.Hostname)
@@ -152,6 +160,15 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 
 			// Add Log
 			LocalWigo.AddLog(newProbe, INFO, fmt.Sprintf("Probe %s switched from %d to %d : %s", newProbe.Name, oldProbe.Status, newProbe.Status, newProbe.Message))
+
+			// Every change counts towards how steady this probe is, including
+			// the ones too mild to be notified about : a probe bouncing between
+			// OK and WARNING is exactly as unsteady as one bouncing between OK
+			// and CRITICAL, it just shouts less about it.
+			this.flap = RecordStatusChange(this.Hostname, newProbe.Name)
+			if this.flap.JustSettled {
+				logSettled(this.Hostname, newProbe.Name, this.flap)
+			}
 		}
 	}
 
@@ -173,6 +190,25 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 		}
 
 		if weSend {
+			// A probe that keeps changing its mind is called out once and then
+			// left alone. Said before the send, because the flapping notice is
+			// the last thing heard about it until it settles.
+			if this.flap.JustStarted {
+				log.Printf("%s", describeFlapping(this.Hostname, this.GetProbe(), this.flap))
+				LocalWigo.AddLog(newProbe, WARNING, describeFlapping(this.Hostname, this.GetProbe(), this.flap))
+
+				SendNotification(NewNotificationFromMessageForHost(
+					describeFlapping(this.Hostname, this.GetProbe(), this.flap),
+					this.Hostname, this.Group).SetStatus(newProbe.Status))
+				return
+			}
+
+			if this.flap.Flapping {
+				log.Printf("Notification held back, probe %s on host %s is still flapping : %s",
+					this.GetProbe(), this.Hostname, this.Message)
+				return
+			}
+
 			// Through the same door as everything else : a probe notification
 			// that skipped it would be the one thing an ack could not hold back
 			SendNotification(this)

@@ -107,6 +107,15 @@
           <strong>{{ probe.Name }}</strong>
         </template>
         <template #badges>
+          <!-- Une sonde qu'on a cessé d'écouter doit le dire : muette et
+               surveillée se ressemblent trop de loin. -->
+          <span
+            v-if="isFlapping(probe.Name)"
+            class="badge text-bg-warning"
+            title="This probe changed status so often that it was called out once and left alone. Notifications resume when it settles."
+          >
+            <i class="fas fa-fw fa-wave-square"></i> flapping
+          </span>
           <SuppressionControl
             :target="hostName"
             :probe-name="probe.Name"
@@ -214,7 +223,11 @@ const schedule = ref(null);
 const scheduleError = ref("");
 const loaded = ref(false);
 const counts = ref(emptyCounts());
-const suppressions = ref({ WriteActionsAllowed: false, Suppressions: [] });
+const suppressions = ref({
+  WriteActionsAllowed: false,
+  Suppressions: [],
+  Flapping: [],
+});
 
 const { matches, matchesWithoutLevel } = useDashboardFilter();
 
@@ -293,6 +306,16 @@ const suppressed = computed(() =>
 const hostSuppression = computed(() =>
   suppressionFor(suppressed.value, "host", hostName.value, ""),
 );
+
+// Le flapping n'est pas une décision de quelqu'un, mais l'effet est le même :
+// des notifications retenues. C'est le même endpoint qui le dit.
+const flappingProbes = computed(
+  () => new Set(suppressions.value.Flapping || []),
+);
+
+function isFlapping(probeName) {
+  return flappingProbes.value.has(`${hostName.value}/${probeName}`);
+}
 
 function suppressionOf(probeName) {
   return suppressionFor(suppressed.value, "host", hostName.value, probeName);

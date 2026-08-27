@@ -23,6 +23,11 @@ import (
 type SuppressionList struct {
 	WriteActionsAllowed bool
 	Suppressions        []Suppression
+
+	// Probes that changed status so often they were called out once and then
+	// left alone. Nobody decided this, wigo did, but the effect is the same --
+	// notifications held back -- so it belongs on the same page. As "host/probe".
+	Flapping []string
 }
 
 // HttpSuppressionsHandler lists what is currently held back.
@@ -31,6 +36,7 @@ func HttpSuppressionsHandler() (int, string) {
 	body, err := json.Marshal(SuppressionList{
 		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions,
 		Suppressions:        Suppressions(),
+		Flapping:            FlappingProbes(),
 	})
 	if err != nil {
 		return 500, fmt.Sprintf("Fail to encode the suppressions : %s", err)

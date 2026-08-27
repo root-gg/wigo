@@ -107,6 +107,9 @@ func NewConfig(configFile string) (this *Config) {
 
 	this.Notifications.OnHostChange = false
 	this.Notifications.OnProbeChange = false
+	this.Notifications.FlapDetection = true
+	this.Notifications.FlapWindow = defaultFlapWindow
+	this.Notifications.FlapThreshold = defaultFlapThreshold
 
 	this.Notifications.HttpEnabled = 0
 	this.Notifications.HttpUrl = ""
@@ -261,6 +264,15 @@ type NotificationConfig struct {
 
 	OnHostChange  bool
 	OnProbeChange bool
+
+	// A probe that keeps changing status buries the real incident of the
+	// evening under fifty messages. Once it has changed FlapThreshold times
+	// inside FlapWindow seconds it is called out once and then goes quiet
+	// until it settles. On by default : a monitoring tool that spams on flap
+	// is not doing its job, and the first transitions are notified anyway.
+	FlapDetection bool
+	FlapWindow    int
+	FlapThreshold int
 
 	HttpEnabled int
 	HttpUrl     string

@@ -321,6 +321,16 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### Flap detection
+
+A probe oscillating OK to CRITICAL and back every minute sends two notifications a minute, all night. None of them is wrong, and together they are worse than useless: the real incident of the evening ends up buried under fifty messages about a link that keeps renegotiating.
+
+Once a probe has changed status `FlapThreshold` times inside `FlapWindow` seconds it is **called out once** and then left alone until it settles. Defaults: 5 changes in an hour, on. Set `FlapDetection = false` in `[Notifications]` to turn it off.
+
+Nothing is hidden. The probe keeps running, its status keeps being computed and displayed, and the early transitions are notified normally — the threshold is only reached after several of them, so nobody ever learns about a problem for the first time from a flapping notice. `GET /api/suppressions` lists what is currently flapping, and the interface badges it.
+
+Settling takes more than crossing back over the threshold: a probe is called steady again once it drops to *half* of it. Without that gap a probe sitting exactly on the boundary would flap in and out of the flapping state itself, and every crossing would be worth a notification.
+
 ### Managing the probes of a remote host
 
 The same three actions exist for any host a master polls, so the web interface works the same whether you are looking at the master or at one of its remotes:
