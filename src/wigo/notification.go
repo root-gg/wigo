@@ -27,6 +27,14 @@ type Notification struct {
 	// How bad it is, on the probe scale, so a suppression can reason about it.
 	// A host going down defaults to the worst.
 	Status int
+
+	// The probe this is about, empty when it belongs to none. A repeat about a
+	// probe has to carry it, or an ack on that probe could not hold it back.
+	Probe string
+
+	// Set on a repeat about a problem left unattended long enough, which sends
+	// it to the apprise targets marked Escalation as well.
+	Escalated bool
 }
 
 type INotification interface {
@@ -110,6 +118,31 @@ func SendNotification(notification INotification) {
 		log.Printf("Notification held back by the %s on %s : %s",
 			suppression.Kind, describeSuppressionTarget(suppression), notification.GetMessage())
 		return
+	}
+
+	// A probe that keeps changing its mind was called out once and left alone.
+	// Checked here rather than where the change is recorded, so a repeat about
+	// it is held back too : saying the same unsteady thing every ten minutes is
+	// the same noise, more slowly.
+	if probe != "" && FlapStateOf(hostname, probe).Flapping {
+		log.Printf("Notification held back, probe %s on host %s is flapping : %s",
+			probe, hostname, notification.GetMessage())
+		return
+	}
+
+	// Held, not dropped : nothing is recorded as sent, so the repeat loop says
+	// it as soon as the window closes.
+	if heldByQuietHours(status) {
+		logQuietHours(notification)
+		return
+	}
+
+	// Back to normal, so the next problem starts its own clock instead of
+	// inheriting how long this one had been open.
+	if status <= 100 {
+		ForgetNotified(hostname, probe)
+	} else {
+		recordNotified(hostname, probe, time.Now().Unix())
 	}
 
 	log.Printf("New notification : %s", notification.GetMessage())
@@ -203,12 +236,6 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 				return
 			}
 
-			if this.flap.Flapping {
-				log.Printf("Notification held back, probe %s on host %s is still flapping : %s",
-					this.GetProbe(), this.Hostname, this.Message)
-				return
-			}
-
 			// Through the same door as everything else : a probe notification
 			// that skipped it would be the one thing an ack could not hold back
 			SendNotification(this)
@@ -247,11 +274,11 @@ func (this *Notification) GetHostname() string {
 	return this.Hostname
 }
 
-// A plain notification is about a host, not a probe, and carries no status of
-// its own : a host going down is as bad as it gets, so an ack taken on it can
-// never be outranked.
+// A plain notification is usually about a host rather than a probe, but a
+// repeat carries the probe it is repeating about : without it, acknowledging
+// that probe would silence the change and not the repeats.
 func (this *Notification) GetProbe() string {
-	return ""
+	return this.Probe
 }
 
 func (this *Notification) GetStatus() int {
@@ -393,6 +420,16 @@ func CallbackHttp(json string) (e error) {
 	return nil
 }
 
+// notificationIsEscalated reports whether this one also goes to the people who
+// are woken second.
+func notificationIsEscalated(notification INotification) bool {
+	if plain, ok := notification.(*Notification); ok {
+		return plain.Escalated
+	}
+
+	return false
+}
+
 func SendApprise(notification INotification) {
 
 	log.Printf("We're gonna launch apprise notif...")
@@ -416,7 +453,7 @@ func SendApprise(notification INotification) {
 	group := notification.GetGroup()
 
 	// Keep only the urls matching the host/group of this notification
-	appriseUrls := config.GetAppriseUrls(hostname, group)
+	appriseUrls := config.GetAppriseUrls(hostname, group, notificationIsEscalated(notification))
 	if len(appriseUrls) == 0 {
 		log.Printf("Apprise : no target matching host \"%s\" (group \"%s\"), notification not sent", hostname, group)
 		return

@@ -321,6 +321,23 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### Repeating, escalating and quiet hours
+
+Notifications fire on a status **change**. A probe that goes critical at 3am and stays critical produces exactly one message, at 3am, and then six hours of silence that look exactly like six hours of everything being fine.
+
+| Option | |
+|---|---|
+| `RenotifyInterval` | Say it again this often, in seconds, while the problem lasts. `0` keeps the old behaviour. |
+| `EscalateAfter` | After this long unattended, also notify the apprise targets marked `Escalation = true`. |
+| `QuietHoursFrom` / `QuietHoursTo` | The window nobody wants to be woken in, as `"22:00"` / `"08:00"`. |
+| `QuietHoursMinLevelToSend` | What gets through it anyway. |
+
+Repeats go through the same door as everything else, so **acknowledging something is how you tell it to stop repeating itself** — as is silencing it, and a flapping probe is not repeated about either.
+
+**Quiet hours delay, they do not drop.** A notification held there is not recorded as sent, so the repeat loop says it as soon as the window closes. That needs `RenotifyInterval` to be set; without it, quiet hours would lose the message, which is not something a monitoring tool should do.
+
+Escalation counts from when the problem appeared, not from the last repeat, and a recovery forgets it — the next problem starts its own clock instead of inheriting one. Escalation targets are left out of the normal path: the point of being second in line is not to be woken first.
+
 ### Flap detection
 
 A probe oscillating OK to CRITICAL and back every minute sends two notifications a minute, all night. None of them is wrong, and together they are worse than useless: the real incident of the evening ends up buried under fifty messages about a link that keeps renegotiating.

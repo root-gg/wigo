@@ -61,6 +61,10 @@ func main() {
 	// probe, never stop one.
 	wigo.StartDisabledProbesExpiry()
 
+	// Says again what is still wrong. A problem that broke at 3am and is still
+	// broken at 9am produced exactly one message without this.
+	wigo.StartRenotify()
+
 	if config.Http.Enabled {
 		go threadHttp(config.Http)
 	}

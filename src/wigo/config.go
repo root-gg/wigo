@@ -110,6 +110,11 @@ func NewConfig(configFile string) (this *Config) {
 	this.Notifications.FlapDetection = true
 	this.Notifications.FlapWindow = defaultFlapWindow
 	this.Notifications.FlapThreshold = defaultFlapThreshold
+	this.Notifications.RenotifyInterval = 0
+	this.Notifications.EscalateAfter = 0
+	this.Notifications.QuietHoursFrom = ""
+	this.Notifications.QuietHoursTo = ""
+	this.Notifications.QuietHoursMinLevelToSend = 0
 
 	this.Notifications.HttpEnabled = 0
 	this.Notifications.HttpUrl = ""
@@ -274,6 +279,24 @@ type NotificationConfig struct {
 	FlapWindow    int
 	FlapThreshold int
 
+	// A problem that is still there is said again this often, in seconds. Zero
+	// keeps the old behaviour : one message when it breaks, one when it is
+	// fixed, and silence in between that looks exactly like everything being
+	// fine.
+	RenotifyInterval int
+
+	// After this many seconds unattended, a problem also goes to the apprise
+	// targets marked Escalation. Zero never escalates.
+	EscalateAfter int
+
+	// The window nobody wants to be woken in, as "22:00" and "08:00". Nothing
+	// is dropped : a notification held here is not recorded as sent, so the
+	// repeat loop says it as soon as the window closes. Anything at or above
+	// QuietHoursMinLevelToSend gets through anyway.
+	QuietHoursFrom           string
+	QuietHoursTo             string
+	QuietHoursMinLevelToSend int
+
 	HttpEnabled int
 	HttpUrl     string
 
@@ -297,6 +320,10 @@ type AppriseTargetConfig struct {
 	Urls   []string
 	Groups []string
 	Hosts  []string
+
+	// Only notified once a problem has gone unattended for EscalateAfter
+	// seconds. The people you wake up second.
+	Escalation bool
 }
 
 // GetName returns a printable name for this target, falling back on its
@@ -357,7 +384,7 @@ func (this *AppriseUrl) Origin() string {
 // GetAppriseUrls returns the deduplicated list of apprise urls to notify for a
 // given host/group. The plain AppriseUrls list is always included as it has no
 // filter.
-func (this *NotificationConfig) GetAppriseUrls(hostname string, group string) (urls []AppriseUrl) {
+func (this *NotificationConfig) GetAppriseUrls(hostname string, group string, escalated bool) (urls []AppriseUrl) {
 
 	seen := make(map[string]bool)
 
@@ -374,6 +401,11 @@ func (this *NotificationConfig) GetAppriseUrls(hostname string, group string) (u
 	appendUrls(this.AppriseUrls, "")
 
 	for i := range this.AppriseTargets {
+		// An escalation target is deliberately left out of the normal path :
+		// the whole point of being second in line is not to be woken first.
+		if this.AppriseTargets[i].Escalation && !escalated {
+			continue
+		}
 		if this.AppriseTargets[i].Matches(hostname, group) {
 			appendUrls(this.AppriseTargets[i].Urls, this.AppriseTargets[i].GetName(i))
 		}
