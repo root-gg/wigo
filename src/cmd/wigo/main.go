@@ -679,6 +679,9 @@ func threadHttp(config *wigo.HttpConfig) {
 	r.Post("/api/hosts/:hostname/probes/:probe/interval", wigo.HttpHostProbeIntervalHandler)
 	r.Post("/api/hosts/:hostname/probes/:probe/run", wigo.HttpHostProbeRunHandler)
 
+	// Outside /api on purpose : /metrics is where every scraper looks
+	r.Get("/metrics", wigo.HttpMetricsHandler)
+
 	r.Get("/api/suppressions", wigo.HttpSuppressionsHandler)
 	r.Post("/api/hosts/:hostname/ack", wigo.HttpHostAckHandler)
 	r.Post("/api/hosts/:hostname/silence", wigo.HttpHostSilenceHandler)

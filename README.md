@@ -321,6 +321,26 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### Prometheus
+
+`GET /metrics` exposes the **whole tree** in the Prometheus exposition format. A master already gathers its remotes, so scraping the master gets the fleet and scraping a standalone wigo gets itself — there is no separate exporter to deploy and nothing to keep in step with the topology.
+
+| Metric | |
+|---|---|
+| `wigo_up` | 1 when scraped. |
+| `wigo_host_up{host,group}` | Whether the host is reachable and reporting. A polled remote goes to 0 after `AliveTimeout`. |
+| `wigo_host_status{host,group}` | Worst status of its probes. |
+| `wigo_probe_status{host,group,probe}` | 100 is OK, higher is worse, below 100 is an error. The raw value, so a rule can draw its own line. |
+| `wigo_probe_last_run_timestamp_seconds{...}` | A value that stops moving is a probe that stopped running. |
+| `wigo_probe_interval_seconds{...}` | |
+| `wigo_probe_metric{host,group,probe,tag_*}` | **What the probe itself measured.** Its own tags become `tag_` labels. |
+| `wigo_probe_flapping{...}` | 1 when a probe's notifications are held back for changing too often. |
+| `wigo_notifications_suppressed{scope,target,probe,kind}` | One per ack or silence currently in force. |
+
+The last two are there so you can alert on your own alerting: an ack nobody ever lifted and a probe flapping for a week are both monitoring that has quietly stopped reaching anyone, and neither shows up in a status.
+
+`/metrics` sits behind the same HTTP basic auth as the rest, so give Prometheus a `basic_auth` block when `Login` is set.
+
 ### Repeating, escalating and quiet hours
 
 Notifications fire on a status **change**. A probe that goes critical at 3am and stays critical produces exactly one message, at 3am, and then six hours of silence that look exactly like six hours of everything being fine.
