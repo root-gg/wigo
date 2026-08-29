@@ -1,0 +1,206 @@
+#!/usr/bin/perl
+
+# Containers fail quietly. A crash loop looks like a running container from the
+# outside -- it is up, briefly, over and over -- and a failing health check is
+# recorded by the engine and told to nobody.
+#
+# Works against podman too : set "command" to podman, the output asked for here
+# is the same. That is one probe rather than two nearly identical ones, and it
+# means the podman path is the same tested code.
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    # docker, or podman
+    'command'  => "docker",
+
+    # Containers that must exist and be running. A name here that is stopped,
+    # or gone entirely, is a problem.
+    #
+    # Left empty, only the unambiguous failures are reported : a container that
+    # is merely stopped may well have been stopped on purpose, and this probe
+    # cannot know. A crash loop or a failing health check needs no such
+    # judgement.
+    'expected' => [],
+
+    # Names to say nothing about, whatever they do.
+    'ignore'   => [],
+
+    'status'   => 300,
+
+    # The engine can be wedged, and asking it then never returns.
+    'timeout'  => 10,
+};
+
+init( config => $conf );
+
+my %ignored = map { $_ => 1 } @{ config->{'ignore'} || [] };
+my @expected = @{ config->{'expected'} || [] };
+
+my ( $containers, $error ) = list_containers();
+
+if ( defined $error )
+{
+    # Not being able to ask is not the same as having asked and found nothing
+    # wrong. It says nothing about the containers, so it is the probe failing.
+    status  500;
+    message sprintf( "Cannot ask %s : %s", config->{'command'}, $error );
+    output 1;
+}
+
+# Ignored means not spoken about at all, counts included : saying "9 containers,
+# 6 running" of a machine where three were deliberately silenced invites the
+# reader to work out that three are down.
+my @considered = grep { !$ignored{ $_->{'name'} } } @$containers;
+
+my @restarting = ();
+my @unhealthy  = ();
+my @down       = ();
+my @missing    = ();
+my $running    = 0;
+
+foreach my $container (@considered)
+{
+    $running++ if $container->{'state'} eq "running";
+
+    detail->{ $container->{'name'} } = {
+        'state'  => $container->{'state'},
+        'status' => $container->{'status'},
+    };
+
+    # A container the engine keeps starting again is failing, and from outside
+    # it looks like one that is up.
+    if ( $container->{'state'} eq "restarting" )
+    {
+        push @restarting, $container->{'name'};
+        next;
+    }
+
+    if ( $container->{'health'} && $container->{'health'} eq "unhealthy" )
+    {
+        push @unhealthy, $container->{'name'};
+    }
+}
+
+# What was asked for by name, which is the only way to know that a stopped
+# container is wrong rather than deliberate.
+my %seen = map { $_->{'name'} => $_ } @considered;
+
+foreach my $name (@expected)
+{
+    next if $ignored{$name};
+
+    my $container = $seen{$name};
+
+    if ( !$container )
+    {
+        push @missing, $name;
+        detail->{$name} = { 'state' => "absent" };
+        next;
+    }
+
+    next if $container->{'state'} eq "running" || $container->{'state'} eq "restarting";
+
+    push @down, sprintf( "%s (%s)", $name, $container->{'state'} );
+}
+
+detail->{'_summary'} = {
+    'containers' => scalar(@considered),
+    'running'    => $running,
+};
+
+add_metric { "Tags" => { 'metric' => 'containers' }, "Value" => scalar(@considered) };
+add_metric { "Tags" => { 'metric' => 'running' },    "Value" => $running };
+
+my @said = ();
+push @said, sprintf( "restarting : %s", join( ", ", @restarting ) ) if @restarting;
+push @said, sprintf( "unhealthy : %s",  join( ", ", @unhealthy ) )  if @unhealthy;
+push @said, sprintf( "not running : %s", join( ", ", @down ) )      if @down;
+push @said, sprintf( "absent : %s",     join( ", ", @missing ) )    if @missing;
+
+if (@said)
+{
+    status  config->{'status'};
+    message join( " ; ", @said );
+}
+else
+{
+    status 100;
+    message sprintf( "%d containers, %d running", scalar(@considered), $running );
+}
+
+output 0;
+
+###
+# Every container the engine knows about, running or not.
+###
+sub list_containers
+{
+    my $command = config->{'command'};
+
+    # An engine that is wedged answers nothing at all, and this probe would then
+    # hold its slot until the scheduler kills it.
+    my $output;
+    eval {
+        local $SIG{"ALRM"} = sub { die "timed out\n" };
+        alarm config->{'timeout'};
+
+        $output = `$command ps --all --no-trunc --format '{{.Names}}\t{{.State}}\t{{.Status}}' 2>&1`;
+
+        alarm 0;
+    };
+
+    if ($@)
+    {
+        my $failure = $@;
+        chomp $failure;
+        return ( undef, $failure );
+    }
+
+    # The exit code first, and only then the output. A command that is not
+    # installed, or a socket that refuses the connection, prints a sentence that
+    # parses perfectly well as a container called "Cannot".
+    if ( $? != 0 )
+    {
+        my $failure = ( split( /\n/, $output || "" ) )[0] || "exit code " . ( $? >> 8 );
+        $failure =~ s/^\s+|\s+$//g;
+        return ( undef, $failure );
+    }
+
+    my @containers = ();
+
+    foreach my $line ( split( /\n/, $output || "" ) )
+    {
+        my ( $name, $state, $status ) = split( /\t/, $line, 3 );
+
+        # A name and a state, or it is not a container. Docker reports the state
+        # as a single lowercase word.
+        next unless defined $name && defined $state;
+        next unless $name  =~ /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/;
+        next unless $state =~ /^[a-z]+$/;
+
+        $status = "" unless defined $status;
+
+        # "Up 3 hours (unhealthy)", which is where the engine puts the result of
+        # the health check it was given.
+        my ($health) = $status =~ /\((healthy|unhealthy)\)/;
+
+        push @containers, {
+            'name'   => $name,
+            'state'  => $state,
+            'status' => $status,
+            'health' => $health,
+        };
+    }
+
+    return ( \@containers, undef );
+}

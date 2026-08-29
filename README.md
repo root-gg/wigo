@@ -353,6 +353,54 @@ The answer section is filtered to the type actually asked for. A reply routinely
 
 Ships with no queries configured, and stays OK saying so.
 
+#### check_docker
+
+Containers fail quietly. A crash loop looks like a running container from the outside — it *is* up, briefly, over and over — and a failing health check is recorded by the engine and told to nobody.
+
+```json
+{
+  "enabled"  : true,
+  "command"  : "docker",
+  "expected" : ["postgres", "redis"],
+  "ignore"   : ["some-batch-job"],
+  "status"   : 300,
+  "timeout"  : 10
+}
+```
+
+**Works against podman**: set `command` to `podman`, the output asked for is the same. One probe rather than two nearly identical ones, so the podman path is the same tested code.
+
+With `expected` empty, only the unambiguous failures are reported: **restarting** and **unhealthy**. A container that is merely stopped may well have been stopped on purpose and the probe cannot know — so a stopped container counts only when its name is in `expected`, where a name that is *absent* entirely is reported too.
+
+`ignore` means not spoken about at all, counts included. Saying "9 containers, 6 running" of a machine where three were deliberately silenced invites the reader to work out that three are down.
+
+Being unable to ask the engine is **500**, not a container problem: it says nothing about the containers. The exit code is checked before the output is parsed — `sh: 1: podman: not found` parses perfectly well as a container called `sh:`.
+
+#### check_backup_age
+
+A backup that stopped running leaves yesterday's file sitting there, and everything looks exactly as it did when it worked. Nobody finds out until the day the backup is needed.
+
+```json
+{
+  "enabled"  : true,
+  "paths"    : ["/var/backups/db:26:1048576", "/srv/dumps", "/var/backups/etc.tar.gz"],
+  "warning"  : 26,
+  "critical" : 50,
+  "minsize"  : 0
+}
+```
+
+Each entry is `path`, `path:hours`, or `path:hours:minbytes`; a per-entry `hours` sets critical at twice warning. The path is a directory — the newest file directly inside it, which is the shape a rotating backup takes — or a single file, for a job that always writes the same name.
+
+**Two silent failures, not one.** The job that no longer runs, and the job that still runs and writes nothing: a dump to a full disk, or with an expired credential, ends up as a zero-byte file with today's date on it. `minsize` catches the second, and is reported whatever the age says.
+
+Subdirectories are not considered when looking for the newest file. A directory's own mtime changes when anything inside it is touched, so counting it would report a backup as fresh because something unrelated was written next to it.
+
+A path that does not exist is reported as **no backup**, not as an old one — it is usually a mount point that did not come back.
+
+The default of 26 hours rather than 24 is deliberate: a daily job takes time to run, and a threshold at exactly the period goes red every night for as long as the backup takes.
+
+
 
 ### How long a probe gets to answer
 
