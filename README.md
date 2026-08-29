@@ -439,6 +439,10 @@ A token that is presented and refused does **not** fall back on the shared crede
 
 Both gates apply to writes, and both must say yes: the host has to accept being changed (`AllowWriteActions`), and the caller has to be an operator. Forwarding to a remote is checked the same way, so reaching through this host is not a way around the check that just failed.
 
+**Admitting a push client needs an operator**, and nothing else. These two routes predate `AllowWriteActions` and had no check at all, which was harmless while the only way in was the shared credential and stopped being harmless the moment anonymous callers could read: anyone able to reach the dashboard could let an unknown machine push into the fleet, or expel one that was being watched.
+
+The role on its own, deliberately **not** `AllowWriteActions` — that flag is about letting the API change *this host's own probes*, and requiring it would stop every existing push master, since it is off by default, from doing what it has always done. The role check changes nothing for any configuration that existed before.
+
 ### The HTTP layer
 
 Everything is served by `net/http` alone. Handlers return a status and a body rather than writing to the response themselves, which keeps a handler a plain function of its request — testable without a server, and the reason every refusal in the API is a sentence rather than a bare status code.

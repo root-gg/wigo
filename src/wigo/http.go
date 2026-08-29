@@ -280,6 +280,13 @@ func HttpLogsIndexesHandler(w http.ResponseWriter, r *http.Request) (int, string
 	}
 }
 
+// The shape of this answer is deliberately left alone. Adding a field to say
+// whether the caller may act on it would have been consistent with the rest of
+// the api, and would also have broken every client decoding it into a
+// map[string]map[string]string, which is what its two keys invite. The
+// interface asks /api/whoami instead -- and the role is the more accurate
+// question here anyway, since admitting a client does not depend on
+// AllowWriteActions.
 func HttpAuthorityListHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	result := make(map[string]map[string]string)
@@ -300,7 +307,37 @@ func HttpAuthorityListHandler(w http.ResponseWriter, r *http.Request) (int, stri
 	}
 }
 
+// httpAuthorityAllowed reports whether this request may admit or expel a client.
+//
+// The role only, deliberately not httpWriteActionsAllowed. AllowWriteActions is
+// about letting the api change *this host* -- enable, disable and repitch its
+// own probes -- and a push master accepting a client is not that. Requiring it
+// would stop every existing push master, since it is off by default, from doing
+// what it has always done.
+//
+// The role check on its own changes nothing for any configuration that existed
+// before : a wigo with no Login served everybody as an operator, and one with a
+// Login refused everybody without it. It closes exactly one hole, the one
+// opened by letting anonymous callers read.
+func httpAuthorityAllowed(r *http.Request) (int, string, bool) {
+	if caller := CallerOf(r); !caller.May(RoleOperator) {
+		if caller.Name == "anonymous" {
+			return 403, "This host is open for reading only. Sign in, or present an operator token, to admit or revoke a client.", false
+		}
+
+		return 403, "This credential is read only. An operator token is needed to admit or revoke a client.", false
+	}
+
+	return 0, "", true
+}
+
 func HttpAuthorityAllowHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+
+	// Admitting a client lets an unknown machine push into this master, which
+	// is the most consequential write this api has.
+	if status, message, allowed := httpAuthorityAllowed(r); !allowed {
+		return status, message
+	}
 
 	uuid := r.PathValue("uuid")
 
@@ -318,6 +355,11 @@ func HttpAuthorityAllowHandler(w http.ResponseWriter, r *http.Request) (int, str
 }
 
 func HttpAuthorityRevokeHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+
+	// And expelling one stops a machine being monitored at all, silently
+	if status, message, allowed := httpAuthorityAllowed(r); !allowed {
+		return status, message
+	}
 
 	uuid := r.PathValue("uuid")
 

@@ -13,30 +13,32 @@
         </a>
       </li>
 
-      <li class="nav-item">
-        <a class="nav-link px-3 py-1" title="Allow all waiting clients">
-          <button
-            type="button"
-            class="btn btn-success btn-sm w-100"
-            @click="allowAll"
-          >
-            <i class="fas fa-check-circle me-1"></i>
-            Allow all waiting clients
-          </button>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link px-3 py-1" title="Revoke all clients">
-          <button
-            type="button"
-            class="btn btn-danger btn-sm w-100"
-            @click="revokeAll"
-          >
-            <i class="fas fa-times-circle me-1"></i>
-            Revoke all clients
-          </button>
-        </a>
-      </li>
+      <template v-if="writeAllowed">
+        <li class="nav-item">
+          <a class="nav-link px-3 py-1" title="Allow all waiting clients">
+            <button
+              type="button"
+              class="btn btn-success btn-sm w-100"
+              @click="allowAll"
+            >
+              <i class="fas fa-check-circle me-1"></i>
+              Allow all waiting clients
+            </button>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link px-3 py-1" title="Revoke all clients">
+            <button
+              type="button"
+              class="btn btn-danger btn-sm w-100"
+              @click="revokeAll"
+            >
+              <i class="fas fa-times-circle me-1"></i>
+              Revoke all clients
+            </button>
+          </a>
+        </li>
+      </template>
     </template>
 
     <div v-if="waiting.length" class="card my-4">
@@ -63,7 +65,7 @@
                   <code class="small">{{ host.uuid }}</code>
                 </td>
                 <td>
-                  <div class="btn-group">
+                  <div v-if="writeAllowed" class="btn-group">
                     <button
                       type="button"
                       class="btn btn-danger btn-sm"
@@ -81,6 +83,13 @@
                       <i class="fas fa-check"></i>
                     </button>
                   </div>
+                  <span
+                    v-else
+                    class="text-body-secondary"
+                    :title="readOnlyReason"
+                  >
+                    <i class="fas fa-fw fa-lock"></i>
+                  </span>
                 </td>
               </tr>
             </tbody>
@@ -119,6 +128,7 @@
                 </td>
                 <td>
                   <button
+                    v-if="writeAllowed"
                     type="button"
                     class="btn btn-danger btn-sm"
                     @click.stop="revoke(host)"
@@ -126,6 +136,13 @@
                   >
                     <i class="fas fa-times"></i>
                   </button>
+                  <span
+                    v-else
+                    class="text-body-secondary"
+                    :title="readOnlyReason"
+                  >
+                    <i class="fas fa-fw fa-lock"></i>
+                  </span>
                 </td>
               </tr>
             </tbody>
@@ -153,6 +170,19 @@ import { useRefresh } from "../composables/useRefresh.js";
 const router = useRouter();
 const waiting = ref([]);
 const allowed = ref([]);
+
+/**
+ * Admettre un client fait entrer une machine inconnue dans la flotte : c'est
+ * l'écriture la plus conséquente de l'API, et elle n'avait aucun garde-fou.
+ *
+ * On demande le rôle, pas le WriteActionsAllowed des autres réponses :
+ * admettre un client ne dépend pas d'AllowWriteActions, qui parle des sondes
+ * de cet hôte. Se fier à lui cacherait des boutons qui marcheraient.
+ */
+const writeAllowed = ref(false);
+
+const readOnlyReason =
+  "Read only: sign in, or present an operator token, to admit or revoke a client";
 
 const sortedWaiting = computed(() => {
   return [...waiting.value].sort((a, b) =>
@@ -190,6 +220,15 @@ async function load() {
     }
   } catch (error) {
     console.error("Error loading authority:", error);
+  }
+
+  try {
+    const caller = await api.getWhoami();
+    writeAllowed.value = caller.Role === "operator";
+  } catch {
+    // Un wigo plus ancien n'a pas cette route : il n'avait pas de rôles non
+    // plus, donc tout le monde y était opérateur.
+    writeAllowed.value = true;
   }
 }
 
