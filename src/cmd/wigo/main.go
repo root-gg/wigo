@@ -13,15 +13,10 @@ import (
 	"os/signal"
 	"path"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/codegangsta/martini"
-	"github.com/codegangsta/martini-contrib/auth"
-	"github.com/codegangsta/martini-contrib/gzip"
-	"github.com/codegangsta/martini-contrib/secure"
 	"github.com/root-gg/wigo/src/wigo"
 
 	"github.com/howeyc/fsnotify"
@@ -611,42 +606,76 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 }
 
 func threadHttp(config *wigo.HttpConfig) {
-	apiAddress := config.Address
-	apiPort := config.Port
+	address := config.Address + ":" + strconv.Itoa(config.Port)
 
-	m := martini.New()
+	mux := http.NewServeMux()
+	registerRoutes(mux)
+
+	// Read outermost first : a panic is caught before anything else, and the
+	// credential is checked before a request reaches a handler or a file.
+	middlewares := []wigo.Middleware{wigo.Recovering()}
 
 	if wigo.GetLocalWigo().GetConfig().Global.Debug {
-		// Log requests
-		m.Use(martini.Logger())
+		middlewares = append(middlewares, wigo.Logging())
 	}
 
-	// Compress http responses with gzip
+	middlewares = append(middlewares, wigo.SecurityHeaders())
+
 	if config.Gzip {
 		log.Println("Http server : gzip compression enabled")
-		m.Use(gzip.All())
+		middlewares = append(middlewares, wigo.Gzip())
 	}
 
-	// Add some basic security checks
-	m.Use(secure.Secure(secure.Options{}))
-
-	// Http basic auth
 	if config.Login != "" && config.Password != "" {
 		log.Println("Http server : basic auth enabled")
-		m.Use(auth.Basic(config.Login, config.Password))
+		middlewares = append(middlewares, wigo.BasicAuth(config.Login, config.Password))
 	}
 
-	// Serve static files from dist directory (built frontend)
-	m.Use(martini.Static("public"))
+	handler := wigo.Chain(mux, middlewares...)
 
-	// Handle errors // TODO is this even working ?
-	m.Use(martini.Recovery())
+	// Timeouts, which martini did not set : without them a client that opens a
+	// connection and says nothing holds a goroutine for ever. The write one is
+	// generous because rechecking a probe on demand waits for it to run.
+	server := &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
-	// Define the routes.
+	if config.SslEnabled {
+		log.Println("Http server : starting tls server @ " + address)
+		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		if err := server.ListenAndServeTLS(config.SslCert, config.SslKey); err != nil {
+			log.Fatalf("Failed to start http server : %s", err)
+		}
+		return
+	}
 
-	r := martini.NewRouter()
+	log.Println("Http server : starting plain http server @ " + address)
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalf("Failed to start http server : %s", err)
+	}
+}
 
-	r.Get("/api", func() (int, string) {
+// registerRoutes is the whole api in one place.
+//
+// The patterns are the standard library's since Go 1.22 : a method, a path, and
+// {name} for the parts a handler reads with r.PathValue. The most specific
+// pattern wins, so /api/hosts and /api/hosts/{hostname} can both be registered
+// without ordering them by hand.
+func registerRoutes(mux *http.ServeMux) {
+
+	get := func(pattern string, handler wigo.Handler) {
+		mux.Handle("GET "+pattern, handler)
+	}
+	post := func(pattern string, handler wigo.Handler) {
+		mux.Handle("POST "+pattern, handler)
+	}
+
+	get("/api", func(w http.ResponseWriter, r *http.Request) (int, string) {
 		json, err := wigo.GetLocalWigo().ToJsonString()
 		if err != nil {
 			return 500, fmt.Sprintf("%s", err)
@@ -654,69 +683,53 @@ func threadHttp(config *wigo.HttpConfig) {
 		return 200, json
 	})
 
-	r.Get("/api/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
-	r.Get("/api/logs", wigo.HttpLogsHandler)
-	r.Get("/api/logs/indexes", wigo.HttpLogsIndexesHandler)
-	r.Get("/api/groups", wigo.HttpGroupsHandler)
-	r.Get("/api/groups/:group", wigo.HttpGroupsHandler)
-	r.Get("/api/groups/:group/logs", wigo.HttpLogsHandler)
-	r.Get("/api/groups/:group/probes/:probe/logs", wigo.HttpLogsHandler)
-	r.Get("/api/hosts", wigo.HttpRemotesHandler)
-	r.Get("/api/hosts/:hostname", wigo.HttpRemotesHandler)
-	r.Get("/api/hosts/:hostname/status", wigo.HttpRemotesStatusHandler)
-	r.Get("/api/hosts/:hostname/logs", wigo.HttpLogsHandler)
-	r.Get("/api/hosts/:hostname/probes", wigo.HttpRemotesProbesHandler)
-	r.Get("/api/hosts/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
-	r.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
-	r.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
-	r.Get("/api/probes/:probe/logs", wigo.HttpLogsHandler)
-	r.Get("/api/probes", wigo.HttpProbesHandler)
-	r.Post("/api/probes/:probe/disable", wigo.HttpProbeDisableHandler)
-	r.Post("/api/probes/:probe/interval", wigo.HttpProbeIntervalHandler)
-	r.Post("/api/probes/:probe/run", wigo.HttpProbeRunHandler)
-	r.Get("/api/hosts/:hostname/schedule", wigo.HttpHostScheduleHandler)
-	r.Post("/api/hosts/:hostname/probes/:probe/disable", wigo.HttpHostProbeDisableHandler)
-	r.Post("/api/hosts/:hostname/probes/:probe/interval", wigo.HttpHostProbeIntervalHandler)
-	r.Post("/api/hosts/:hostname/probes/:probe/run", wigo.HttpHostProbeRunHandler)
-
-	// Outside /api on purpose : /metrics is where every scraper looks
-	r.Get("/metrics", wigo.HttpMetricsHandler)
-
-	r.Get("/api/suppressions", wigo.HttpSuppressionsHandler)
-	r.Post("/api/hosts/:hostname/ack", wigo.HttpHostAckHandler)
-	r.Post("/api/hosts/:hostname/silence", wigo.HttpHostSilenceHandler)
-	r.Post("/api/hosts/:hostname/unsuppress", wigo.HttpHostUnsuppressHandler)
-	r.Post("/api/groups/:group/silence", wigo.HttpGroupSilenceHandler)
-	r.Post("/api/groups/:group/unsuppress", wigo.HttpGroupUnsuppressHandler)
-	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
-	r.Post("/api/authority/hosts/:uuid/allow", wigo.HttpAuthorityAllowHandler)
-	r.Post("/api/authority/hosts/:uuid/revoke", wigo.HttpAuthorityRevokeHandler)
-
-	m.Use(func(c martini.Context, w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api") {
-			w.Header().Set("Content-Type", "application/json")
-		}
+	get("/api/status", func(w http.ResponseWriter, r *http.Request) (int, string) {
+		return 200, strconv.Itoa(wigo.GetLocalWigo().GlobalStatus)
 	})
 
-	m.Action(r.Handle)
+	get("/api/logs", wigo.HttpLogsHandler)
+	get("/api/logs/indexes", wigo.HttpLogsIndexesHandler)
+	get("/api/groups", wigo.HttpGroupsHandler)
+	get("/api/groups/{group}", wigo.HttpGroupsHandler)
+	get("/api/groups/{group}/logs", wigo.HttpLogsHandler)
+	get("/api/groups/{group}/probes/{probe}/logs", wigo.HttpLogsHandler)
+	get("/api/hosts", wigo.HttpRemotesHandler)
+	get("/api/hosts/{hostname}", wigo.HttpRemotesHandler)
+	get("/api/hosts/{hostname}/status", wigo.HttpRemotesStatusHandler)
+	get("/api/hosts/{hostname}/logs", wigo.HttpLogsHandler)
+	get("/api/hosts/{hostname}/probes", wigo.HttpRemotesProbesHandler)
+	get("/api/hosts/{hostname}/probes/{probe}", wigo.HttpRemotesProbesHandler)
+	get("/api/hosts/{hostname}/probes/{probe}/status", wigo.HttpRemotesProbesStatusHandler)
+	get("/api/hosts/{hostname}/probes/{probe}/logs", wigo.HttpLogsHandler)
+	get("/api/probes/{probe}/logs", wigo.HttpLogsHandler)
 
-	// Create a listner and serv connections forever.
-	if config.SslEnabled {
-		address := apiAddress + ":" + strconv.Itoa(apiPort)
-		log.Println("Http server : starting tls server @ " + address)
-		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS10}
-		server := &http.Server{Addr: address, Handler: m, TLSConfig: tlsConfig}
-		err := server.ListenAndServeTLS(config.SslCert, config.SslKey)
-		if err != nil {
-			log.Fatalf("Failed to start http server : %s", err)
-		}
-	} else {
-		address := apiAddress + ":" + strconv.Itoa(apiPort)
-		log.Println("Http server : starting plain http server @ " + address)
-		if err := http.ListenAndServe(address, m); err != nil {
-			log.Fatalf("Failed to start http server : %s", err)
-		}
-	}
+	get("/api/probes", wigo.HttpProbesHandler)
+	post("/api/probes/{probe}/disable", wigo.HttpProbeDisableHandler)
+	post("/api/probes/{probe}/interval", wigo.HttpProbeIntervalHandler)
+	post("/api/probes/{probe}/run", wigo.HttpProbeRunHandler)
+
+	get("/api/hosts/{hostname}/schedule", wigo.HttpHostScheduleHandler)
+	post("/api/hosts/{hostname}/probes/{probe}/disable", wigo.HttpHostProbeDisableHandler)
+	post("/api/hosts/{hostname}/probes/{probe}/interval", wigo.HttpHostProbeIntervalHandler)
+	post("/api/hosts/{hostname}/probes/{probe}/run", wigo.HttpHostProbeRunHandler)
+
+	get("/api/suppressions", wigo.HttpSuppressionsHandler)
+	post("/api/hosts/{hostname}/ack", wigo.HttpHostAckHandler)
+	post("/api/hosts/{hostname}/silence", wigo.HttpHostSilenceHandler)
+	post("/api/hosts/{hostname}/unsuppress", wigo.HttpHostUnsuppressHandler)
+	post("/api/groups/{group}/silence", wigo.HttpGroupSilenceHandler)
+	post("/api/groups/{group}/unsuppress", wigo.HttpGroupUnsuppressHandler)
+
+	get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
+	post("/api/authority/hosts/{uuid}/allow", wigo.HttpAuthorityAllowHandler)
+	post("/api/authority/hosts/{uuid}/revoke", wigo.HttpAuthorityRevokeHandler)
+
+	// Outside /api on purpose : /metrics is where every scraper looks
+	get("/metrics", wigo.HttpMetricsHandler)
+
+	// Everything else is the built interface. Registered last and on the bare
+	// root, so it only ever sees what no route above claimed.
+	mux.Handle("/", http.FileServer(http.Dir("public")))
 }
 
 func threadPush(config *wigo.PushClientConfig) {

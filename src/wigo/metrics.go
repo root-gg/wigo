@@ -25,7 +25,7 @@ import (
 const metricsContentType = "text/plain; version=0.0.4; charset=utf-8"
 
 // HttpMetricsHandler answers the Prometheus exposition of the whole tree.
-func HttpMetricsHandler(w http.ResponseWriter) (int, string) {
+func HttpMetricsHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 	w.Header().Set("Content-Type", metricsContentType)
 
 	return 200, renderMetrics()

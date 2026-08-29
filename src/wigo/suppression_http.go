@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/codegangsta/martini"
 )
 
 // Acking and silencing are decided where the notifications are sent, which on a
@@ -31,7 +29,7 @@ type SuppressionList struct {
 }
 
 // HttpSuppressionsHandler lists what is currently held back.
-func HttpSuppressionsHandler() (int, string) {
+func HttpSuppressionsHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	body, err := json.Marshal(SuppressionList{
 		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions,
@@ -47,33 +45,33 @@ func HttpSuppressionsHandler() (int, string) {
 
 // HttpHostAckHandler acknowledges the current state of a host, or of one of its
 // probes with ?probe=name.
-func HttpHostAckHandler(params martini.Params, r *http.Request) (int, string) {
-	return addSuppressionFrom(SuppressionAck, SuppressionScopeHost, params["hostname"], r)
+func HttpHostAckHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+	return addSuppressionFrom(SuppressionAck, SuppressionScopeHost, r.PathValue("hostname"), w, r)
 }
 
 // HttpHostSilenceHandler stops the notifications about a host, or one of its
 // probes, for a while.
-func HttpHostSilenceHandler(params martini.Params, r *http.Request) (int, string) {
-	return addSuppressionFrom(SuppressionSilence, SuppressionScopeHost, params["hostname"], r)
+func HttpHostSilenceHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+	return addSuppressionFrom(SuppressionSilence, SuppressionScopeHost, r.PathValue("hostname"), w, r)
 }
 
 // HttpGroupSilenceHandler does the same for a whole group.
-func HttpGroupSilenceHandler(params martini.Params, r *http.Request) (int, string) {
-	return addSuppressionFrom(SuppressionSilence, SuppressionScopeGroup, params["group"], r)
+func HttpGroupSilenceHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+	return addSuppressionFrom(SuppressionSilence, SuppressionScopeGroup, r.PathValue("group"), w, r)
 }
 
 // HttpHostUnsuppressHandler lifts whatever was holding a host, or one of its
 // probes, quiet.
-func HttpHostUnsuppressHandler(params martini.Params, r *http.Request) (int, string) {
-	return removeSuppressionFrom(SuppressionScopeHost, params["hostname"], r)
+func HttpHostUnsuppressHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+	return removeSuppressionFrom(SuppressionScopeHost, r.PathValue("hostname"), w, r)
 }
 
 // HttpGroupUnsuppressHandler does the same for a group.
-func HttpGroupUnsuppressHandler(params martini.Params, r *http.Request) (int, string) {
-	return removeSuppressionFrom(SuppressionScopeGroup, params["group"], r)
+func HttpGroupUnsuppressHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+	return removeSuppressionFrom(SuppressionScopeGroup, r.PathValue("group"), w, r)
 }
 
-func addSuppressionFrom(kind string, scope string, target string, r *http.Request) (int, string) {
+func addSuppressionFrom(kind string, scope string, target string, w http.ResponseWriter, r *http.Request) (int, string) {
 
 	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
 		return status, message
@@ -122,10 +120,10 @@ func addSuppressionFrom(kind string, scope string, target string, r *http.Reques
 
 	GetLocalWigo().AddLog(nil, INFO, describeSuppression(suppression))
 
-	return HttpSuppressionsHandler()
+	return HttpSuppressionsHandler(w, r)
 }
 
-func removeSuppressionFrom(scope string, target string, r *http.Request) (int, string) {
+func removeSuppressionFrom(scope string, target string, w http.ResponseWriter, r *http.Request) (int, string) {
 
 	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
 		return status, message
@@ -148,7 +146,7 @@ func removeSuppressionFrom(scope string, target string, r *http.Request) (int, s
 		describeSuppressionTarget(Suppression{Target: target, Probe: probe}),
 		httpAuthor(r, r.URL.Query().Get("author"))))
 
-	return HttpSuppressionsHandler()
+	return HttpSuppressionsHandler(w, r)
 }
 
 // currentStatusOf reads what is being acknowledged right now.

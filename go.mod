@@ -2,8 +2,6 @@ module github.com/root-gg/wigo
 
 go 1.25.0
 
-require github.com/codegangsta/martini v0.0.0-20170121215854-22fa46961aab
-
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -22,8 +20,6 @@ require (
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0 // indirect
-	github.com/codegangsta/martini-contrib v0.0.0-20140208234550-8ce6181c2609
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/fatih/color v1.19.0
 	github.com/howeyc/fsnotify v0.9.0

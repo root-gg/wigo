@@ -8,13 +8,11 @@ import (
 	"net/url"
 	"strconv"
 	"time"
-
-	"github.com/codegangsta/martini"
 )
 
-func HttpRemotesHandler(params martini.Params) (int, string) {
+func HttpRemotesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
+	hostname := r.PathValue("hostname")
 
 	if hostname != "" {
 		remoteWigo := GetLocalWigo().FindRemoteWigoByHostname(hostname)
@@ -40,10 +38,10 @@ func HttpRemotesHandler(params martini.Params) (int, string) {
 	}
 }
 
-func HttpRemotesProbesHandler(params martini.Params) (int, string) {
+func HttpRemotesProbesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
-	probeName := params["probe"]
+	hostname := r.PathValue("hostname")
+	probeName := r.PathValue("probe")
 
 	if hostname == "" {
 		return 404, "No wigo name set in url"
@@ -79,9 +77,9 @@ func HttpRemotesProbesHandler(params martini.Params) (int, string) {
 	return 200, ""
 }
 
-func HttpRemotesStatusHandler(params martini.Params) (int, string) {
+func HttpRemotesStatusHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
+	hostname := r.PathValue("hostname")
 
 	if hostname == "" {
 		return 404, "No wigo name set in url"
@@ -96,10 +94,10 @@ func HttpRemotesStatusHandler(params martini.Params) (int, string) {
 	return 200, strconv.Itoa(remoteWigo.GlobalStatus)
 }
 
-func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
+func HttpRemotesProbesStatusHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
-	probeName := params["probe"]
+	hostname := r.PathValue("hostname")
+	probeName := r.PathValue("probe")
 
 	if hostname == "" {
 		return 404, "No wigo name set in url"
@@ -124,7 +122,7 @@ func HttpRemotesProbesStatusHandler(params martini.Params) (int, string) {
 
 }
 
-func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
+func HttpLogsHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	//Parse url
 	u, err := url.Parse(r.URL.String())
@@ -196,9 +194,9 @@ func HttpLogsHandler(params martini.Params, r *http.Request) (int, string) {
 	return 200, string(json)
 }
 
-func HttpGroupsHandler(params martini.Params) (int, string) {
+func HttpGroupsHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	group := params["group"]
+	group := r.PathValue("group")
 
 	result := make(map[string]interface{})
 	result["Name"] = group
@@ -231,7 +229,7 @@ func HttpGroupsHandler(params martini.Params) (int, string) {
 	}
 }
 
-func HttpLogsIndexesHandler(params martini.Params) (int, string) {
+func HttpLogsIndexesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	result := make(map[string][]string)
 	result["probes"] = make([]string, 0)
@@ -282,7 +280,7 @@ func HttpLogsIndexesHandler(params martini.Params) (int, string) {
 	}
 }
 
-func HttpAuthorityListHandler(params martini.Params) (int, string) {
+func HttpAuthorityListHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	result := make(map[string]map[string]string)
 
@@ -302,9 +300,9 @@ func HttpAuthorityListHandler(params martini.Params) (int, string) {
 	}
 }
 
-func HttpAuthorityAllowHandler(params martini.Params) (int, string) {
+func HttpAuthorityAllowHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	uuid := params["uuid"]
+	uuid := r.PathValue("uuid")
 
 	if LocalWigo.push == nil {
 		return 500, "Push server is not started"
@@ -319,9 +317,9 @@ func HttpAuthorityAllowHandler(params martini.Params) (int, string) {
 	return 200, "OK"
 }
 
-func HttpAuthorityRevokeHandler(params martini.Params) (int, string) {
+func HttpAuthorityRevokeHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	uuid := params["uuid"]
+	uuid := r.PathValue("uuid")
 
 	if LocalWigo.push == nil {
 		return 500, "Push server is not started"
@@ -364,7 +362,7 @@ type ProbesSchedule struct {
 
 // HttpProbesHandler lists the probes of this host with their schedule,
 // including the ones that are currently disabled and therefore have no result.
-func HttpProbesHandler() (int, string) {
+func HttpProbesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	locations, err := ProbeLocations()
 	if err != nil {
@@ -399,13 +397,13 @@ func httpWriteActionsAllowed() (int, string, bool) {
 }
 
 // HttpProbeDisableHandler stops a probe from being scheduled.
-func HttpProbeDisableHandler(params martini.Params, r *http.Request) (int, string) {
+func HttpProbeDisableHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
 		return status, message
 	}
 
-	probeName := params["probe"]
+	probeName := r.PathValue("probe")
 	if probeName == "" {
 		return 404, "No probe name set in url"
 	}
@@ -420,7 +418,7 @@ func HttpProbeDisableHandler(params martini.Params, r *http.Request) (int, strin
 		return 400, err.Error()
 	}
 
-	return HttpProbesHandler()
+	return HttpProbesHandler(w, r)
 }
 
 // DisableProbeWithReason turns a probe off and notes why, for how long and at
@@ -555,13 +553,13 @@ func httpAuthor(r *http.Request, claimed string) string {
 
 // HttpProbeIntervalHandler sets how often a probe runs, scheduling it again
 // when it was disabled.
-func HttpProbeIntervalHandler(params martini.Params, r *http.Request) (int, string) {
+func HttpProbeIntervalHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
 		return status, message
 	}
 
-	probeName := params["probe"]
+	probeName := r.PathValue("probe")
 	if probeName == "" {
 		return 404, "No probe name set in url"
 	}
@@ -587,5 +585,5 @@ func HttpProbeIntervalHandler(params martini.Params, r *http.Request) (int, stri
 
 	GetLocalWigo().AddLog(nil, INFO, fmt.Sprintf("Probe %s is now scheduled every %d seconds through the API", probeName, interval))
 
-	return HttpProbesHandler()
+	return HttpProbesHandler(w, r)
 }

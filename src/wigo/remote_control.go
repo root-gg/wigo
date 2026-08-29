@@ -8,8 +8,6 @@ import (
 	"net/url"
 	"sync"
 	"time"
-
-	"github.com/codegangsta/martini"
 )
 
 // Acting on a remote host means asking that host to act on itself : the call is
@@ -202,15 +200,15 @@ func probeApiPath(probeName string, action string) (string, error) {
 
 // HttpHostScheduleHandler lists the probes of any host of the tree with their
 // schedule. Answers for this host directly and forwards for the others.
-func HttpHostScheduleHandler(params martini.Params) (int, string) {
+func HttpHostScheduleHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
+	hostname := r.PathValue("hostname")
 	if hostname == "" {
 		return 404, "No wigo name set in url"
 	}
 
 	if hostname == GetLocalWigo().GetHostname() {
-		return HttpProbesHandler()
+		return HttpProbesHandler(w, r)
 	}
 
 	if status, body, isPushClient := pushClientSchedule(hostname); isPushClient {
@@ -265,19 +263,19 @@ func pushClientSchedule(hostname string) (int, string, bool) {
 
 // HttpHostProbeDisableHandler stops a probe from being scheduled on any host of
 // the tree.
-func HttpHostProbeDisableHandler(params martini.Params, r *http.Request) (int, string) {
+func HttpHostProbeDisableHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
+	hostname := r.PathValue("hostname")
 	if hostname == "" {
 		return 404, "No wigo name set in url"
 	}
 
 	if hostname == GetLocalWigo().GetHostname() {
-		return HttpProbeDisableHandler(params, r)
+		return HttpProbeDisableHandler(w, r)
 	}
 
-	if !IsValidProbeName(params["probe"]) {
-		return 400, fmt.Sprintf("invalid probe name %q", params["probe"])
+	if !IsValidProbeName(r.PathValue("probe")) {
+		return 400, fmt.Sprintf("invalid probe name %q", r.PathValue("probe"))
 	}
 
 	// Checked here too so an obviously wrong duration never leaves this host
@@ -293,7 +291,7 @@ func HttpHostProbeDisableHandler(params martini.Params, r *http.Request) (int, s
 
 	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
 		Action:   CommandDisableProbe,
-		Probe:    params["probe"],
+		Probe:    r.PathValue("probe"),
 		Reason:   reason,
 		Author:   author,
 		Duration: duration,
@@ -301,7 +299,7 @@ func HttpHostProbeDisableHandler(params martini.Params, r *http.Request) (int, s
 		return status, message
 	}
 
-	path, err := probeApiPath(params["probe"], "disable")
+	path, err := probeApiPath(r.PathValue("probe"), "disable")
 	if err != nil {
 		return 400, err.Error()
 	}
@@ -322,19 +320,19 @@ func HttpHostProbeDisableHandler(params martini.Params, r *http.Request) (int, s
 
 // HttpHostProbeIntervalHandler sets how often a probe runs on any host of the
 // tree.
-func HttpHostProbeIntervalHandler(params martini.Params, r *http.Request) (int, string) {
+func HttpHostProbeIntervalHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
+	hostname := r.PathValue("hostname")
 	if hostname == "" {
 		return 404, "No wigo name set in url"
 	}
 
 	if hostname == GetLocalWigo().GetHostname() {
-		return HttpProbeIntervalHandler(params, r)
+		return HttpProbeIntervalHandler(w, r)
 	}
 
-	if !IsValidProbeName(params["probe"]) {
-		return 400, fmt.Sprintf("invalid probe name %q", params["probe"])
+	if !IsValidProbeName(r.PathValue("probe")) {
+		return 400, fmt.Sprintf("invalid probe name %q", r.PathValue("probe"))
 	}
 
 	// Checked here too so an obviously wrong value never leaves this host, even
@@ -350,13 +348,13 @@ func HttpHostProbeIntervalHandler(params martini.Params, r *http.Request) (int, 
 
 	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
 		Action:   CommandSetProbeInterval,
-		Probe:    params["probe"],
+		Probe:    r.PathValue("probe"),
 		Interval: interval,
 	}); isPushClient {
 		return status, message
 	}
 
-	path, err := probeApiPath(params["probe"], "interval")
+	path, err := probeApiPath(r.PathValue("probe"), "interval")
 	if err != nil {
 		return 400, err.Error()
 	}

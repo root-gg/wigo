@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-
-	"github.com/codegangsta/martini"
 )
 
 // Running a probe out of band, because somebody asked rather than because its
@@ -104,13 +102,13 @@ func RunProbeNow(name string) error {
 }
 
 // HttpProbeRunHandler runs a probe of this host now and answers its result.
-func HttpProbeRunHandler(params martini.Params) (int, string) {
+func HttpProbeRunHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
 		return status, message
 	}
 
-	probeName := params["probe"]
+	probeName := r.PathValue("probe")
 	if probeName == "" {
 		return 404, "No probe name set in url"
 	}
@@ -139,29 +137,29 @@ func HttpProbeRunHandler(params martini.Params) (int, string) {
 }
 
 // HttpHostProbeRunHandler runs a probe of any host of the tree now.
-func HttpHostProbeRunHandler(params martini.Params, r *http.Request) (int, string) {
+func HttpHostProbeRunHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	hostname := params["hostname"]
+	hostname := r.PathValue("hostname")
 	if hostname == "" {
 		return 404, "No wigo name set in url"
 	}
 
 	if hostname == GetLocalWigo().GetHostname() {
-		return HttpProbeRunHandler(params)
+		return HttpProbeRunHandler(w, r)
 	}
 
-	if !IsValidProbeName(params["probe"]) {
-		return 400, fmt.Sprintf("invalid probe name %q", params["probe"])
+	if !IsValidProbeName(r.PathValue("probe")) {
+		return 400, fmt.Sprintf("invalid probe name %q", r.PathValue("probe"))
 	}
 
 	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
 		Action: CommandRunProbe,
-		Probe:  params["probe"],
+		Probe:  r.PathValue("probe"),
 	}); isPushClient {
 		return status, message
 	}
 
-	path, err := probeApiPath(params["probe"], "run")
+	path, err := probeApiPath(r.PathValue("probe"), "run")
 	if err != nil {
 		return 400, err.Error()
 	}

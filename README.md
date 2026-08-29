@@ -321,6 +321,12 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### The HTTP layer
+
+Everything is served by `net/http` alone. Handlers return a status and a body rather than writing to the response themselves, which keeps a handler a plain function of its request — testable without a server, and the reason every refusal in the API is a sentence rather than a bare status code.
+
+Requests pass through, outermost first: panic recovery, request logging when `Debug` is on, security headers, gzip when `Gzip` is on, and HTTP basic auth when `Login` is set. The credential is compared in constant time, and it guards the interface, the API and `/metrics` alike.
+
 ### Docker
 
 ```
