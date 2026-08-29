@@ -628,7 +628,7 @@ func threadHttp(config *wigo.HttpConfig) {
 
 	if config.Login != "" && config.Password != "" {
 		log.Println("Http server : basic auth enabled")
-		middlewares = append(middlewares, wigo.BasicAuth(config.Login, config.Password))
+		middlewares = append(middlewares, wigo.Authenticating(config.Login, config.Password))
 	}
 
 	handler := wigo.Chain(mux, middlewares...)
@@ -719,6 +719,11 @@ func registerRoutes(mux *http.ServeMux) {
 	post("/api/hosts/{hostname}/unsuppress", wigo.HttpHostUnsuppressHandler)
 	post("/api/groups/{group}/silence", wigo.HttpGroupSilenceHandler)
 	post("/api/groups/{group}/unsuppress", wigo.HttpGroupUnsuppressHandler)
+
+	get("/api/whoami", wigo.HttpWhoamiHandler)
+	get("/api/tokens", wigo.HttpTokensHandler)
+	post("/api/tokens", wigo.HttpTokenCreateHandler)
+	post("/api/tokens/{id}/revoke", wigo.HttpTokenRevokeHandler)
 
 	get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
 	post("/api/authority/hosts/{uuid}/allow", wigo.HttpAuthorityAllowHandler)

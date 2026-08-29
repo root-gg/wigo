@@ -2,7 +2,9 @@ package wigo
 
 import (
 	"compress/gzip"
+	"context"
 	"crypto/subtle"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -102,18 +104,71 @@ func (recorder *statusRecorder) WriteHeader(status int) {
 	recorder.ResponseWriter.WriteHeader(status)
 }
 
-// BasicAuth guards everything behind the one credential wigo has.
+// Caller is who made a request, once they have been recognised.
+type Caller struct {
+	// What they may do. Empty when nothing guards this wigo at all.
+	Role string
+
+	// How to name them in a log or a disable record.
+	Name string
+}
+
+// May reports whether the caller holds at least that role.
+func (caller Caller) May(role string) bool {
+	if role == RoleReadOnly {
+		return true
+	}
+
+	return caller.Role == RoleOperator
+}
+
+type callerKey struct{}
+
+// CallerOf returns who made this request.
 //
-// The comparison is constant time. It is the same shared login for the whole
-// api and the whole interface, which is exactly why it must not also leak
-// through how long it takes to reject : until real credentials land, this is
-// the only thing standing in front of an api that can now disable probes.
-func BasicAuth(login string, password string) Middleware {
+// An unguarded wigo has no caller, and everything is allowed : that is the
+// existing behaviour of an install with no Login set, and turning it into a
+// refusal on upgrade would break every one of them.
+func CallerOf(r *http.Request) Caller {
+	if r == nil {
+		return Caller{Role: RoleOperator, Name: "unauthenticated"}
+	}
+
+	if caller, ok := r.Context().Value(callerKey{}).(Caller); ok {
+		return caller
+	}
+
+	return Caller{Role: RoleOperator, Name: "unauthenticated"}
+}
+
+// Authenticating recognises the caller, by token or by the shared credential.
+//
+// A token is looked at first, because it is the one that carries a role. The
+// shared credential is kept, and kept as an operator : an upgrade must not lock
+// an administrator out of their own install. It is what mints the first token,
+// and what you remove once you have.
+func Authenticating(login string, password string) Middleware {
 	expectedLogin := []byte(login)
 	expectedPassword := []byte(password)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			if secret := presentedToken(r); secret != "" {
+				if token, ok := authenticateToken(secret); ok {
+					next.ServeHTTP(w, withCaller(r, Caller{
+						Role: token.Role,
+						Name: fmt.Sprintf("token %q", token.Name),
+					}))
+					return
+				}
+
+				// A token that was presented and refused is not an invitation
+				// to fall back on the shared credential
+				http.Error(w, "Not Authorized", http.StatusUnauthorized)
+				return
+			}
+
 			givenLogin, givenPassword, ok := r.BasicAuth()
 
 			// Both compared every time, so the answer takes the same time
@@ -127,9 +182,24 @@ func BasicAuth(login string, password string) Middleware {
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, withCaller(r, Caller{Role: RoleOperator, Name: givenLogin}))
 		})
 	}
+}
+
+func withCaller(r *http.Request, caller Caller) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), callerKey{}, caller))
+}
+
+// presentedToken reads the token out of a request, if there is one.
+func presentedToken(r *http.Request) string {
+	if header := r.Header.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+	}
+
+	// A browser cannot set a header on a plain navigation, and a token in a
+	// query string ends up in access logs, so this is the header only.
+	return strings.TrimSpace(r.Header.Get("X-Wigo-Token"))
 }
 
 // SecurityHeaders sets the few headers that are worth setting unconditionally.

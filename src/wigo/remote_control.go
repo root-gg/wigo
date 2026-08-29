@@ -84,15 +84,21 @@ func remoteEndpointFor(uuid string) (remoteEndpoint, bool) {
 // remote to accept the change. An administrator who turned write actions off
 // here expects this wigo not to perform any, and being usable as a jump host to
 // reconfigure the whole fleet would make a lie of that.
-func forwardWriteToRemote(hostname string, method string, path string, query url.Values) (int, string) {
-	return forwardWriteToRemoteWith(&remoteControlClient, hostname, method, path, query)
+func forwardWriteToRemote(r *http.Request, hostname string, method string, path string, query url.Values) (int, string) {
+	return forwardWriteToRemoteWith(&remoteControlClient, r, hostname, method, path, query)
 }
 
-func forwardWriteToRemoteWith(client *http.Client, hostname string, method string, path string, query url.Values) (int, string) {
+func forwardWriteToRemoteWith(client *http.Client, r *http.Request, hostname string, method string, path string, query url.Values) (int, string) {
 
-	if !GetLocalWigo().GetConfig().Http.AllowWriteActions {
-		return 403, "Write actions are disabled on this host, so it will not forward one either. " +
-			"Set AllowWriteActions in the [Http] section of its configuration file to allow them."
+	// The same two gates as a local write. A read only credential must not be
+	// able to reach through this host onto the ones it watches, which would
+	// make forwarding a way around the very check it just failed.
+	if status, message, allowed := httpWriteActionsAllowed(r); !allowed {
+		if status == 403 && !GetLocalWigo().GetConfig().Http.AllowWriteActions {
+			return 403, "Write actions are disabled on this host, so it will not forward one either. " +
+				"Set AllowWriteActions in the [Http] section of its configuration file to allow them."
+		}
+		return status, message
 	}
 
 	return forwardToRemoteWith(client, hostname, method, path, query)
@@ -103,7 +109,7 @@ func forwardWriteToRemoteWith(client *http.Client, hostname string, method strin
 // We cannot call such a host, it sits behind a NAT, so the change is not
 // applied now : it is handed over the next time the client asks for its orders.
 // The answer says so rather than pretending the probe already moved.
-func queueWriteForPushClient(hostname string, command ProbeCommand) (int, string, bool) {
+func queueWriteForPushClient(r *http.Request, hostname string, command ProbeCommand) (int, string, bool) {
 
 	remote := GetLocalWigo().FindRemoteWigoByHostname(hostname)
 	if remote == nil || GetLocalWigo().push == nil {
@@ -119,9 +125,12 @@ func queueWriteForPushClient(hostname string, command ProbeCommand) (int, string
 		return 0, "", false
 	}
 
-	if !GetLocalWigo().GetConfig().Http.AllowWriteActions {
-		return 403, "Write actions are disabled on this host, so it will not drive a client either. " +
-			"Set AllowWriteActions in the [Http] section of its configuration file to allow them.", true
+	if status, message, allowed := httpWriteActionsAllowed(r); !allowed {
+		if status == 403 && !GetLocalWigo().GetConfig().Http.AllowWriteActions {
+			return 403, "Write actions are disabled on this host, so it will not drive a client either. " +
+				"Set AllowWriteActions in the [Http] section of its configuration file to allow them.", true
+		}
+		return status, message, true
 	}
 
 	if !ClientAcceptsRemoteControl(remote.Uuid) {
@@ -188,6 +197,14 @@ func forwardToRemoteWith(client *http.Client, hostname string, method string, pa
 	return resp.StatusCode, string(body)
 }
 
+// callerMayWrite is the caller half of the write gate, for the places that
+// report what an interface may offer rather than acting themselves.
+func callerMayWrite(r *http.Request) bool {
+	_, _, allowed := httpWriteActionsAllowed(r)
+
+	return allowed
+}
+
 // probeApiPath builds the path of a probe endpoint on another wigo. The name is
 // validated before it is put in a url, never after.
 func probeApiPath(probeName string, action string) (string, error) {
@@ -211,16 +228,43 @@ func HttpHostScheduleHandler(w http.ResponseWriter, r *http.Request) (int, strin
 		return HttpProbesHandler(w, r)
 	}
 
-	if status, body, isPushClient := pushClientSchedule(hostname); isPushClient {
+	if status, body, isPushClient := pushClientSchedule(r, hostname); isPushClient {
 		return status, body
 	}
 
-	return forwardToRemote(hostname, "GET", "/api/probes", nil)
+	status, body := forwardToRemote(hostname, "GET", "/api/probes", nil)
+
+	// The remote answered what the master may do there, because the master is
+	// who authenticated to it. Whoever is asking here may be allowed less, and
+	// an interface offering a control that answers 403 is worse than none.
+	if status == 200 && !callerMayWrite(r) {
+		return status, withWriteActionsOff(body)
+	}
+
+	return status, body
+}
+
+// withWriteActionsOff turns the flag down in an answer relayed from a remote,
+// leaving the rest of it untouched.
+func withWriteActionsOff(body string) string {
+	var schedule ProbesSchedule
+	if err := json.Unmarshal([]byte(body), &schedule); err != nil {
+		return body
+	}
+
+	schedule.WriteActionsAllowed = false
+
+	rewritten, err := json.Marshal(schedule)
+	if err != nil {
+		return body
+	}
+
+	return string(rewritten)
 }
 
 // pushClientSchedule answers for a host that pushes to us, from what it last
 // reported. We cannot call such a host, so this is the only thing we have.
-func pushClientSchedule(hostname string) (int, string, bool) {
+func pushClientSchedule(r *http.Request, hostname string) (int, string, bool) {
 
 	remote := GetLocalWigo().FindRemoteWigoByHostname(hostname)
 	if remote == nil || GetLocalWigo().push == nil {
@@ -247,7 +291,7 @@ func pushClientSchedule(hostname string) (int, string, bool) {
 	// AllowRemoteControl, not the AllowWriteActions of its local API.
 	schedule := ProbesSchedule{
 		Hostname:            hostname,
-		WriteActionsAllowed: ClientAcceptsRemoteControl(remote.Uuid),
+		WriteActionsAllowed: ClientAcceptsRemoteControl(remote.Uuid) && callerMayWrite(r),
 		Probes:              locations,
 		SkippedProbes:       skipped,
 		DisableRecords:      disabled,
@@ -289,7 +333,7 @@ func HttpHostProbeDisableHandler(w http.ResponseWriter, r *http.Request) (int, s
 	reason := r.URL.Query().Get("reason")
 	author := httpAuthor(r, r.URL.Query().Get("author"))
 
-	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
+	if status, message, isPushClient := queueWriteForPushClient(r, hostname, ProbeCommand{
 		Action:   CommandDisableProbe,
 		Probe:    r.PathValue("probe"),
 		Reason:   reason,
@@ -315,7 +359,7 @@ func HttpHostProbeDisableHandler(w http.ResponseWriter, r *http.Request) (int, s
 		query.Set("for", forValue)
 	}
 
-	return forwardWriteToRemote(hostname, "POST", path, query)
+	return forwardWriteToRemote(r, hostname, "POST", path, query)
 }
 
 // HttpHostProbeIntervalHandler sets how often a probe runs on any host of the
@@ -346,7 +390,7 @@ func HttpHostProbeIntervalHandler(w http.ResponseWriter, r *http.Request) (int, 
 		return 400, err.Error()
 	}
 
-	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
+	if status, message, isPushClient := queueWriteForPushClient(r, hostname, ProbeCommand{
 		Action:   CommandSetProbeInterval,
 		Probe:    r.PathValue("probe"),
 		Interval: interval,
@@ -359,5 +403,5 @@ func HttpHostProbeIntervalHandler(w http.ResponseWriter, r *http.Request) (int, 
 		return 400, err.Error()
 	}
 
-	return forwardWriteToRemote(hostname, "POST", path, url.Values{"seconds": []string{seconds}})
+	return forwardWriteToRemote(r, hostname, "POST", path, url.Values{"seconds": []string{seconds}})
 }

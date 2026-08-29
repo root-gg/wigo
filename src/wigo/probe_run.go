@@ -104,7 +104,7 @@ func RunProbeNow(name string) error {
 // HttpProbeRunHandler runs a probe of this host now and answers its result.
 func HttpProbeRunHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
+	if status, message, allowed := httpWriteActionsAllowed(r); !allowed {
 		return status, message
 	}
 
@@ -152,7 +152,7 @@ func HttpHostProbeRunHandler(w http.ResponseWriter, r *http.Request) (int, strin
 		return 400, fmt.Sprintf("invalid probe name %q", r.PathValue("probe"))
 	}
 
-	if status, message, isPushClient := queueWriteForPushClient(hostname, ProbeCommand{
+	if status, message, isPushClient := queueWriteForPushClient(r, hostname, ProbeCommand{
 		Action: CommandRunProbe,
 		Probe:  r.PathValue("probe"),
 	}); isPushClient {
@@ -164,5 +164,5 @@ func HttpHostProbeRunHandler(w http.ResponseWriter, r *http.Request) (int, strin
 		return 400, err.Error()
 	}
 
-	return forwardWriteToRemoteWith(&remoteRecheckClient, hostname, "POST", path, nil)
+	return forwardWriteToRemoteWith(&remoteRecheckClient, r, hostname, "POST", path, nil)
 }

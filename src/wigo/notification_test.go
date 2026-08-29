@@ -48,6 +48,9 @@ func TestMain(m *testing.M) {
 	if _, err := conn.Exec(createSuppressionsTable); err != nil {
 		log.Fatalf("Fail to create the suppressions table : %s", err)
 	}
+	if _, err := conn.Exec(createApiTokensTable); err != nil {
+		log.Fatalf("Fail to create the api tokens table : %s", err)
+	}
 	LocalWigo.sqlLiteLock = new(sync.Mutex)
 	LocalWigo.sqlLiteConn = conn
 
@@ -100,6 +103,9 @@ func setupTestWigo(t *testing.T, group string) *Wigo {
 	}
 	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM suppressions`); err != nil {
 		t.Fatalf("Fail to clean the suppressions table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM api_tokens`); err != nil {
+		t.Fatalf("Fail to clean the api tokens table : %s", err)
 	}
 	LocalWigo.sqlLiteLock.Unlock()
 

@@ -31,8 +31,10 @@ type SuppressionList struct {
 // HttpSuppressionsHandler lists what is currently held back.
 func HttpSuppressionsHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
+	_, _, mayWrite := httpWriteActionsAllowed(r)
+
 	body, err := json.Marshal(SuppressionList{
-		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions,
+		WriteActionsAllowed: mayWrite,
 		Suppressions:        Suppressions(),
 		Flapping:            FlappingProbes(),
 	})
@@ -73,7 +75,7 @@ func HttpGroupUnsuppressHandler(w http.ResponseWriter, r *http.Request) (int, st
 
 func addSuppressionFrom(kind string, scope string, target string, w http.ResponseWriter, r *http.Request) (int, string) {
 
-	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
+	if status, message, allowed := httpWriteActionsAllowed(r); !allowed {
 		return status, message
 	}
 
@@ -125,7 +127,7 @@ func addSuppressionFrom(kind string, scope string, target string, w http.Respons
 
 func removeSuppressionFrom(scope string, target string, w http.ResponseWriter, r *http.Request) (int, string) {
 
-	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
+	if status, message, allowed := httpWriteActionsAllowed(r); !allowed {
 		return status, message
 	}
 

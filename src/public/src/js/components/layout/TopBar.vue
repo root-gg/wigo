@@ -157,6 +157,11 @@
           </ul>
         </li>
         <li class="nav-item">
+          <router-link class="nav-link" to="/tokens" title="API tokens">
+            <i class="fas fa-key fa-fw"></i>
+          </router-link>
+        </li>
+        <li class="nav-item">
           <router-link
             class="nav-link"
             to="/disabled"

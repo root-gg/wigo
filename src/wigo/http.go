@@ -369,9 +369,13 @@ func HttpProbesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 		return 500, fmt.Sprintf("Fail to read the probes directory : %s", err)
 	}
 
+	// The caller's role counts as much as the host's flag : offering a control
+	// that always answers 403 is worse than not offering it.
+	_, _, mayWrite := httpWriteActionsAllowed(r)
+
 	schedule := ProbesSchedule{
 		Hostname:            GetLocalWigo().GetHostname(),
-		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions,
+		WriteActionsAllowed: mayWrite,
 		Probes:              locations,
 		SkippedProbes:       GetLocalWigo().GetDisabledProbes(),
 		DisableRecords:      ProbeDisableRecords(),
@@ -385,12 +389,21 @@ func HttpProbesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 	return 200, string(body)
 }
 
-// httpWriteActionsAllowed reports whether this host accepts being changed
-// through its API. Closed unless an administrator opened it.
-func httpWriteActionsAllowed() (int, string, bool) {
+// httpWriteActionsAllowed reports whether this request may change anything.
+//
+// Two independent questions, and both have to be yes. The host has to accept
+// being changed at all, which is a decision about the machine. And the caller
+// has to be an operator, which is a decision about them : handing somebody the
+// dashboard so they can look at a graph must not also hand them the ability to
+// switch the monitoring off.
+func httpWriteActionsAllowed(r *http.Request) (int, string, bool) {
 
 	if !GetLocalWigo().GetConfig().Http.AllowWriteActions {
 		return 403, "Write actions are disabled on this host. Set AllowWriteActions in the [Http] section of the configuration file to allow them.", false
+	}
+
+	if !CallerOf(r).May(RoleOperator) {
+		return 403, "This credential is read only. An operator token is needed to change anything.", false
 	}
 
 	return 0, "", true
@@ -399,7 +412,7 @@ func httpWriteActionsAllowed() (int, string, bool) {
 // HttpProbeDisableHandler stops a probe from being scheduled.
 func HttpProbeDisableHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
+	if status, message, allowed := httpWriteActionsAllowed(r); !allowed {
 		return status, message
 	}
 
@@ -540,8 +553,8 @@ func httpAuthor(r *http.Request, claimed string) string {
 		connected = forwarded
 	}
 
-	if login, _, ok := r.BasicAuth(); ok && login != "" {
-		connected = fmt.Sprintf("%s from %s", login, connected)
+	if caller := CallerOf(r); caller.Name != "" && caller.Name != "unauthenticated" {
+		connected = fmt.Sprintf("%s from %s", caller.Name, connected)
 	}
 
 	if claimed != "" {
@@ -555,7 +568,7 @@ func httpAuthor(r *http.Request, claimed string) string {
 // when it was disabled.
 func HttpProbeIntervalHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
-	if status, message, allowed := httpWriteActionsAllowed(); !allowed {
+	if status, message, allowed := httpWriteActionsAllowed(r); !allowed {
 		return status, message
 	}
 

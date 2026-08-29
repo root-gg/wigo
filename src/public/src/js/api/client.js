@@ -219,6 +219,31 @@ const api = {
    * @param {string} probeName - Nom de la probe
    * @returns {Promise<Object>} L'ordonnancement mis à jour
    */
+  /** Les jetons d'API, jamais leurs secrets : ils ne sont pas stockés */
+  async getTokens() {
+    const response = await apiClient.get("/tokens");
+    return response.data;
+  },
+
+  /**
+   * Frappe un jeton. Le secret n'est lisible que dans cette réponse, une seule
+   * fois : rien ne le stocke.
+   */
+  async createToken(name, role, duration) {
+    const params = { name, role };
+    if (duration) params.for = duration;
+
+    const response = await apiClient.post("/tokens", null, { params });
+    return response.data;
+  },
+
+  async revokeToken(id) {
+    const response = await apiClient.post(
+      `/tokens/${encodeURIComponent(id)}/revoke`,
+    );
+    return response.data;
+  },
+
   /** Ce qui est actuellement mis en sourdine, tous scopes confondus */
   async getSuppressions() {
     const response = await apiClient.get("/suppressions");

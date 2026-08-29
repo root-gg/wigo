@@ -321,6 +321,29 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### Authentication and roles
+
+A single shared basic auth credential was tolerable while everything was read only. It stopped being tolerable the moment the API could disable a probe, silence a host or acknowledge an alert: anyone handed the dashboard URL to look at a graph could switch the monitoring off for the whole fleet.
+
+A caller now has a **role**. Reading needs the credential; changing anything needs an operator.
+
+| Endpoint | |
+|---|---|
+| `GET /api/whoami` | What the caller may do. The interface uses it to avoid offering a control that would answer 403. |
+| `GET /api/tokens` | The tokens, never their secrets. |
+| `POST /api/tokens?name=&role=&for=` | Mint one. `role` is `readonly` or `operator`, `for` is a duration or empty for no expiry. |
+| `POST /api/tokens/:id/revoke` | |
+
+Present a token as `Authorization: Bearer wigo_…` or `X-Wigo-Token: wigo_…`. Never in a query string: that ends up in access logs.
+
+**The secret is readable exactly once**, in the answer that created it. Only its SHA-256 is stored, so a stolen database cannot be replayed against the API. A token is 32 random bytes rather than a password, which is why a fast hash is the right one — guessing 256 bits is the problem, not how quickly you can try.
+
+**The shared credential stays, and stays an operator.** An upgrade must not lock an administrator out of their own install: it is what you use to mint the first token, and what you remove once you have. A wigo with no `Login` set stays open, as it was.
+
+A token that is presented and refused does **not** fall back on the shared credential — a revoked token would otherwise still work for anyone who also knows the password. Revoking keeps the row: what it was called and when it was turned off is a question somebody asks later. `LastUsed` is recorded so the tokens nobody uses can be found and revoked.
+
+Both gates apply to writes, and both must say yes: the host has to accept being changed (`AllowWriteActions`), and the caller has to be an operator. Forwarding to a remote is checked the same way, so reaching through this host is not a way around the check that just failed.
+
 ### The HTTP layer
 
 Everything is served by `net/http` alone. Handlers return a status and a body rather than writing to the response themselves, which keeps a handler a plain function of its request — testable without a server, and the reason every refusal in the API is a sentence rather than a bare status code.

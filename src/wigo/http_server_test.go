@@ -52,10 +52,10 @@ func TestContentTypeIsSetForTheApiOnly(t *testing.T) {
 
 // Wrong login, wrong password, or neither : all refused, and the credential is
 // the only thing standing in front of an api that can disable probes.
-func TestBasicAuthRefusesEverythingButTheCredential(t *testing.T) {
+func TestAuthenticatingRefusesEverythingButTheCredential(t *testing.T) {
 	handler := Chain(Handler(func(w http.ResponseWriter, r *http.Request) (int, string) {
 		return 200, "ok"
-	}), BasicAuth("germain", "s3cret"))
+	}), Authenticating("germain", "s3cret"))
 
 	cases := []struct {
 		login, password string
