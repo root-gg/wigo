@@ -317,7 +317,7 @@ All of them take `?reason=`, and the `POST` endpoints return **403** unless `All
 
 `GET /api/suppressions` and the **Held back** page list everything currently quiet, with a button to lift each one. That page is the point: a silence set on a group has no card to go back to, and a suppression nobody can find is the same blind spot a disabled probe is. It lists flapping probes too — nobody decided those and there is nothing to lift, but the effect is identical and it belongs on the same page.
 
-A group cannot be acknowledged — forty hosts have no single status to say "I am on it" about. Silencing one is fine, since that claims nothing about state.
+A group cannot be acknowledged — forty hosts have no single status to say "I am on it" about. Silencing one is fine, since that claims nothing about state, and the group page carries the control. It targets the **label**, so a host that joins the group during the window is covered too.
 
 The most specific suppression wins: one on a probe beats one on its host, which beats one on its group.
 

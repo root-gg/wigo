@@ -57,6 +57,29 @@
       </li>
     </template>
 
+    <!-- Faire taire tout un groupe : « on migre toutes les bases cet
+         après-midi ». Ça vaut aussi pour les machines qui rejoindront le
+         groupe pendant la fenêtre, puisque c'est l'étiquette qui est visée et
+         pas une liste de hosts. Acquitter n'est pas proposé : quarante
+         machines n'ont pas un statut unique dont on dise qu'on s'en occupe. -->
+    <div class="d-flex align-items-center justify-content-between gap-2 mt-4">
+      <div v-if="groupSuppression" class="small text-body-secondary">
+        <i class="fas fa-fw fa-bell-slash"></i>
+        {{ describeSuppression(groupSuppression) }}
+      </div>
+      <div v-else class="small text-body-secondary">
+        Notifications about this group are on.
+      </div>
+
+      <SuppressionControl
+        scope="group"
+        :target="groupName"
+        :suppression="groupSuppression"
+        :editable="canSuppress"
+        @changed="onSuppressionsChanged"
+      />
+    </div>
+
     <div
       v-for="host in visibleHosts"
       :key="host.Name"
@@ -126,6 +149,12 @@ import StatusBadge from "../components/StatusBadge.vue";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";
+import SuppressionControl from "../components/SuppressionControl.vue";
+import {
+  suppressionIndex,
+  suppressionFor,
+  describeSuppression,
+} from "../utils/suppression.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -136,6 +165,35 @@ const loaded = ref(false);
 const counts = ref(emptyCounts());
 
 const { matches } = useDashboardFilter();
+
+const suppressions = ref({ WriteActionsAllowed: false, Suppressions: [] });
+
+// Décidé là où partent les notifications, donc sur ce wigo-ci
+const canSuppress = computed(() => !!suppressions.value.WriteActionsAllowed);
+
+const groupSuppression = computed(() =>
+  suppressionFor(
+    suppressionIndex(suppressions.value.Suppressions),
+    "group",
+    groupName.value,
+    "",
+  ),
+);
+
+function onSuppressionsChanged(updated) {
+  if (updated && Array.isArray(updated.Suppressions)) {
+    suppressions.value = updated;
+  }
+}
+
+async function loadSuppressions() {
+  try {
+    suppressions.value = await api.getSuppressions();
+  } catch (error) {
+    // Un wigo trop ancien n'a pas cet endpoint : le reste de la page marche
+    console.warn("Suppressions unavailable:", error.message);
+  }
+}
 
 function emptyCounts() {
   return {
@@ -235,8 +293,12 @@ async function load() {
   }
 }
 
+async function loadAll() {
+  await Promise.all([load(), loadSuppressions()]);
+}
+
 const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(
-  load,
+  loadAll,
   60,
 );
 
@@ -259,11 +321,11 @@ watch(
 );
 
 // Le flux donne l'immédiateté, le rafraîchissement périodique reste le filet
-useLiveEvents(load);
+useLiveEvents(loadAll);
 
 onMounted(() => {
   groupName.value = route.query.name || "";
-  load();
+  loadAll();
   startRefresh();
 });
 
