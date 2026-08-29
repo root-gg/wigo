@@ -11,17 +11,35 @@
 
 ## Screenshots
 
+Taken against a fabricated fleet — every hostname, group and measurement below
+is invented.
+
 ### Main view
 
-![Main view](https://github.com/user-attachments/assets/999138a2-0602-4da1-bb20-337a3f0433ed)
+Every group, and every host under it with its probes.
+
+![Main view](docs/screenshots/main.png)
 
 ### Group view
 
-![Group view](https://github.com/user-attachments/assets/2938c5c7-a5f7-497f-8f4d-9da7affdbccd)
+One group, and every probe of every host in it with what it last said.
+
+![Group view](docs/screenshots/group.png)
 
 ### Host view
 
-![Host view](https://github.com/user-attachments/assets/8a4a1aa4-afa2-4461-86b4-ff70dc910efa)
+One host: its labels, whether it is silenced, its status over time, and each
+probe with its detail and its graphs.
+
+![Host view](docs/screenshots/host.png)
+
+### Wall
+
+For a screen on a wall: worst first, and its own "updated Ns ago" turning amber
+when the page stops being refreshed — a wall display that quietly froze is
+worse than a blank one.
+
+![Wall](docs/screenshots/wall.png)
 
 ---
 
