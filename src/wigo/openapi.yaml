@@ -65,12 +65,39 @@ paths:
     get:
       tags: [state]
       summary: The names of every host this wigo watches
+      parameters:
+        - name: labels
+          in: query
+          required: false
+          description: >
+            Narrow to the hosts carrying all of these labels, as
+            "env=prod,role=db". A host's group is published as the label
+            "group", so hosts that predate labels are reachable this way too.
+            Without the parameter every host is returned, unchanged.
+          schema: { type: string }
       responses:
         "200":
           description: Host names
           content:
             application/json:
               schema: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/labels:
+    get:
+      tags: [state]
+      summary: Every label in use, with how many hosts carry each value
+      responses:
+        "200":
+          description: Label keys, each holding its values and their counts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties: { type: integer }
+                example: { env: { prod: 12, test: 3 }, group: { databases: 4 } }
 
   /api/hosts/{hostname}:
     get:

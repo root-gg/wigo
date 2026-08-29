@@ -41,6 +41,10 @@ type Config struct {
 	// here keeps the interval minus a second it has always had. See
 	// probe_timeout.go.
 	ProbeTimeouts map[string]int
+
+	// What this host is, beyond its one Group : env = "prod", role = "db".
+	// Group is unchanged and still published, as a label too. See label.go.
+	Labels map[string]string
 }
 
 func NewConfig(configFile string) (this *Config) {

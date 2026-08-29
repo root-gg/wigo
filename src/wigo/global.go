@@ -115,6 +115,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	this.LocalHost = NewHost()
 	this.LocalHost.Name = this.config.Global.Hostname
 	this.LocalHost.Group = this.config.Global.Group
+	this.LocalHost.Labels = UsableLabels(this.config.Labels)
 	this.LocalHost.parentWigo = this
 
 	// Init RemoteWigos list

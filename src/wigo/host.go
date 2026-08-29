@@ -3,9 +3,15 @@ package wigo
 // Host
 
 type Host struct {
-	Name       string
-	Group      string
-	Status     int
+	Name   string
+	Group  string
+	Status int
+
+	// What this host is, beyond its one group. Exported so it travels with the
+	// host over the api : a client too old to send it leaves it empty, and a
+	// master too old to know about it ignores the field. See label.go.
+	Labels map[string]string
+
 	Probes     *concurrentMapProbes
 	parentWigo *Wigo
 }

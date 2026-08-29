@@ -28,6 +28,22 @@ func HttpRemotesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 		}
 	}
 
+	// Narrowed by label when asked. Without the parameter this is the list it
+	// has always been : a filter nobody filled in must not change the answer.
+	if asked := r.URL.Query().Get("labels"); asked != "" {
+		selector, err := ParseSelector(asked)
+		if err != nil {
+			return 400, err.Error()
+		}
+
+		json, err := json.Marshal(GetLocalWigo().HostsMatching(selector))
+		if err != nil {
+			return 500, ""
+		}
+
+		return 200, string(json)
+	}
+
 	// Return remotes list
 	list := GetLocalWigo().ListRemoteWigosNames()
 	json, err := json.Marshal(list)
@@ -36,6 +52,17 @@ func HttpRemotesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 	} else {
 		return 200, string(json)
 	}
+}
+
+// HttpLabelsHandler answers every label in use with how many hosts carry each
+// value, which is what a filter on screen is built from.
+func HttpLabelsHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+	encoded, err := json.Marshal(GetLocalWigo().FleetLabels())
+	if err != nil {
+		return 500, "Failed to encode the labels"
+	}
+
+	return 200, string(encoded)
 }
 
 func HttpRemotesProbesHandler(w http.ResponseWriter, r *http.Request) (int, string) {

@@ -312,3 +312,14 @@ func testRequest(t *testing.T, keyValues ...string) *http.Request {
 
 	return request
 }
+
+func testRequestWithQuery(t *testing.T, query string) *http.Request {
+	t.Helper()
+
+	request, err := http.NewRequest("GET", "http://localhost/?"+query, nil)
+	if err != nil {
+		t.Fatalf("Fail to build the request : %s", err)
+	}
+
+	return request
+}

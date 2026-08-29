@@ -465,6 +465,32 @@ All of them take `?reason=`, and the `POST` endpoints return **403** unless `All
 
 `GET /api/suppressions` and the **Held back** page list everything currently quiet, with a button to lift each one. That page is the point: a silence set on a group has no card to go back to, and a suppression nobody can find is the same blind spot a disabled probe is. It lists flapping probes too — nobody decided those and there is nothing to lift, but the effect is identical and it belongs on the same page.
 
+### Labels
+
+A host has exactly one `Group`, and a group has to be *chosen*: `par1`, or `prod`, or `db` — never the three at once. Whichever you pick, the other two questions stop being answerable. "Every database" and "everything in par1" are both reasonable things to ask of a monitoring tool, and one `Group` can only answer one of them.
+
+```toml
+[Labels]
+env  = "prod"
+role = "db"
+dc   = "par1"
+```
+
+**Labels are additive, not a replacement.** `Group` is untouched, still published, still what the group views and the API paths are built on — and it travels as the label `group` as well. So filtering by label reaches *every* host, including the ones running a version that has never heard of labels, which is the whole fleet on the day you upgrade the first one.
+
+| | |
+|---|---|
+| `GET /api/hosts?labels=env=prod,role=db` | the hosts carrying **all** of them |
+| `GET /api/labels` | every label in use, with how many hosts carry each value |
+
+Without the parameter `/api/hosts` answers exactly what it always did. An empty selector matches everything: a filter nobody filled in must not empty the screen.
+
+A selector asking for the same key twice — `env=prod,env=test` — is refused with **400** rather than answered with an empty list. It was probably meant as "either", and nothing can carry both; an empty list reads as *the hosts are gone*, which is the one answer a monitoring tool must not give by accident.
+
+Keys and values take letters, digits, dot, dash and underscore, starting with a letter or a digit — they end up in URLs and log lines, and a value containing a comma or an equals sign would silently split into something else. Anything refused is **named at startup and dropped**, and what a host publishes is already the effective set: the API must not answer that a host carries a label the log says is ignored.
+
+`group` cannot be set in `[Labels]`. It is derived from `Group`, and two places saying which group a host is in is one too many — the config file and the API would disagree the day they differ.
+
 ### Host dependencies
 
 A router goes down and the forty hosts behind it stop answering. Each one is a separate discovery and a separate message, and **none of the forty is the news**: the router is.

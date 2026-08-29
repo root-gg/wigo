@@ -68,6 +68,7 @@ func main() {
 	// all, and doing nothing at all is what a working dependency looks like.
 	wigo.LogDependencyProblems()
 	wigo.LogProbeTimeoutProblems()
+	wigo.LogLabelProblems()
 
 	// Brings back the probes whose disable was meant to be temporary. It is the
 	// only thing that reads that table to act, and it can only ever start a
@@ -744,6 +745,7 @@ func registerRoutes(mux *http.ServeMux) {
 	get("/api/groups/{group}", wigo.HttpGroupsHandler)
 	get("/api/groups/{group}/logs", wigo.HttpLogsHandler)
 	get("/api/groups/{group}/probes/{probe}/logs", wigo.HttpLogsHandler)
+	get("/api/labels", wigo.HttpLabelsHandler)
 	get("/api/hosts", wigo.HttpRemotesHandler)
 	get("/api/hosts/{hostname}", wigo.HttpRemotesHandler)
 	get("/api/hosts/{hostname}/status", wigo.HttpRemotesStatusHandler)
