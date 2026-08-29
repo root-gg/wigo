@@ -48,8 +48,19 @@ const api = {
    * Récupère la liste des hosts
    * @returns {Promise<Array>}
    */
-  async getHosts() {
-    const response = await apiClient.get("/hosts");
+  async getHosts(labels) {
+    const response = await apiClient.get("/hosts", {
+      params: labels ? { labels } : undefined,
+    });
+    return response.data;
+  },
+
+  /**
+   * Les labels en usage dans la flotte, avec le nombre de hosts par valeur.
+   * @returns {Promise<Object>}
+   */
+  async getLabels() {
+    const response = await apiClient.get("/labels");
     return response.data;
   },
 

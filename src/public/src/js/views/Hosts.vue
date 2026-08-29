@@ -39,6 +39,24 @@
       </li>
     </template>
 
+    <!-- Seulement le refus : ce qui est filtré est dit une fois, dans la barre
+         du haut. Une flotte réduite sans rien qui l'explique se lirait comme
+         une flotte à laquelle il manque des machines. -->
+    <div
+      v-if="labelError"
+      class="alert alert-warning d-flex align-items-center flex-wrap gap-2 mt-3 mb-0 py-2"
+    >
+      <i class="fas fa-fw fa-triangle-exclamation"></i>
+      <span>{{ labelError }}</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary ms-auto"
+        @click="setLabelSelector('')"
+      >
+        Show every host
+      </button>
+    </div>
+
     <div
       v-for="group in visibleGroups"
       :key="group.Name"
@@ -115,7 +133,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import api from "../api/client.js";
 import { getLevel, getStatusRowClass } from "../utils/status.js";
@@ -131,7 +149,11 @@ const groups = ref([]);
 const loaded = ref(false);
 const counts = ref(emptyCounts());
 
-const { matches } = useDashboardFilter();
+const { matches, labelSelector, setLabelSelector } = useDashboardFilter();
+
+/** Les hosts que le serveur dit porter le sélecteur, null tant qu'on ignore */
+const matchingHosts = ref(null);
+const labelError = ref("");
 
 function emptyCounts() {
   return {
@@ -160,6 +182,7 @@ const visibleGroups = computed(() =>
       ...group,
       visibleHosts: [...group.Hosts]
         .sort(byStatusThenName)
+        .filter((host) => carriesTheLabels(host.Name))
         .filter((host) =>
           matches(
             host.Level,
@@ -171,6 +194,24 @@ const visibleGroups = computed(() =>
     }))
     .filter((group) => group.visibleHosts.length > 0),
 );
+
+/**
+ * Le tri par label est fait par le serveur, pas ici.
+ *
+ * Le résumé d'un groupe ne porte pas les labels de ses hosts, et les y ajouter
+ * grossirait une réponse déjà large pour une question qui se pose rarement.
+ * `/api/hosts?labels=` répond exactement ça, et c'est le même code qui décide
+ * ici et pour les notifications -- une seule définition de « porte ce label ».
+ */
+function carriesTheLabels(hostname) {
+  if (!labelSelector.value) return true;
+
+  // Tant que la réponse n'est pas là, on ne cache rien : montrer une flotte
+  // vide en attendant se lit comme une flotte éteinte.
+  if (matchingHosts.value === null) return true;
+
+  return matchingHosts.value.has(hostname);
+}
 
 function sortedProbes(probes) {
   return [...probes].sort(byStatusThenName);
@@ -211,8 +252,39 @@ function groupTitle(group) {
   return parts.join(" - ");
 }
 
+/**
+ * Qui porte le sélecteur, demandé au serveur.
+ *
+ * Rechargé avec le reste plutôt qu'une fois pour toutes : un host dont les
+ * labels changent, ou qui arrive, doit entrer ou sortir du filtre sans qu'on
+ * ait à recharger la page.
+ */
+async function loadMatchingHosts() {
+  if (!labelSelector.value) {
+    matchingHosts.value = null;
+    labelError.value = "";
+    return;
+  }
+
+  try {
+    const names = await api.getHosts(labelSelector.value);
+    matchingHosts.value = new Set(names);
+    labelError.value = "";
+  } catch (error) {
+    // Un sélecteur que le serveur refuse est dit, pas subi : sans ça la page
+    // se viderait sans expliquer pourquoi.
+    labelError.value =
+      error.response?.data || error.message || "That label filter was refused";
+    matchingHosts.value = null;
+  }
+}
+
+watch(labelSelector, loadMatchingHosts);
+
 async function load() {
   try {
+    await loadMatchingHosts();
+
     const groupNames = await api.getGroups();
 
     // Les groupes sont chargés en parallèle, et l'affichage n'est remplacé

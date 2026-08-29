@@ -63,11 +63,24 @@ export function useDashboardFilter() {
 
   const search = computed(() => String(route.query.q || "").trim());
 
+  /**
+   * Le sélecteur de labels, "env=prod,role=db".
+   *
+   * Dans l'URL comme les niveaux et la recherche : une vue filtrée se partage
+   * et survit à un rechargement. Il n'est pas mémorisé dans le localStorage,
+   * lui : « ne me montre que la prod » est une question du moment, pas une
+   * préférence, et la retrouver silencieusement le lendemain ferait croire que
+   * la moitié de la flotte a disparu.
+   */
+  const labelSelector = computed(() => String(route.query.labels || "").trim());
+
   const allLevelsActive = computed(
     () => activeLevels.value.length === STATUS_LEVELS.length,
   );
 
-  const isFiltered = computed(() => !allLevelsActive.value || !!search.value);
+  const isFiltered = computed(
+    () => !allLevelsActive.value || !!search.value || !!labelSelector.value,
+  );
 
   const problemsOnly = computed(
     () =>
@@ -119,9 +132,14 @@ export function useDashboardFilter() {
     updateQuery({ q: trimmed || undefined });
   }
 
+  function setLabelSelector(value) {
+    const trimmed = String(value || "").trim();
+    updateQuery({ labels: trimmed || undefined });
+  }
+
   function clearFilters() {
     storeLevels(ALL);
-    updateQuery({ levels: undefined, q: undefined });
+    updateQuery({ levels: undefined, q: undefined, labels: undefined });
   }
 
   /**
@@ -160,6 +178,8 @@ export function useDashboardFilter() {
     search,
     isFiltered,
     problemsOnly,
+    labelSelector,
+    setLabelSelector,
     isLevelActive,
     toggleLevel,
     toggleProblemsOnly,

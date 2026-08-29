@@ -97,7 +97,8 @@ const props = defineProps({
 
 const emit = defineEmits(["refresh-settings"]);
 
-const { activeLevels, search, isFiltered, clearFilters } = useDashboardFilter();
+const { activeLevels, search, labelSelector, isFiltered, clearFilters } =
+  useDashboardFilter();
 
 useDocumentStatus(
   computed(() => props.counts),
@@ -111,6 +112,11 @@ const filterSummary = computed(() => {
   }
   if (search.value) {
     parts.push(`matching “${search.value}”`);
+  }
+  // Dit ici plutôt que dans une seconde bannière : deux barres pour une même
+  // chose, dont une vide quand seul le label filtre, se lit comme un bug.
+  if (labelSelector.value) {
+    parts.push(`with ${labelSelector.value}`);
   }
   return `Filtered: ${parts.join(", ")}`;
 });

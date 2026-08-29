@@ -57,6 +57,9 @@
       </li>
     </template>
 
+    <!-- Ce que ce host est, avant ce qui lui arrive -->
+    <HostLabels v-if="host" :host="host.LocalHost" class="mt-3" />
+
     <!-- Le host entier : une panne connue ne doit pas réveiller quelqu'un
          toutes les cinq minutes pendant qu'elle est traitée. -->
     <div
@@ -232,6 +235,7 @@ import ProbeDetail from "../components/ProbeDetail.vue";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";
+import HostLabels from "../components/HostLabels.vue";
 import {
   disableRecordsByProbe,
   describeDisable,

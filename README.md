@@ -505,6 +505,14 @@ Keys and values take letters, digits, dot, dash and underscore, starting with a 
 
 `group` cannot be set in `[Labels]`. It is derived from `Group`, and two places saying which group a host is in is one too many — the config file and the API would disagree the day they differ.
 
+**On screen**, a host's labels sit at the top of its page, before what is happening to it. Each one is a link to the fleet filtered on it: the gesture you want after reading `env=prod` is to see the rest of production. The group is among them, so even a host that has never been labelled has one useful link.
+
+The filter lives in the URL (`/#/?labels=env=prod`) like the level and search filters, so a filtered view can be shared and survives a reload — but unlike the levels it is **not** remembered across sessions. "Only show me production" is a question of the moment, not a preference, and finding it silently reapplied the next day would look like half the fleet had vanished.
+
+Which hosts carry a selector is decided by the server, through `/api/hosts?labels=`, rather than in the browser: the group summaries do not carry each host's labels, and one definition of *carries this label* serving the filter, the API and the notification routing is worth a round trip.
+
+A selector the server refuses is shown with its reason, and **the fleet is still shown in full** rather than emptied — an empty page would say the hosts are gone, which is not what happened.
+
 ### Host dependencies
 
 A router goes down and the forty hosts behind it stop answering. Each one is a separate discovery and a separate message, and **none of the forty is the news**: the router is.
