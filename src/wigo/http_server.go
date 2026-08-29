@@ -141,15 +141,27 @@ func CallerOf(r *http.Request) Caller {
 	return Caller{Role: RoleOperator, Name: "unauthenticated"}
 }
 
-// Authenticating recognises the caller, by token or by the shared credential.
+// Authenticating recognises the caller, by token or by the shared credential,
+// and decides what somebody who presents neither is allowed to do.
 //
 // A token is looked at first, because it is the one that carries a role. The
 // shared credential is kept, and kept as an operator : an upgrade must not lock
 // an administrator out of their own install. It is what mints the first token,
 // and what you remove once you have.
-func Authenticating(login string, password string) Middleware {
+//
+// anonymousRole is what a request with no credentials at all gets. RoleNone
+// means it gets nothing and is challenged, which is what a wigo with a Login
+// set has always done. A read-only anonymous role is the interesting one : the
+// dashboard is open to whoever can reach it, and acting on it still needs the
+// credential or a token.
+func Authenticating(login string, password string, anonymousRole string) Middleware {
 	expectedLogin := []byte(login)
 	expectedPassword := []byte(password)
+
+	// Nothing to compare against, so nothing a presented password could ever
+	// unlock. Without this an open wigo would refuse a client that sends
+	// credentials it does not need.
+	credentialConfigured := login != "" && password != ""
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -164,27 +176,44 @@ func Authenticating(login string, password string) Middleware {
 				}
 
 				// A token that was presented and refused is not an invitation
-				// to fall back on the shared credential
+				// to fall back on the shared credential, nor on being anonymous
 				http.Error(w, "Not Authorized", http.StatusUnauthorized)
 				return
 			}
 
-			givenLogin, givenPassword, ok := r.BasicAuth()
+			givenLogin, givenPassword, given := r.BasicAuth()
 
-			// Both compared every time, so the answer takes the same time
-			// whether the login was wrong, the password was, or both.
-			loginOk := subtle.ConstantTimeCompare([]byte(givenLogin), expectedLogin) == 1
-			passwordOk := subtle.ConstantTimeCompare([]byte(givenPassword), expectedPassword) == 1
+			if credentialConfigured && given {
+				// Both compared every time, so the answer takes the same time
+				// whether the login was wrong, the password was, or both.
+				loginOk := subtle.ConstantTimeCompare([]byte(givenLogin), expectedLogin) == 1
+				passwordOk := subtle.ConstantTimeCompare([]byte(givenPassword), expectedPassword) == 1
 
-			if !ok || !loginOk || !passwordOk {
-				w.Header().Set("WWW-Authenticate", `Basic realm="Authorization Required"`)
-				http.Error(w, "Not Authorized", http.StatusUnauthorized)
+				if loginOk && passwordOk {
+					next.ServeHTTP(w, withCaller(r, Caller{Role: RoleOperator, Name: givenLogin}))
+					return
+				}
+
+				// Somebody tried to say who they were and got it wrong. Quietly
+				// serving them as anonymous would hide the typo behind a
+				// dashboard that half works.
+				challenge(w)
 				return
 			}
 
-			next.ServeHTTP(w, withCaller(r, Caller{Role: RoleOperator, Name: givenLogin}))
+			if anonymousRole == RoleNone || anonymousRole == "" {
+				challenge(w)
+				return
+			}
+
+			next.ServeHTTP(w, withCaller(r, Caller{Role: anonymousRole, Name: "anonymous"}))
 		})
 	}
+}
+
+func challenge(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", `Basic realm="Authorization Required"`)
+	http.Error(w, "Not Authorized", http.StatusUnauthorized)
 }
 
 func withCaller(r *http.Request, caller Caller) *http.Request {
@@ -267,4 +296,35 @@ type gzipResponseWriter struct {
 
 func (w *gzipResponseWriter) Write(data []byte) (int, error) {
 	return w.writer.Write(data)
+}
+
+// ResolvedAnonymousRole is what a request with no credentials gets on this
+// host.
+//
+// Empty means nothing was configured, and the answer is then whatever this
+// install already did : a wigo with no Login has always served everybody as an
+// operator, and a wigo with one has always refused everybody without it.
+// Neither may change because somebody upgraded.
+//
+// An unknown value resolves to read only rather than to operator. A typo in the
+// setting meant to lock a wigo down must not be what opens it, and the mistake
+// shows up immediately as buttons that refuse rather than silently as a
+// dashboard anybody can act on.
+func ResolvedAnonymousRole(config *HttpConfig) string {
+	switch config.AnonymousRole {
+	case "":
+		if config.Login != "" && config.Password != "" {
+			return RoleNone
+		}
+		return RoleOperator
+
+	case RoleNone, RoleReadOnly, RoleOperator:
+		return config.AnonymousRole
+
+	default:
+		log.Printf("Http server : unknown AnonymousRole %q, expected %q, %q or %q. "+
+			"Treating anonymous callers as read only.",
+			config.AnonymousRole, RoleNone, RoleReadOnly, RoleOperator)
+		return RoleReadOnly
+	}
 }

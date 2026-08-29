@@ -403,6 +403,19 @@ Present a token as `Authorization: Bearer wigo_…` or `X-Wigo-Token: wigo_…`.
 
 **The shared credential stays, and stays an operator.** An upgrade must not lock an administrator out of their own install: it is what you use to mint the first token, and what you remove once you have. A wigo with no `Login` set stays open, as it was.
 
+**What an anonymous caller may do is its own setting.** It used to be a side effect of whether `Login` was filled in: no `Login` meant everybody could do everything, a `Login` meant nobody could do anything without it, and there was no way to say *anyone may look, only I may act*. `AnonymousRole` in `[Http]` says it directly:
+
+| | |
+|---|---|
+| `""` | Whatever this install already did — everything with no `Login`, nothing with one. The default, so an upgrade changes nothing. |
+| `"none"` | Refused. The credential or a token is required to see anything. |
+| `"readonly"` | Anyone who can reach it may look; only the `Login` or an operator token may change anything. |
+| `"operator"` | Anyone who can reach it may do whatever `AllowWriteActions` permits. |
+
+An unknown value resolves to `readonly`, not to `operator`: a typo in the setting meant to lock a wigo down must not be what opens it, and being locked out too far is noticed immediately while being open too wide is not.
+
+Presenting a wrong password is refused even where an anonymous caller would have been welcome — serving the typo as anonymous would hide it behind a dashboard that half works. Credentials sent to a wigo that has none configured are ignored rather than refused.
+
 A token that is presented and refused does **not** fall back on the shared credential — a revoked token would otherwise still work for anyone who also knows the password. Revoking keeps the row: what it was called and when it was turned off is a question somebody asks later. `LastUsed` is recorded so the tokens nobody uses can be found and revoked.
 
 Both gates apply to writes, and both must say yes: the host has to accept being changed (`AllowWriteActions`), and the caller has to be an operator. Forwarding to a remote is checked the same way, so reaching through this host is not a way around the check that just failed.

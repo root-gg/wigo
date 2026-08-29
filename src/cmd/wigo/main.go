@@ -630,10 +630,21 @@ func threadHttp(config *wigo.HttpConfig) {
 		middlewares = append(middlewares, wigo.Gzip())
 	}
 
+	// Always installed, even with no Login : it is what reads a token, and what
+	// decides what somebody presenting nothing is allowed to do.
+	anonymousRole := wigo.ResolvedAnonymousRole(config)
 	if config.Login != "" && config.Password != "" {
 		log.Println("Http server : basic auth enabled")
-		middlewares = append(middlewares, wigo.Authenticating(config.Login, config.Password))
 	}
+	switch anonymousRole {
+	case wigo.RoleNone:
+		log.Println("Http server : credentials required")
+	case wigo.RoleOperator:
+		log.Println("Http server : open to anyone, as an operator")
+	default:
+		log.Printf("Http server : open to anyone, %s", anonymousRole)
+	}
+	middlewares = append(middlewares, wigo.Authenticating(config.Login, config.Password, anonymousRole))
 
 	handler := wigo.Chain(mux, middlewares...)
 

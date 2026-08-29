@@ -32,6 +32,12 @@ const (
 	// Can also disable probes, silence hosts, acknowledge, recheck, and manage
 	// tokens.
 	RoleOperator = "operator"
+
+	// Not a role a credential can hold : what an unauthenticated caller is
+	// given when this wigo answers nobody without credentials. It exists so
+	// "who may read this without identifying themselves" is one setting with
+	// three answers rather than a side effect of whether Login is filled in.
+	RoleNone = "none"
 )
 
 // ApiToken is one revocable credential.

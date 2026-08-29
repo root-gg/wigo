@@ -55,7 +55,7 @@ func TestContentTypeIsSetForTheApiOnly(t *testing.T) {
 func TestAuthenticatingRefusesEverythingButTheCredential(t *testing.T) {
 	handler := Chain(Handler(func(w http.ResponseWriter, r *http.Request) (int, string) {
 		return 200, "ok"
-	}), Authenticating("germain", "s3cret"))
+	}), Authenticating("germain", "s3cret", RoleNone))
 
 	cases := []struct {
 		login, password string
@@ -160,5 +160,112 @@ func TestChainAppliesInReadingOrder(t *testing.T) {
 
 	if strings.Join(order, ",") != "first,second,handler" {
 		t.Errorf("Got %v", order)
+	}
+}
+
+// The role of the caller, as the chain saw them.
+func callerServedBy(t *testing.T, middleware Middleware, decorate func(*http.Request)) (int, Caller) {
+	t.Helper()
+
+	seen := Caller{}
+	handler := Chain(Handler(func(w http.ResponseWriter, r *http.Request) (int, string) {
+		seen = CallerOf(r)
+		return 200, "ok"
+	}), middleware)
+
+	request := httptest.NewRequest("GET", "/api/probes", nil)
+	if decorate != nil {
+		decorate(request)
+	}
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	return recorder.Code, seen
+}
+
+// The setting people actually want : the dashboard is open to whoever can reach
+// it, and changing anything still needs the credential.
+func TestAnonymousCanBeLetInReadOnly(t *testing.T) {
+	middleware := Authenticating("germain", "s3cret", RoleReadOnly)
+
+	status, caller := callerServedBy(t, middleware, nil)
+	if status != 200 {
+		t.Fatalf("Got %d, expected an anonymous caller to be served", status)
+	}
+	if caller.Role != RoleReadOnly {
+		t.Errorf("Got role %q, expected read only", caller.Role)
+	}
+	if caller.May(RoleOperator) {
+		t.Errorf("An anonymous reader must not be able to change anything")
+	}
+
+	// And the credential still identifies the administrator
+	status, caller = callerServedBy(t, middleware, func(r *http.Request) {
+		r.SetBasicAuth("germain", "s3cret")
+	})
+	if status != 200 || !caller.May(RoleOperator) {
+		t.Errorf("Got %d and %+v, expected the credential to still grant operator", status, caller)
+	}
+}
+
+// Trying to say who you are and getting it wrong is not the same as not saying:
+// serving the typo as anonymous would hide it behind a dashboard that half
+// works.
+func TestAWrongPasswordIsRefusedEvenWhenAnonymousIsWelcome(t *testing.T) {
+	status, _ := callerServedBy(t, Authenticating("germain", "s3cret", RoleReadOnly),
+		func(r *http.Request) { r.SetBasicAuth("germain", "wrong") })
+
+	if status != 401 {
+		t.Errorf("Got %d, expected 401", status)
+	}
+}
+
+// Nothing to compare against, so nothing a presented password could unlock.
+// Refusing it would lock a client out of a wigo that guards nothing.
+func TestCredentialsAreIgnoredWhenNoneAreConfigured(t *testing.T) {
+	status, caller := callerServedBy(t, Authenticating("", "", RoleReadOnly),
+		func(r *http.Request) { r.SetBasicAuth("someone", "anything") })
+
+	if status != 200 || caller.Role != RoleReadOnly {
+		t.Errorf("Got %d and %+v, expected an anonymous read only caller", status, caller)
+	}
+}
+
+// Both historical behaviours, which an upgrade may not change: no Login served
+// everybody as an operator, a Login refused everybody without it.
+func TestAnUnsetAnonymousRoleKeepsWhatTheInstallDid(t *testing.T) {
+	open := &HttpConfig{}
+	if role := ResolvedAnonymousRole(open); role != RoleOperator {
+		t.Errorf("Got %q, expected a wigo with no Login to stay open as an operator", role)
+	}
+
+	guarded := &HttpConfig{Login: "germain", Password: "s3cret"}
+	if role := ResolvedAnonymousRole(guarded); role != RoleNone {
+		t.Errorf("Got %q, expected a wigo with a Login to keep refusing anonymous callers", role)
+	}
+
+	// Half a credential guards nothing, so it cannot be what closes the door
+	half := &HttpConfig{Login: "germain"}
+	if role := ResolvedAnonymousRole(half); role != RoleOperator {
+		t.Errorf("Got %q, expected a login with no password to change nothing", role)
+	}
+}
+
+// A typo in the setting meant to lock a wigo down must not be what opens it.
+func TestAnUnknownAnonymousRoleFallsBackToReadOnly(t *testing.T) {
+	config := &HttpConfig{Login: "germain", Password: "s3cret", AnonymousRole: "read-only"}
+
+	if role := ResolvedAnonymousRole(config); role != RoleReadOnly {
+		t.Errorf("Got %q, expected read only rather than operator", role)
+	}
+}
+
+func TestAnonymousRoleIsHonouredWhenSet(t *testing.T) {
+	for _, role := range []string{RoleNone, RoleReadOnly, RoleOperator} {
+		config := &HttpConfig{AnonymousRole: role}
+		if got := ResolvedAnonymousRole(config); got != role {
+			t.Errorf("Got %q, expected %q", got, role)
+		}
 	}
 }

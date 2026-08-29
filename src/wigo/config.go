@@ -75,6 +75,10 @@ func NewConfig(configFile string) (this *Config) {
 	// upgrade never opens anything that was closed before.
 	this.Http.AllowWriteActions = false
 
+	// Left empty so it can mean "whatever this install already did", which is
+	// resolved from Login. See ResolvedAnonymousRole.
+	this.Http.AnonymousRole = ""
+
 	// Push server
 	this.PushServer.Enabled = false
 	this.PushServer.Address = "0.0.0.0"
@@ -234,6 +238,13 @@ type HttpConfig struct {
 	// Anyone able to reach the dashboard can then switch monitoring off, so it
 	// stays closed until an administrator opens it.
 	AllowWriteActions bool
+
+	// What somebody who presents no credential at all is allowed to do :
+	// "operator", "readonly", or "none" to refuse them. Empty keeps whatever
+	// this install already did, which is the whole point of it being empty :
+	// no Login means everything was open, a Login meant everything was shut,
+	// and neither may change on an upgrade.
+	AnonymousRole string
 }
 
 type PushServerConfig struct {

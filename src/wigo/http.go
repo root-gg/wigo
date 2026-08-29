@@ -402,7 +402,15 @@ func httpWriteActionsAllowed(r *http.Request) (int, string, bool) {
 		return 403, "Write actions are disabled on this host. Set AllowWriteActions in the [Http] section of the configuration file to allow them.", false
 	}
 
-	if !CallerOf(r).May(RoleOperator) {
+	if caller := CallerOf(r); !caller.May(RoleOperator) {
+		// Told apart on purpose : somebody holding a read-only token has to
+		// swap it, somebody who presented nothing has to present something,
+		// and the same sentence for both sends half of them looking in the
+		// wrong place.
+		if caller.Name == "anonymous" {
+			return 403, "This host is open for reading only. Sign in, or present an operator token, to change anything.", false
+		}
+
 		return 403, "This credential is read only. An operator token is needed to change anything.", false
 	}
 

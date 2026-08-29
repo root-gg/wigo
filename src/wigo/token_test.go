@@ -210,7 +210,7 @@ func TestARefusedTokenDoesNotFallBackOnTheCredential(t *testing.T) {
 
 	handler := Chain(Handler(func(w http.ResponseWriter, r *http.Request) (int, string) {
 		return 200, "ok"
-	}), Authenticating("germain", "s3cret"))
+	}), Authenticating("germain", "s3cret", RoleNone))
 
 	request := httptest.NewRequest("GET", "/api/probes", nil)
 	request.SetBasicAuth("germain", "s3cret")
@@ -235,7 +235,7 @@ func TestTheSharedCredentialIsStillAnOperator(t *testing.T) {
 			return 403, "not an operator"
 		}
 		return 200, caller.Name
-	}), Authenticating("germain", "s3cret"))
+	}), Authenticating("germain", "s3cret", RoleNone))
 
 	request := httptest.NewRequest("GET", "/api/probes", nil)
 	request.SetBasicAuth("germain", "s3cret")
