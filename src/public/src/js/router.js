@@ -3,6 +3,7 @@ import Hosts from "./views/Hosts.vue";
 import Group from "./views/Group.vue";
 import Host from "./views/Host.vue";
 import Logs from "./views/Logs.vue";
+import Quiet from "./views/Quiet.vue";
 import Tokens from "./views/Tokens.vue";
 import Authority from "./views/Authority.vue";
 import Disabled from "./views/Disabled.vue";
@@ -32,6 +33,11 @@ const routes = [
     path: "/authority",
     name: "authority",
     component: Authority,
+  },
+  {
+    path: "/quiet",
+    name: "quiet",
+    component: Quiet,
   },
   {
     path: "/tokens",

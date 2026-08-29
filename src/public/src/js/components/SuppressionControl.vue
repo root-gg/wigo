@@ -49,11 +49,19 @@
 
       <ul class="dropdown-menu dropdown-menu-end">
         <li v-if="suppression">
-          <a class="dropdown-item" href="#" @click.prevent="lift">
-            <i class="fas fa-fw fa-bell"></i> Notify me again
+          <a class="dropdown-item text-primary" href="#" @click.prevent="lift">
+            <i class="fas fa-fw fa-bell"></i>
+            {{
+              suppression.Kind === "ack"
+                ? "Remove this acknowledgement"
+                : "Lift this silence"
+            }}
           </a>
         </li>
         <li v-if="suppression"><hr class="dropdown-divider" /></li>
+        <li v-if="suppression">
+          <h6 class="dropdown-header">Or replace it</h6>
+        </li>
 
         <li class="px-3 pb-2" style="min-width: 17rem">
           <input
