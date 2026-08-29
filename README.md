@@ -444,6 +444,18 @@ It is now rendered as a table when the shape allows one — a flat object become
 
 The raw JSON is one click away regardless, next to a copy button — that is what goes into a ticket.
 
+### The wall
+
+`/wall` is a dense grid of every host, one tile each, for a screen nobody sits in front of. No sidebar, no filters, no chrome: colour, hostname, and what is wrong.
+
+**The worst first.** On a wall the eye starts top left, so that is where what is broken has to be. Sorted on the numeric status rather than the level name, because between two criticals 400 is worse than 300 and the alphabet does not say so.
+
+**It shows its own liveness.** A frozen page and a healthy fleet look exactly the same — both green, both still. So the age of the last refresh is in the header, ageing every second, and it turns amber once nothing has arrived for three minutes. Without it a dead screen reads as *everything is fine*, which is the worst thing a monitoring screen can say.
+
+**A failed request keeps the previous tiles.** Blanking the grid would not say *the request failed*, it would say *there is nothing*, and that is not the same thing.
+
+Tiles fill the height of the screen and shrink past sixty hosts. The group is on every tile, because short hostnames repeat across groups and `srv1` alone is not an answer.
+
 ### Live updates
 
 `GET /api/events` streams what happens as server sent events, so a probe going critical shows up in the interface at once rather than at the next poll — up to a minute of looking at a green screen about a machine that is already down.

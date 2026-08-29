@@ -214,6 +214,12 @@ const REFRESH_INTERVALS = [5, 15, 30, 60, 300];
 /** Ce que le menu ouvre. Nommé, parce qu'une icône seule ne l'était pas. */
 const VIEWS = [
   {
+    to: "/wall",
+    icon: "fa-tv",
+    label: "Wall",
+    title: "A dense grid of every host, for a screen on a wall",
+  },
+  {
     to: "/quiet",
     icon: "fa-bell-slash",
     label: "Held back",

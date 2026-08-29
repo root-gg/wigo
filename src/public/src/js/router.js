@@ -45,6 +45,11 @@ const routes = [
     component: Tokens,
   },
   {
+    path: "/wall",
+    name: "wall",
+    component: () => import("./views/Wall.vue"),
+  },
+  {
     path: "/disabled",
     name: "disabled",
     component: Disabled,
