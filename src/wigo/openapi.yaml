@@ -923,6 +923,14 @@ components:
         WriteActionsAllowed:
           type: boolean
           description: Whether this caller could change it, so a client need not try
+        ReadOnlyReason:
+          type: string
+          description: >
+            Why not, when WriteActionsAllowed is false. Three things can refuse
+            a change and each is fixed in a different file : the caller's role,
+            this host's own AllowWriteActions, and a pushing client that has not
+            set AllowRemoteControl. Absent when the change would be allowed, and
+            absent from a wigo older than 1.0.1.
         Probes:
           type: array
           items:

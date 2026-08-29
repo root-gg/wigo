@@ -414,7 +414,18 @@ func HttpAuthorityRevokeHandler(w http.ResponseWriter, r *http.Request) (int, st
 type ProbesSchedule struct {
 	Hostname            string
 	WriteActionsAllowed bool
-	Probes              []ProbeLocation
+
+	// Why not, when it is false. Said here because only this side can tell the
+	// three cases apart : the caller's role, this host refusing writes, and a
+	// pushing client that has not opted into being driven -- and each is fixed
+	// in a different file. A screen that names the wrong one sends somebody
+	// editing a setting that was never the problem.
+	//
+	// Empty when writes are allowed, and empty from an older wigo, which is why
+	// the interface keeps a fallback sentence.
+	ReadOnlyReason string `json:",omitempty"`
+
+	Probes []ProbeLocation
 
 	// Probes that ran, exited with the special code 13 and asked not to be run
 	// again -- usually because there is nothing for them to check on this host,
@@ -440,11 +451,12 @@ func HttpProbesHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	// The caller's role counts as much as the host's flag : offering a control
 	// that always answers 403 is worse than not offering it.
-	_, _, mayWrite := httpWriteActionsAllowed(r)
+	_, refusal, mayWrite := httpWriteActionsAllowed(r)
 
 	schedule := ProbesSchedule{
 		Hostname:            GetLocalWigo().GetHostname(),
 		WriteActionsAllowed: mayWrite,
+		ReadOnlyReason:      refusal,
 		Probes:              locations,
 		SkippedProbes:       GetLocalWigo().GetDisabledProbes(),
 		DisableRecords:      ProbeDisableRecords(),

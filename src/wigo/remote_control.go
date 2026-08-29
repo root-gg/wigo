@@ -237,8 +237,10 @@ func HttpHostScheduleHandler(w http.ResponseWriter, r *http.Request) (int, strin
 	// The remote answered what the master may do there, because the master is
 	// who authenticated to it. Whoever is asking here may be allowed less, and
 	// an interface offering a control that answers 403 is worse than none.
-	if status == 200 && !callerMayWrite(r) {
-		return status, withWriteActionsOff(body)
+	if status == 200 {
+		if _, refusal, mayWrite := httpWriteActionsAllowed(r); !mayWrite {
+			return status, withWriteActionsOff(body, refusal)
+		}
 	}
 
 	return status, body
@@ -246,13 +248,17 @@ func HttpHostScheduleHandler(w http.ResponseWriter, r *http.Request) (int, strin
 
 // withWriteActionsOff turns the flag down in an answer relayed from a remote,
 // leaving the rest of it untouched.
-func withWriteActionsOff(body string) string {
+//
+// The reason is this master's, not the remote's : the remote answered that it
+// would accept the change, and it is the caller's standing here that refuses it.
+func withWriteActionsOff(body string, reason string) string {
 	var schedule ProbesSchedule
 	if err := json.Unmarshal([]byte(body), &schedule); err != nil {
 		return body
 	}
 
 	schedule.WriteActionsAllowed = false
+	schedule.ReadOnlyReason = reason
 
 	rewritten, err := json.Marshal(schedule)
 	if err != nil {
@@ -289,9 +295,22 @@ func pushClientSchedule(r *http.Request, hostname string) (int, string, bool) {
 
 	// What decides whether this host may be changed from here is its own
 	// AllowRemoteControl, not the AllowWriteActions of its local API.
+	accepted := ClientAcceptsRemoteControl(remote.Uuid)
+	_, refusal, mayWrite := httpWriteActionsAllowed(r)
+
+	// The client's own refusal is named first : it is the one somebody hits
+	// after having already opened everything on the master, and pointing them
+	// at [Http] there would send them editing a file that is not the problem.
+	if !accepted {
+		refusal = fmt.Sprintf("%s pushes to this host and has not opted into being driven. "+
+			"Set AllowRemoteControl in the [PushClient] section of its own configuration, "+
+			"then restart it -- it says so again on its next push.", hostname)
+	}
+
 	schedule := ProbesSchedule{
 		Hostname:            hostname,
-		WriteActionsAllowed: ClientAcceptsRemoteControl(remote.Uuid) && callerMayWrite(r),
+		WriteActionsAllowed: accepted && mayWrite,
+		ReadOnlyReason:      refusal,
 		Probes:              locations,
 		SkippedProbes:       skipped,
 		DisableRecords:      disabled,

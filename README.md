@@ -472,6 +472,18 @@ A recheck asked for by hand takes whichever is shorter, the configured timeout o
 
 The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the `[Http]` section. They act on the probes directory directly, so the change takes effect on the next cycle without a restart, and it survives one.
 
+**A host that pushes is governed by `AllowRemoteControl`, not by that.** Three different things can make a host read only from here, and each is fixed in a different file:
+
+| what refuses | where to fix it |
+|---|---|
+| the caller's role | sign in, or present an operator token |
+| this host's own writes | `AllowWriteActions` in `[Http]`, on that host |
+| a pushing client that never opted in | `AllowRemoteControl` in `[PushClient]`, on the client |
+
+The API says which, in `ReadOnlyReason` on the schedule, because only it can tell them apart — the interface sees one boolean. It used to print "set AllowWriteActions in `[Http]`" for all three, which sent anyone with a push client editing the wrong file on the wrong machine.
+
+A client reports `AllowRemoteControl` on **every** push, so opening it takes effect on the next one — ten seconds by default, with nothing to do on the master.
+
 A probe must be installed to be acted upon: a name that exists nowhere under `probes/` is refused.
 
 **Disabling never destroys anything.** A schedule is usually a symlink into `examples/`, where the probe itself stays, so the symlink is simply removed. But an administrator may have dropped a script straight into an interval directory, or linked to one outside the probes tree — deleting that would be the only copy gone, and the probe would not even be listed any more, so there would be no way to turn it back on. In that case the entry is moved into `examples/` instead. Either way the probe ends up installed and unscheduled, which is what disabled means.
