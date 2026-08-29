@@ -89,19 +89,63 @@
         </div>
       </div>
 
+      <!-- Une seule entrée plutôt que sept icônes muettes. Personne ne devine
+           qu'une interdiction mène aux sondes désactivées ni qu'une clé mène
+           aux jetons : les nommer coûte un clic et fait gagner le survol de
+           chacune pour retrouver laquelle est laquelle. -->
       <ul class="navbar-nav ms-auto flex-shrink-0">
         <li class="nav-item dropdown">
-          <a
-            class="nav-link dropdown-toggle"
-            href="#"
-            role="button"
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary dropdown-toggle"
             data-bs-toggle="dropdown"
             aria-expanded="false"
-            title="Theme"
+            title="Menu"
+            aria-label="Menu"
           >
-            <i :class="['fas', 'fa-fw', themeIcon]"></i>
-          </a>
-          <ul class="dropdown-menu dropdown-menu-end">
+            <i class="fas fa-bars fa-fw"></i>
+          </button>
+
+          <ul class="dropdown-menu dropdown-menu-end topbar-menu">
+            <li v-for="view in VIEWS" :key="view.to">
+              <router-link
+                class="dropdown-item"
+                :to="view.to"
+                :title="view.title"
+              >
+                <i :class="['fas', 'fa-fw', view.icon]"></i>
+                {{ view.label }}
+              </router-link>
+            </li>
+
+            <li><hr class="dropdown-divider" /></li>
+            <li class="dropdown-header">Refresh</li>
+            <li v-for="seconds in REFRESH_INTERVALS" :key="seconds">
+              <a
+                :class="[
+                  'dropdown-item',
+                  { active: currentInterval === seconds },
+                ]"
+                href="#"
+                :title="`Refresh every ${seconds} seconds`"
+                @click.prevent="setInterval(seconds)"
+              >
+                <i class="fas fa-fw fa-sync"></i> Every {{ seconds }} sec
+              </a>
+            </li>
+            <li>
+              <a
+                :class="['dropdown-item', { active: currentInterval === 0 }]"
+                href="#"
+                title="Disable auto-refresh"
+                @click.prevent="setInterval(0)"
+              >
+                <i class="fas fa-fw fa-stop"></i> Do not refresh
+              </a>
+            </li>
+
+            <li><hr class="dropdown-divider" /></li>
+            <li class="dropdown-header">Theme</li>
             <li v-for="option in THEME_OPTIONS" :key="option.value">
               <a
                 :class="[
@@ -116,127 +160,37 @@
                 {{ option.label }}
               </a>
             </li>
-          </ul>
-        </li>
-        <li class="nav-item dropdown">
-          <a
-            class="nav-link dropdown-toggle"
-            href="#"
-            role="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-            title="Refresh settings"
-          >
-            <i class="fas fa-sync fa-fw"></i>
-          </a>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li v-for="seconds in REFRESH_INTERVALS" :key="seconds">
-              <a
-                :class="[
-                  'dropdown-item',
-                  { active: currentInterval === seconds },
-                ]"
-                href="#"
-                @click.prevent="setInterval(seconds)"
-                :title="`Refresh every ${seconds} seconds`"
-              >
-                <i class="fas fa-gear fa-fw"></i> {{ seconds }} sec
-              </a>
-            </li>
-            <li><hr class="dropdown-divider" /></li>
-            <li>
-              <a
-                :class="['dropdown-item', { active: currentInterval === 0 }]"
-                href="#"
-                @click.prevent="setInterval(0)"
-                title="Disable auto-refresh"
-              >
-                <i class="fas fa-stop fa-fw"></i> Disable
-              </a>
-            </li>
-          </ul>
-        </li>
-        <li class="nav-item">
-          <router-link
-            class="nav-link"
-            to="/quiet"
-            title="Everything whose notifications are held back"
-          >
-            <i class="fas fa-bell-slash fa-fw"></i>
-          </router-link>
-        </li>
-        <li class="nav-item">
-          <router-link class="nav-link" to="/tokens" title="API tokens">
-            <i class="fas fa-key fa-fw"></i>
-          </router-link>
-        </li>
-        <li class="nav-item">
-          <router-link
-            class="nav-link"
-            to="/disabled"
-            title="Probes disabled across the fleet"
-          >
-            <i class="fas fa-ban fa-fw"></i>
-          </router-link>
-        </li>
-        <li class="nav-item">
-          <router-link class="nav-link" to="/logs" title="View logs">
-            <i class="fas fa-list fa-fw"></i>
-          </router-link>
-        </li>
-        <li class="nav-item">
-          <router-link
-            class="nav-link"
-            to="/authority"
-            title="Authority settings"
-          >
-            <i class="fas fa-lock fa-fw"></i>
-          </router-link>
-        </li>
 
-        <!-- Sur un wigo qui laisse lire sans identifiants, le navigateur n'est
-             jamais challengé : sans ce bouton l'identifiant existe et reste
-             hors d'atteinte. Une navigation, pas une requête -- le prompt du
-             navigateur n'apparaît de façon fiable que comme ça. -->
-        <li v-if="showSignIn" class="nav-item">
-          <a
-            class="nav-link"
-            :href="signInUrl"
-            title="Sign in to change anything"
-          >
-            <i class="fas fa-right-to-bracket fa-fw"></i>
-          </a>
-        </li>
+            <!-- Sur un wigo qui laisse lire sans identifiants, le navigateur
+                 n'est jamais challengé : sans ceci l'identifiant existe et
+                 reste hors d'atteinte. Une navigation, pas une requête -- le
+                 prompt du navigateur n'apparaît de façon fiable que comme ça. -->
+            <template v-if="showSignIn">
+              <li><hr class="dropdown-divider" /></li>
+              <li>
+                <a class="dropdown-item" :href="signInUrl">
+                  <i class="fas fa-fw fa-right-to-bracket"></i> Sign in
+                </a>
+              </li>
+            </template>
 
-        <li v-if="signedIn" class="nav-item dropdown">
-          <!-- Un bouton, pas un lien vers "#" : la page est routée par le
-               hash, et un href vide renverrait à l'accueil. -->
-          <button
-            type="button"
-            class="nav-link dropdown-toggle btn btn-link"
-            data-bs-toggle="dropdown"
-            :title="`Signed in as ${caller.Name}`"
-          >
-            <i class="fas fa-user fa-fw"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li>
-              <span class="dropdown-item-text small text-body-secondary">
+            <template v-if="signedIn">
+              <li><hr class="dropdown-divider" /></li>
+              <li class="dropdown-header">
                 Signed in as <strong>{{ caller.Name }}</strong>
-              </span>
-            </li>
-            <li><hr class="dropdown-divider" /></li>
-            <li>
-              <a class="dropdown-item" href="api/logout">
-                <i class="fas fa-right-from-bracket fa-fw"></i> Sign out
-              </a>
-            </li>
-            <li>
-              <span class="dropdown-item-text small text-body-secondary">
-                A browser cannot be told to forget a password. Cancelling the
-                prompt it shows next is what clears it.
-              </span>
-            </li>
+              </li>
+              <li>
+                <a class="dropdown-item" href="api/logout">
+                  <i class="fas fa-fw fa-right-from-bracket"></i> Sign out
+                </a>
+              </li>
+              <li>
+                <span class="dropdown-item-text small text-body-secondary">
+                  A browser cannot be told to forget a password. Cancelling the
+                  prompt it shows next is what clears it.
+                </span>
+              </li>
+            </template>
           </ul>
         </li>
       </ul>
@@ -256,6 +210,35 @@ import { useTheme } from "../../composables/useTheme.js";
 import api from "../../api/client.js";
 
 const REFRESH_INTERVALS = [5, 15, 30, 60, 300];
+
+/** Ce que le menu ouvre. Nommé, parce qu'une icône seule ne l'était pas. */
+const VIEWS = [
+  {
+    to: "/quiet",
+    icon: "fa-bell-slash",
+    label: "Held back",
+    title: "Everything whose notifications are held back",
+  },
+  {
+    to: "/disabled",
+    icon: "fa-ban",
+    label: "Disabled probes",
+    title: "Probes disabled across the fleet",
+  },
+  { to: "/logs", icon: "fa-list", label: "Logs", title: "View logs" },
+  {
+    to: "/tokens",
+    icon: "fa-key",
+    label: "API tokens",
+    title: "Mint and revoke API tokens",
+  },
+  {
+    to: "/authority",
+    icon: "fa-lock",
+    label: "Authority",
+    title: "Admit and revoke push clients",
+  },
+];
 
 const THEME_OPTIONS = [
   {
@@ -314,12 +297,7 @@ const {
   setSearch,
 } = useDashboardFilter();
 
-const { preference, resolvedTheme, setTheme } = useTheme();
-
-const themeIcon = computed(() => {
-  if (preference.value === "auto") return "fa-circle-half-stroke";
-  return resolvedTheme.value === "dark" ? "fa-moon" : "fa-sun";
-});
+const { preference, setTheme } = useTheme();
 
 const searchInput = ref(null);
 const localSearch = ref(search.value);
@@ -431,6 +409,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Le menu porte les vues, le rafraîchissement, le thème et la session : sur un
+   portable il dépasse, alors il défile plutôt que de sortir de l'écran. */
+.topbar-menu {
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
 /*
  * The search is the only element allowed to shrink, so the bar's minimum width
  * stays the counters + the icons. Without min-width: 0 a flex item refuses to
