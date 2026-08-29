@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/docopt/docopt-go"
@@ -22,31 +25,37 @@ func main() {
 	usage := fmt.Sprintf(`wigocli %s
 
 Usage:
-	wigocli [--config=CONFIG]
-	wigocli [--config=CONFIG] detail
-	wigocli [--config=CONFIG] probe <probe>
-	wigocli [--config=CONFIG] remote <wigo>
-	wigocli [--config=CONFIG] remote <wigo> detail
-	wigocli [--config=CONFIG] remote <wigo> probe <probe>
+	wigocli [options]
+	wigocli [options] detail
+	wigocli [options] probe <probe>
+	wigocli [options] remote <wigo>
+	wigocli [options] remote <wigo> detail
+	wigocli [options] remote <wigo> probe <probe>
 	wigocli -h | --help
 	wigocli --version
 
 Commands:
-	detail
+	detail                  Show everything, not only what is wrong
 
-Options
-	-h 	--help              Show help
+Options:
+	-h --help               Show help
 	--version               Show version
-	--config=CONFIG		Specify config file
+	--config=CONFIG         Configuration file [default: /etc/wigo/wigo.conf]
+	--json                  Print what was asked for as json, not as a summary
+	--group=GROUP           Only hosts in this group
+	--status=STATUS         Only what is at or above this status. A level name
+	                        (ok, info, warning, critical, error) or a number
+	--watch=SECONDS         Print again every SECONDS until interrupted
+
+Exit codes are the ones a monitoring scheduler expects, taken from the worst
+thing shown : 0 ok, 1 warning, 2 critical, 3 unknown. Unreachable is 3, since
+not being able to ask is not the same as being told everything is fine.
 `, wigo.Version)
 
 	// Parse args
 	opts, _ := docopt.ParseArgs(usage, os.Args[1:], wigo.Version)
 
 	configFile, _ := opts.String("--config")
-	if configFile == "" {
-		configFile = "/etc/wigo/wigo.conf"
-	}
 	showDetails, _ := opts.Bool("detail")
 	showOnlyErrors = !showDetails
 	probe, _ := opts.String("<probe>")
@@ -55,84 +64,196 @@ Options
 		wigoHost = wigoHostname
 	}
 
+	asJson, _ := opts.Bool("--json")
+	group, _ := opts.String("--group")
+
+	rawStatus, _ := opts.String("--status")
+	minStatus, ok := wigo.ParseStatus(rawStatus)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Invalid --status %q : expected a level name or a number\n", rawStatus)
+		os.Exit(wigo.ExitUnknown)
+	}
+
+	// Watching is the one mode with no exit code to give : it does not end.
+	every, err := watchInterval(opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(wigo.ExitUnknown)
+	}
+
+	apiUrl, err := apiUrlFrom(configFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(wigo.ExitUnknown)
+	}
+
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	selection := wigo.Selection{Group: group, MinStatus: minStatus}
+
+	if every > 0 {
+		for {
+			// Home and clear, so a screen left over from the previous pass
+			// cannot be read as the current one.
+			fmt.Print("\033[H\033[2J")
+			if _, err := report(httpClient, apiUrl, selection, probe, asJson); err != nil {
+				fmt.Fprintf(os.Stderr, "%s\n", err)
+			}
+			time.Sleep(every)
+		}
+	}
+
+	worst, err := report(httpClient, apiUrl, selection, probe, asJson)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(wigo.ExitUnknown)
+	}
+
+	os.Exit(wigo.NagiosExitCode(worst))
+}
+
+func watchInterval(opts docopt.Opts) (time.Duration, error) {
+	raw, _ := opts.String("--watch")
+	if raw == "" {
+		return 0, nil
+	}
+
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds < 1 {
+		return 0, fmt.Errorf("invalid --watch %q : expected a number of seconds, at least 1", raw)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
+// apiUrlFrom reads where this wigo answers, from its own configuration file.
+func apiUrlFrom(configFile string) (string, error) {
 	config := wigo.NewConfig(configFile)
 	if !config.Http.Enabled {
-		fmt.Printf("HTTP server is not enabled in config file\n")
-		os.Exit(1)
+		return "", fmt.Errorf("the http server is not enabled in %s, so there is nothing to ask", configFile)
 	}
 
-	httpAddress := config.Http.Address
-	if httpAddress == "0.0.0.0" {
-		httpAddress = "127.0.0.1"
-	}
-	httpPort := config.Http.Port
-	httpSslEnabled := config.Http.SslEnabled
-	httpProtocol := "http"
-	if httpSslEnabled {
-		httpProtocol = "https"
-	}
-	httpLogin := config.Http.Login
-	httpPassword := config.Http.Password
-
-	apiUrl := fmt.Sprintf("%s://%s:%d/api", httpProtocol, httpAddress, httpPort)
-	if httpLogin != "" && httpPassword != "" {
-		apiUrl = fmt.Sprintf("%s://%s:%s@%s:%d/api", httpProtocol, httpLogin, httpPassword, httpAddress, httpPort)
+	address := config.Http.Address
+	if address == "0.0.0.0" {
+		address = "127.0.0.1"
 	}
 
-	// Create http client
-	httpClient := &http.Client{
-		Timeout: 10 * time.Second,
+	protocol := "http"
+	if config.Http.SslEnabled {
+		protocol = "https"
 	}
 
-	// Connect
-	resp, err := httpClient.Get(apiUrl)
+	if config.Http.Login != "" && config.Http.Password != "" {
+		return fmt.Sprintf("%s://%s:%s@%s:%d/api", protocol,
+			config.Http.Login, config.Http.Password, address, config.Http.Port), nil
+	}
+
+	return fmt.Sprintf("%s://%s:%d/api", protocol, address, config.Http.Port), nil
+}
+
+// report fetches, narrows, prints, and says how bad what it printed was.
+func report(client *http.Client, apiUrl string, selection wigo.Selection, probe string, asJson bool) (int, error) {
+	resp, err := client.Get(apiUrl)
 	if err != nil {
-		fmt.Printf("Error : %s\n", err)
-		os.Exit(1)
+		return 0, fmt.Errorf("cannot reach wigo : %s", err)
 	}
-	body, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
 
-	// Instanciate object from json
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("cannot read what wigo answered : %s", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("wigo answered %d : %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
 	wigoObj, err := wigo.NewWigoFromJson(body, 0)
 	if err != nil {
-		fmt.Printf("Failed to parse return from host : %s\n", err)
+		return 0, fmt.Errorf("cannot read what wigo answered : %s", err)
 	}
 
-	// Print summary
+	// One probe was asked for : nothing else is the answer, filters included.
 	if probe != "" {
-		if wigoHost == "localhost" {
-			// Find probe
-			if tmp, ok := wigoObj.GetLocalHost().Probes.Get(probe); ok {
-				p := tmp.(*wigo.ProbeResult)
-				fmt.Println(p.Summary())
-			} else {
-				fmt.Printf("Probe %s not found in local wigo\n", probe)
-			}
-		} else {
-			// Find wigo
-
-			if tmp, ok := wigoObj.RemoteWigos.Get(wigoHost); ok {
-				w := tmp.(*wigo.Wigo)
-				// Find probe
-				if tmp, ok := w.GetLocalHost().Probes.Get(probe); ok {
-					p := tmp.(*wigo.ProbeResult)
-					fmt.Println(p.Summary())
-				} else {
-					fmt.Printf("Probe %s not found on remote wigo %s\n", probe, wigoHost)
-				}
-			} else {
-				fmt.Printf("Remote wigo %s not found\n", wigoHost)
-			}
-		}
-	} else if wigoHost != "" && wigoHost != "localhost" {
-		// Find remote
-		if tmp, ok := wigoObj.RemoteWigos.Get(wigoHost); ok {
-			w := tmp.(*wigo.Wigo)
-			fmt.Print(w.GenerateSummary(showOnlyErrors))
-		} else {
-			fmt.Printf("Remote wigo %s not found\n", wigoHost)
-		}
-	} else {
-		fmt.Print(wigoObj.GenerateSummary(showOnlyErrors))
+		return reportProbe(wigoObj, probe, asJson)
 	}
+
+	if wigoHost != "" && wigoHost != "localhost" {
+		tmp, found := wigoObj.RemoteWigos.Get(wigoHost)
+		if !found {
+			return 0, fmt.Errorf("no remote wigo named %s", wigoHost)
+		}
+		wigoObj = tmp.(*wigo.Wigo)
+	}
+
+	wigoObj.Apply(selection)
+
+	if asJson {
+		return wigoObj.WorstStatus(), printJson(wigoObj)
+	}
+
+	// The summary prints the host's own global status in its header, which is
+	// the whole host and not the selection. Saying what was narrowed down to
+	// keeps that header from reading as a contradiction of the exit code.
+	if narrowed := describeSelection(selection); narrowed != "" {
+		fmt.Printf("%s\n\n", narrowed)
+	}
+
+	fmt.Print(wigoObj.GenerateSummary(showOnlyErrors))
+
+	return wigoObj.WorstStatus(), nil
+}
+
+func reportProbe(wigoObj *wigo.Wigo, probe string, asJson bool) (int, error) {
+	host := wigoObj.GetLocalHost()
+
+	if wigoHost != "" && wigoHost != "localhost" {
+		tmp, found := wigoObj.RemoteWigos.Get(wigoHost)
+		if !found {
+			return 0, fmt.Errorf("no remote wigo named %s", wigoHost)
+		}
+		host = tmp.(*wigo.Wigo).GetLocalHost()
+	}
+
+	tmp, found := host.Probes.Get(probe)
+	if !found {
+		return 0, fmt.Errorf("no probe named %s on %s", probe, host.Name)
+	}
+
+	result := tmp.(*wigo.ProbeResult)
+
+	if asJson {
+		return result.Status, printJson(result)
+	}
+
+	fmt.Println(result.Summary())
+
+	return result.Status, nil
+}
+
+func describeSelection(selection wigo.Selection) string {
+	parts := make([]string, 0, 2)
+
+	if selection.Group != "" {
+		parts = append(parts, fmt.Sprintf("group %s", selection.Group))
+	}
+	if selection.MinStatus > 0 {
+		parts = append(parts, fmt.Sprintf("status %d and above", selection.MinStatus))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return "Showing only " + strings.Join(parts, ", ")
+}
+
+func printJson(value interface{}) error {
+	encoded, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Errorf("cannot encode the answer : %s", err)
+	}
+
+	fmt.Println(string(encoded))
+
+	return nil
 }

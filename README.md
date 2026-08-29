@@ -752,3 +752,37 @@ Remote Wigos :
 
 - **Local Status** — worst status among probes on this host.
 - **Global Status** — same as local here; for the whole view, check each remote’s status in the list.
+
+#### Exit codes
+
+`wigocli` exits with what a monitoring scheduler expects, taken from **the worst thing it showed**:
+
+| | |
+|---|---|
+| `0` | OK — includes INFO |
+| `1` | WARNING |
+| `2` | CRITICAL |
+| `3` | UNKNOWN — wigo's ERROR level, and anything that stopped it answering at all |
+
+Not being able to ask is `3`, not `0`: a check that could not run is not a check that passed. The same goes for an unreadable answer, an unknown probe name, or a `--status` nobody can parse.
+
+**This is a change**: it used to exit `0` whatever it found.
+
+#### Options
+
+| | |
+|---|---|
+| `--json` | Print what was asked for as JSON instead of a summary. |
+| `--group=GROUP` | Only hosts in this group — including this one, which is a host like any other. |
+| `--status=STATUS` | Only what is at or above this status: a level name (`ok`, `info`, `warning`, `critical`, `error`) or a number, because the scale is finer than its five names. |
+| `--watch=SECONDS` | Print again every SECONDS until interrupted. |
+
+Filtering happens on the tree before anything is rendered, so the summary, the JSON and the exit code agree by construction. The exit code is read from **what was shown**, not from what was fetched: asking about one group and being told about another one's outage is the kind of answer that costs somebody an hour.
+
+```sh
+# Nothing critical anywhere? (for a scheduler)
+wigocli --status=critical
+
+# What is wrong in one group, as json
+wigocli --group=databases --status=warning --json
+```
