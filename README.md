@@ -328,6 +328,28 @@ All of them take `?reason=`, and the `POST` endpoints return **403** unless `All
 
 `GET /api/suppressions` and the **Held back** page list everything currently quiet, with a button to lift each one. That page is the point: a silence set on a group has no card to go back to, and a suppression nobody can find is the same blind spot a disabled probe is. It lists flapping probes too — nobody decided those and there is nothing to lift, but the effect is identical and it belongs on the same page.
 
+### Host dependencies
+
+A router goes down and the forty hosts behind it stop answering. Each one is a separate discovery and a separate message, and **none of the forty is the news**: the router is.
+
+```toml
+[[Dependencies]]
+Group     = "par1"
+DependsOn = ["router-par1"]
+
+[[Dependencies]]
+Host      = "web3.example.com"
+DependsOn = ["sw-2"]
+```
+
+While a parent is not answering, nothing is said about what sits behind it. Nothing is said when it comes back either — nobody was told it had broken, and forty "back to normal" messages about problems nobody heard of are the same storm arriving from the other side.
+
+**Only direct parents are looked at.** That removes cycles by construction and loses nothing: a host behind a switch behind a router still works, because a router that is down takes the switch with it, and the host is then held by its own direct parent. Reachability is transitive on its own and does not need walking.
+
+**A parent this wigo has never heard of counts as up**, so the message goes out. Of the two directions that is the safe one: a typo then costs noise, where the other way round it would silently cost the alert. Rules that can never do anything — naming neither a `Host` nor a `Group`, or naming both, or depending on nothing — are reported at startup, because doing nothing at all is exactly what a working dependency looks like.
+
+The status is unchanged: those hosts are still shown as down, still logged, still on their timeline. Only the interruption is held, and the **Held back** page lists what is currently quiet this way.
+
 A group cannot be acknowledged — forty hosts have no single status to say "I am on it" about. Silencing one is fine, since that claims nothing about state, and the group page carries the control. It targets the **label**, so a host that joins the group during the window is covered too.
 
 The most specific suppression wins: one on a probe beats one on its host, which beats one on its group.

@@ -120,6 +120,20 @@ func SendNotification(notification INotification) {
 		return
 	}
 
+	// Everything behind a router that is down is unreachable, and none of it is
+	// the news. Checked before the rest because it is the reason that explains
+	// the most messages at once.
+	if parent, held := heldByDependencies(hostname, group, status); held {
+		if parent != "" {
+			log.Printf("Notification held back, %s sits behind %s which is down : %s",
+				hostname, parent, notification.GetMessage())
+		} else {
+			log.Printf("Notification held back, nobody was told %s had a problem : %s",
+				hostname, notification.GetMessage())
+		}
+		return
+	}
+
 	// A probe that keeps changing its mind was called out once and left alone.
 	// Checked here rather than where the change is recorded, so a repeat about
 	// it is held back too : saying the same unsteady thing every ten minutes is

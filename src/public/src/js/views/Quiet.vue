@@ -17,7 +17,9 @@
     </template>
 
     <div
-      v-if="loaded && !suppressions.length && !flapping.length"
+      v-if="
+        loaded && !suppressions.length && !flapping.length && !behind.length
+      "
       class="alert alert-success d-flex align-items-center gap-2 mt-4 mb-0 py-2"
     >
       <i class="fas fa-fw fa-check"></i>
@@ -131,6 +133,54 @@
       </template>
     </StatusCard>
 
+    <!-- Un routeur tombe et les quarante machines derrière lui se taisent.
+         Aucune des quarante n'est l'information : lui, si. Rien à lever ici,
+         elles reparlent quand il répond -- mais un message retenu que personne
+         ne peut retrouver est l'angle mort que cette page existe pour fermer. -->
+    <StatusCard v-if="behind.length" level="DISABLED">
+      <template #title><strong>Behind something that is down</strong></template>
+      <template #badges>
+        <span class="badge text-bg-light">{{ behind.length }}</span>
+      </template>
+      <template #body>
+        <p class="small text-body-secondary">
+          Nothing is being said about these while what they sit behind is not
+          answering. Nobody decided it and there is nothing to lift: they speak
+          again when their parent does.
+        </p>
+        <table class="table table-bordered table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Host</th>
+              <th>Sits behind</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="one in behind" :key="one.Host">
+              <td class="align-middle">
+                <a
+                  class="cursor-pointer"
+                  :title="`Open ${one.Host}`"
+                  @click="gotoHost(one.Host)"
+                >
+                  {{ one.Host }}
+                </a>
+              </td>
+              <td class="align-middle">
+                <a
+                  class="cursor-pointer"
+                  :title="`Open ${one.Behind}`"
+                  @click="gotoHost(one.Behind)"
+                >
+                  {{ one.Behind }}
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
+    </StatusCard>
+
     <p v-if="error" class="text-danger small mt-3" role="alert">
       <i class="fas fa-fw fa-triangle-exclamation"></i> {{ error }}
     </p>
@@ -150,6 +200,7 @@ import { describeSuppression } from "../utils/suppression.js";
 const router = useRouter();
 const suppressions = ref([]);
 const flapping = ref([]);
+const behind = ref([]);
 const writeAllowed = ref(false);
 const loaded = ref(false);
 const error = ref("");
@@ -181,6 +232,7 @@ async function load() {
     const answer = await api.getSuppressions();
     suppressions.value = answer.Suppressions || [];
     flapping.value = answer.Flapping || [];
+    behind.value = answer.BehindSomethingDown || [];
     writeAllowed.value = !!answer.WriteActionsAllowed;
     loaded.value = true;
   } catch (requestError) {
@@ -198,6 +250,7 @@ async function lift(one) {
 
     suppressions.value = answer.Suppressions || [];
     flapping.value = answer.Flapping || [];
+    behind.value = answer.BehindSomethingDown || [];
   } catch (requestError) {
     error.value =
       requestError.response?.data ||

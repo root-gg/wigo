@@ -56,6 +56,10 @@ func main() {
 	// boot rather than an interval somebody spends an afternoon disbelieving.
 	wigo.LogDuplicateSchedules()
 
+	// A dependency rule naming a host this wigo does not watch does nothing at
+	// all, and doing nothing at all is what a working dependency looks like.
+	wigo.LogDependencyProblems()
+
 	// Brings back the probes whose disable was meant to be temporary. It is the
 	// only thing that reads that table to act, and it can only ever start a
 	// probe, never stop one.

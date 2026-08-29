@@ -26,6 +26,13 @@ type SuppressionList struct {
 	// left alone. Nobody decided this, wigo did, but the effect is the same --
 	// notifications held back -- so it belongs on the same page. As "host/probe".
 	Flapping []string
+
+	// Hosts nothing is being said about because something they sit behind is
+	// down. Same reason for being on this page : held back, and by nobody's
+	// decision. There is nothing to lift -- they speak again when their parent
+	// does -- but a held message nobody can find is the blind spot this page
+	// exists to close.
+	BehindSomethingDown []HeldByDependency
 }
 
 // HttpSuppressionsHandler lists what is currently held back.
@@ -37,6 +44,7 @@ func HttpSuppressionsHandler(w http.ResponseWriter, r *http.Request) (int, strin
 		WriteActionsAllowed: mayWrite,
 		Suppressions:        Suppressions(),
 		Flapping:            FlappingProbes(),
+		BehindSomethingDown: HeldHostsBehindSomethingDown(),
 	})
 	if err != nil {
 		return 500, fmt.Sprintf("Fail to encode the suppressions : %s", err)

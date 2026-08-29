@@ -32,6 +32,10 @@ type Config struct {
 
 	// OpenTSDB params
 	OpenTSDB *OpenTSDBConfig
+
+	// What sits behind what. A router going down should be one message, not
+	// forty. See dependency.go.
+	Dependencies []DependencyConfig
 }
 
 func NewConfig(configFile string) (this *Config) {
