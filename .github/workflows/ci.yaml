@@ -3,10 +3,23 @@ name: "CI"
 on:
   workflow_dispatch:
   pull_request:
+  # Every branch, so a branch is known green while it is being worked on rather
+  # than after it lands. "**" rather than no filter at all : an unfiltered push
+  # also fires on tags, and the release creates one -- rebuilding the commit the
+  # CI just built, under another ref, tells nobody anything.
   push:
-    branches:
-      - "main"
-      - "master"
+    branches: ["**"]
+
+# A branch pushed again has superseded its own run. The group is the branch name
+# for both events, so a pull request and the push that updated it do not build
+# the same commit twice.
+#
+# A cancelled run has no "success" conclusion, so it cannot trigger a release ;
+# that is the wanted behaviour, since the commit it was building is not the head
+# any more.
+concurrency:
+  group: "${{ github.workflow }}-${{ github.head_ref || github.ref_name }}"
+  cancel-in-progress: true
 
 jobs:
   build:
