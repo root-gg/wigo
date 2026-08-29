@@ -58,6 +58,41 @@ func Chain(handler http.Handler, middlewares ...Middleware) http.Handler {
 	return handler
 }
 
+// AcceptingTrailingSlashes lets an api path end with a slash.
+//
+// Martini answered /api/hosts and /api/hosts/ alike. The standard library's
+// router, which replaced it, treats them as two patterns and answers 404 to the
+// second -- so every script written against the trailing form broke on upgrade,
+// silently, since a 404 from a monitoring api reads as "that host is gone"
+// rather than as "you spelled the url differently".
+//
+// The slash is trimmed rather than redirected : a client that does not follow
+// redirects would get an empty body and call it a day.
+//
+// Only under /api, because the static files are served from the root and
+// http.FileServer redirects a directory the other way, /assets to /assets/.
+// Trimming that back would be a redirect loop.
+func AcceptingTrailingSlashes() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
+
+			// "/api/" itself included : it is the one every script ends up
+			// writing, and the whole tree is what it answers.
+			if strings.HasPrefix(path, "/api/") && strings.HasSuffix(path, "/") {
+				trimmed := *r.URL
+				trimmed.Path = strings.TrimSuffix(path, "/")
+
+				withoutSlash := *r
+				withoutSlash.URL = &trimmed
+				r = &withoutSlash
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Recovering keeps one panicking handler from taking the process with it.
 //
 // A monitoring tool going down because one probe result had an unexpected shape

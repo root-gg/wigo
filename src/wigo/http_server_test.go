@@ -338,3 +338,53 @@ func TestAnUnchangedInterfaceIsAnsweredWithoutItsBody(t *testing.T) {
 		t.Errorf("Got a body of %d bytes with the 304", recorder.Body.Len())
 	}
 }
+
+// Martini answered /api/hosts and /api/hosts/ alike, so every script written
+// against the trailing form would break on upgrade -- and a 404 from a
+// monitoring api reads as "that host is gone".
+func TestAnApiPathMayEndWithASlash(t *testing.T) {
+	var seen string
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.URL.Path
+	})
+
+	handler := AcceptingTrailingSlashes()(next)
+
+	for asked, expected := range map[string]string{
+		"/api/hosts/":     "/api/hosts",
+		"/api/hosts/db1/": "/api/hosts/db1",
+		"/api/hosts":      "/api/hosts",
+		"/api/":           "/api",
+		"/api":            "/api",
+		"/":               "/",
+		"/assets/":        "/assets/",
+		"/api/hosts//":    "/api/hosts/",
+	} {
+		request, err := http.NewRequest("GET", "http://localhost"+asked, nil)
+		if err != nil {
+			t.Fatalf("Fail to build the request : %s", err)
+		}
+
+		handler.ServeHTTP(httptest.NewRecorder(), request)
+
+		if seen != expected {
+			t.Errorf("%q reached the router as %q, expected %q", asked, seen, expected)
+		}
+	}
+}
+
+// The request the caller holds must not be mutated : the logging middleware
+// wraps this one and reads the path after it has run.
+func TestTheOriginalRequestIsLeftAlone(t *testing.T) {
+	request, err := http.NewRequest("GET", "http://localhost/api/hosts/", nil)
+	if err != nil {
+		t.Fatalf("Fail to build the request : %s", err)
+	}
+
+	handler := AcceptingTrailingSlashes()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	handler.ServeHTTP(httptest.NewRecorder(), request)
+
+	if request.URL.Path != "/api/hosts/" {
+		t.Errorf("The caller's request was rewritten to %q", request.URL.Path)
+	}
+}

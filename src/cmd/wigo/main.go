@@ -647,6 +647,12 @@ func threadHttp(config *wigo.HttpConfig) {
 
 	middlewares = append(middlewares, wigo.SecurityHeaders())
 
+	// Inside the logging, so the log keeps the url the client actually asked
+	// for : the point of the line is to show what was requested, and a path
+	// silently rewritten before being logged hides the very thing somebody is
+	// reading the log to find.
+	middlewares = append(middlewares, wigo.AcceptingTrailingSlashes())
+
 	if config.Gzip {
 		log.Println("Http server : gzip compression enabled")
 		middlewares = append(middlewares, wigo.Gzip())
