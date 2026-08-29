@@ -321,6 +321,23 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### Docker
+
+```
+docker run -d -p 4000:4000 \
+  -v wigo-probes:/usr/local/wigo/probes \
+  -v wigo-data:/var/lib/wigo \
+  ghcr.io/root-gg/wigo:latest
+```
+
+Published for `linux/amd64` and `linux/arm64`. `build/docker/docker-compose.yml` starts a master watching two clients, which is the smallest thing that shows what wigo is for: one interface, one `/metrics`, several machines.
+
+The image is **not** built on scratch or alpine even though the binary is static: the probes shipped with wigo are Perl scripts, so a distroless image would start, answer, and monitor absolutely nothing. Debian slim plus the Perl modules those probes actually use is the smallest base on which `docker run wigo` does what the name promises.
+
+**Mount the probes directory.** It is the source of truth for which probes run and how often, so without a volume every probe an operator enabled, disabled or repitched comes back to the defaults on the next start. The defaults are seeded on first start only, marked by `probes/.seeded` — the same rule as the Debian `postinst`, and for the same reason.
+
+Debian packages are built for `amd64`, `armhf` and `arm64`.
+
 ### Prometheus
 
 `GET /metrics` exposes the **whole tree** in the Prometheus exposition format. A master already gathers its remotes, so scraping the master gets the fleet and scraping a standalone wigo gets itself — there is no separate exporter to deploy and nothing to keep in step with the topology.
