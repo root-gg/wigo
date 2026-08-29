@@ -55,6 +55,7 @@ func NewConfig(configFile string) (this *Config) {
 	this.Global.Database = "/var/lib/wigo/wigo.db"
 	this.Global.AliveTimeout = 60
 	this.Global.MetricsRetentionDays = defaultMetricsRetentionDays
+	this.Global.StatusHistoryDays = defaultStatusHistoryDays
 	this.Global.ConfigFile = configFile
 	this.Global.Debug = false
 	this.Global.Trace = false
@@ -212,6 +213,10 @@ type GeneralConfig struct {
 	// already there. Zero keeps none. Nothing about the monitoring depends on
 	// it : losing this loses history and nothing else.
 	MetricsRetentionDays int
+
+	// How many days of status changes to keep, which is what the timeline is
+	// drawn from. A change is not a sample : a handful a day, not one a minute.
+	StatusHistoryDays int
 }
 
 type HttpConfig struct {

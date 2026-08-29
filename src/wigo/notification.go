@@ -161,6 +161,14 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 		this.Group = newProbe.GetHost().Group
 		this.Message = fmt.Sprintf("New probe %s with status %d detected on host %s", newProbe.Name, newProbe.Status, this.Hostname)
 
+		// The start of its band on a timeline : without it, a probe that
+		// appeared critical and stayed there would have no transition at all
+		// and would be drawn as nothing.
+		RecordStatusTransition(StatusChange{
+			Host: this.Hostname, Probe: newProbe.Name, Group: this.Group,
+			Was: StatusAbsent, Now: newProbe.Status, Message: newProbe.Message,
+		})
+
 		this.Summary += fmt.Sprintf("A new probe %s has been detected on host %s : \n\n", newProbe.Name, this.Hostname)
 		this.Summary += fmt.Sprintf("\t%s\n", newProbe.Message)
 
@@ -171,6 +179,12 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 		// It is gone : keeping its history would have it come back flapping for
 		// changes it made in a previous life.
 		forgetFlapping(this.Hostname, oldProbe.Name)
+
+		RecordStatusTransition(StatusChange{
+			Host: this.Hostname, Probe: oldProbe.Name, Group: this.Group,
+			Was: oldProbe.Status, Now: StatusAbsent,
+			Message: "the probe is gone",
+		})
 		this.Message = fmt.Sprintf("Probe %s on host %s does not exist anymore. Last status was %d", oldProbe.Name, this.Hostname, oldProbe.Status)
 
 		this.Summary += fmt.Sprintf("Probe %s has been deleted on host %s : \n\n", oldProbe.Name, this.Hostname)
@@ -198,6 +212,11 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 			// the ones too mild to be notified about : a probe bouncing between
 			// OK and WARNING is exactly as unsteady as one bouncing between OK
 			// and CRITICAL, it just shouts less about it.
+			RecordStatusTransition(StatusChange{
+				Host: this.Hostname, Probe: newProbe.Name, Group: this.Group,
+				Was: oldProbe.Status, Now: newProbe.Status, Message: newProbe.Message,
+			})
+
 			// The interface hears about it now rather than at its next poll,
 			// which is up to a minute of looking at a green screen about a
 			// machine that is already down.

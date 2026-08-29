@@ -76,6 +76,12 @@
       />
     </div>
 
+    <!-- Ce que ce wigo a vu de ce host dans le temps. Pas une courbe : un
+         statut est un état qui dure, et la question est combien de temps. -->
+    <div v-if="host" class="mt-3">
+      <StatusTimeline :host-name="hostName" />
+    </div>
+
     <div
       v-if="scheduleError"
       class="alert alert-secondary d-flex align-items-center gap-2 mt-4 mb-0 py-2"
@@ -176,6 +182,12 @@
           <template v-else>
             <p class="mb-3">{{ probe.Message }}</p>
 
+            <StatusTimeline
+              :host-name="hostName"
+              :probe-name="probe.Name"
+              class="mb-3"
+            />
+
             <!-- Ce que la sonde mesure, dans le temps. Seulement si elle mesure
                  quelque chose : une sonde qui ne rend qu'un statut n'a pas de
                  courbe, et un cadre vide sous chaque carte serait du bruit. -->
@@ -214,6 +226,7 @@ import StatusBadge from "../components/StatusBadge.vue";
 import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
 import SuppressionControl from "../components/SuppressionControl.vue";
 import MetricChart from "../components/MetricChart.vue";
+import StatusTimeline from "../components/StatusTimeline.vue";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";

@@ -54,6 +54,9 @@ func TestMain(m *testing.M) {
 	if _, err := conn.Exec(createMetricsTable); err != nil {
 		log.Fatalf("Fail to create the metrics table : %s", err)
 	}
+	if _, err := conn.Exec(createStatusChangesTable); err != nil {
+		log.Fatalf("Fail to create the status changes table : %s", err)
+	}
 	LocalWigo.sqlLiteLock = new(sync.Mutex)
 	LocalWigo.sqlLiteConn = conn
 
@@ -112,6 +115,9 @@ func setupTestWigo(t *testing.T, group string) *Wigo {
 	}
 	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM metrics`); err != nil {
 		t.Fatalf("Fail to clean the metrics table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM status_changes`); err != nil {
+		t.Fatalf("Fail to clean the status changes table : %s", err)
 	}
 	LocalWigo.sqlLiteLock.Unlock()
 

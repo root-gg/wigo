@@ -352,6 +352,18 @@ Two decisions are worth knowing about:
 
 Dark mode uses the same eight hues re-stepped for the dark surface, not an automatic flip. Both were validated against wigo's real card backgrounds.
 
+### Status timeline
+
+Under each probe, and under the host itself, a band of when it was fine and when it was not, over 6 hours to 30 days.
+
+A status is a **state that lasts**, so it is drawn as a band rather than a line: the question a timeline answers is not *what was the value* but *how long did it last*, and the tooltip gives the message that came with it.
+
+The transitions are recorded as what they are — two statuses and a time — in a `status_changes` table bounded by `StatusHistoryDays` (30 by default, `0` to keep none). The `logs` table already carries the sentence "Probe check_load switched from 100 to 300 : load too high", and the timeline could have been built by parsing it; it would also have broken, silently, the day somebody reworded that sentence.
+
+**Unlike the metrics, this is recorded for remotes too.** A status change is not a sample — a handful a day, not one a minute — so there is nothing to save by not storing them, and a master sees things a host cannot record about itself, going down being the obvious one. The endpoint is therefore never forwarded: `GET /api/hosts/:h/timeline?probe=&since=&until=` answers what *this* wigo observed.
+
+**Never watched is not the same as fine.** A probe installed yesterday has no history for the 29 days before it, and that part of the band is hatched rather than green — and the summary line says how much of the window is unknown instead of claiming everything was fine.
+
 ### Live updates
 
 `GET /api/events` streams what happens as server sent events, so a probe going critical shows up in the interface at once rather than at the next poll — up to a minute of looking at a green screen about a machine that is already down.

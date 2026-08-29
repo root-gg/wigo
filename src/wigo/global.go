@@ -233,6 +233,11 @@ Options:
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
 	}
 
+	_, err = LocalWigo.sqlLiteConn.Exec(createStatusChangesTable)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
 	// Configure SQLite busy timeout to handle concurrent access
 	_, err = LocalWigo.sqlLiteConn.Exec("PRAGMA busy_timeout = 5000")
 	if err != nil {
@@ -342,6 +347,10 @@ func (this *Wigo) Down() {
 
 	// Send notification
 	PublishEvent(LiveEvent{Type: EventHost, Host: this.Hostname, Status: 500})
+	RecordStatusTransition(StatusChange{
+		Host: this.Hostname, Group: this.GetGroup(),
+		Was: 100, Now: 500, Message: "the host stopped answering",
+	})
 
 	// A host that is gone is as bad as it gets : an ack taken while it was
 	// merely critical does not cover it going away entirely.
@@ -358,6 +367,10 @@ func (this *Wigo) Up() {
 
 	// Send notification
 	PublishEvent(LiveEvent{Type: EventHost, Host: this.Hostname, Status: 100})
+	RecordStatusTransition(StatusChange{
+		Host: this.Hostname, Group: this.GetGroup(),
+		Was: 500, Now: 100, Message: "the host is answering again",
+	})
 
 	// Back up, which clears whatever was acknowledged about it being down
 	SendNotification(NewNotificationFromMessageForHost(

@@ -235,6 +235,23 @@ const api = {
     return response.data;
   },
 
+  /**
+   * L'historique des changements de statut. Toujours servi par ce wigo-ci et
+   * jamais relayé : un maître a vu de son remote des choses que celui-ci ne
+   * peut pas avoir enregistrées sur lui-même, tomber en étant la première.
+   */
+  async getHostTimeline(hostname, probeName, since, until) {
+    const params = { since };
+    if (probeName) params.probe = probeName;
+    if (until) params.until = until;
+
+    const response = await apiClient.get(
+      `/hosts/${encodeURIComponent(hostname)}/timeline`,
+      { params },
+    );
+    return response.data;
+  },
+
   /** Les jetons d'API, jamais leurs secrets : ils ne sont pas stockés */
   async getTokens() {
     const response = await apiClient.get("/tokens");

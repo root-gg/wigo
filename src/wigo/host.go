@@ -68,6 +68,15 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
 		// New probe
 		probe.SetHost(this)
+
+		// Where its band starts. A local wigo does not notify about its own
+		// probes appearing, so nothing else would write this down, and a probe
+		// that has been fine since it was installed would have no row at all --
+		// drawn as never watched rather than as always fine.
+		RecordStatusTransition(StatusChange{
+			Host: GetLocalWigo().GetHostname(), Probe: probe.Name, Group: this.Group,
+			Was: StatusAbsent, Now: probe.Status, Message: probe.Message,
+		})
 	}
 
 	// Update
