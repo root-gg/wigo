@@ -321,6 +321,23 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### Metric history
+
+A probe reports a load average, a disk usage, a queue length, and until now all of it was thrown away the moment the next run replaced it — unless an OpenTSDB was configured. Which meant the answer to *was it already climbing an hour ago* was no, and getting one meant deploying a time series database next to a monitoring tool that already has one open.
+
+It is now written to the SQLite that is already there, bounded by `MetricsRetentionDays` (7 by default, `0` to keep none). A week of a machine running twenty probes is around **35 MB**, and reading that whole week back takes about 30 ms.
+
+| Endpoint | |
+|---|---|
+| `GET /api/probes/:probe/metrics?since=&until=&points=` | The history of one probe of this host. |
+| `GET /api/hosts/:h/probes/:probe/metrics` | The same for any polled host of the tree. |
+
+Points are **bucketed**: a week at one point a minute is ten thousand points per series, which no browser should be asked to draw. Each bucket carries its average *and* the range it covers, so the spike that woke somebody up is still visible after being averaged.
+
+**Each wigo keeps its own history, and only its own.** A master reads a remote's through that remote's API, the same way it reads its schedule — storing the fleet's series on the master as well would write everything twice and make its database grow with the size of the fleet, which is the thing that pushes people towards a separate stack. A host that pushes rather than being polled cannot be asked, and says so.
+
+Nothing about the monitoring depends on this table: losing it loses history and nothing else.
+
 ### Live updates
 
 `GET /api/events` streams what happens as server sent events, so a probe going critical shows up in the interface at once rather than at the next poll — up to a minute of looking at a green screen about a machine that is already down.

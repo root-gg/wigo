@@ -54,6 +54,7 @@ func NewConfig(configFile string) (this *Config) {
 	this.Global.UuidFile = "/var/lib/wigo/uuid"
 	this.Global.Database = "/var/lib/wigo/wigo.db"
 	this.Global.AliveTimeout = 60
+	this.Global.MetricsRetentionDays = defaultMetricsRetentionDays
 	this.Global.ConfigFile = configFile
 	this.Global.Debug = false
 	this.Global.Trace = false
@@ -206,6 +207,11 @@ type GeneralConfig struct {
 	Group                 string
 	Database              string
 	AliveTimeout          int
+
+	// How many days of what the probes measure to keep, in the sqlite that is
+	// already there. Zero keeps none. Nothing about the monitoring depends on
+	// it : losing this loses history and nothing else.
+	MetricsRetentionDays int
 }
 
 type HttpConfig struct {

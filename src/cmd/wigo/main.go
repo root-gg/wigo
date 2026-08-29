@@ -60,6 +60,9 @@ func main() {
 	// broken at 9am produced exactly one message without this.
 	wigo.StartRenotify()
 
+	// Drops what has aged out of the metrics history
+	wigo.StartMetricsRetention()
+
 	if config.Http.Enabled {
 		go threadHttp(config.Http)
 	}
@@ -702,6 +705,8 @@ func registerRoutes(mux *http.ServeMux) {
 	get("/api/hosts/{hostname}/probes/{probe}/status", wigo.HttpRemotesProbesStatusHandler)
 	get("/api/hosts/{hostname}/probes/{probe}/logs", wigo.HttpLogsHandler)
 	get("/api/probes/{probe}/logs", wigo.HttpLogsHandler)
+	get("/api/probes/{probe}/metrics", wigo.HttpProbeMetricsHandler)
+	get("/api/hosts/{hostname}/probes/{probe}/metrics", wigo.HttpHostProbeMetricsHandler)
 
 	get("/api/probes", wigo.HttpProbesHandler)
 	post("/api/probes/{probe}/disable", wigo.HttpProbeDisableHandler)

@@ -77,6 +77,11 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 	// Graph
 	probe.GraphMetrics()
 
+	// And keep it. Deliberately here rather than inside GraphMetrics, which a
+	// master also calls for its remotes : each wigo keeps its own history, and
+	// the master reads a remote's through that remote's api.
+	RecordProbeMetrics(probe)
+
 	// Recompute status
 	GetLocalWigo().RecomputeGlobalStatus()
 
