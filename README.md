@@ -275,6 +275,17 @@ Probes in subdirectories are symlinks to the actual probe executable located in 
 
 **This directory is the source of truth** for which probes run and how often. Changing a probe's interval means moving its symlink to another interval directory, creating it if needed — `probes/900/` is as valid as `probes/60/`. Nothing else records that state, so a database that disagreed with the directory can never silently stop the monitoring.
 
+**A probe is scheduled once, and the smallest interval wins.** Linked into two interval directories, it used to be *run* twice: one scheduler per directory, at two different rates, each overwriting the other's result — and, for the probes that keep state between runs in `/tmp/<probe>.wigo`, each corrupting the deltas the other computes. Now exactly one directory owns it.
+
+The smallest is the one that runs because between the two possible mistakes there is no contest: running something more often than someone asked costs a little CPU, running it less often than they asked is a gap in the monitoring that nobody sees.
+
+The extra links are **not deleted** — links somebody put there by hand are theirs — but they do nothing, and a link that does nothing is exactly the state somebody comes back to in six months wondering why the interval is not what the directory says. So each one is named once at startup:
+
+```
+Probe check_ntp is linked in 60, 300. Only 60 runs it, the smallest interval wins ;
+the other links do nothing and can be removed.
+```
+
 The Debian package only seeds the default symlinks on a **fresh install**, so upgrading never re-enables a probe you disabled nor recreates one you moved.
 
 Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf.d`).

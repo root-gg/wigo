@@ -1,6 +1,7 @@
 package wigo
 
 import (
+	"container/list"
 	"fmt"
 	"log"
 	"os"
@@ -424,14 +425,29 @@ func parseProbeInterval(seconds string) (int, error) {
 
 // probeLocationsIn lists every probe of the directory with where it sits. A
 // probe installed several times appears once per location.
-func probeLocationsIn(root string) ([]ProbeLocation, error) {
+// runningSchedules maps each scheduled probe to the one directory that runs it.
+//
+// A probe linked into several interval directories is otherwise run once per
+// directory, by independent schedulers at different rates, each overwriting the
+// other's result -- and, for the probes that keep state between runs in
+// /tmp/<probe>.wigo, each corrupting the deltas the other computes. So exactly
+// one directory owns a probe.
+//
+// The smallest interval wins. Two directories are two instructions and one has
+// to be dropped ; running something more often than someone asked costs a
+// little cpu, while running it less often than they asked is a gap in the
+// monitoring nobody sees. Between those two mistakes there is no contest.
+//
+// Nothing on disk is touched : links somebody put there by hand are theirs, and
+// deleting one to enforce an invariant they may not know about is not this
+// function's call. It only decides which one counts.
+func runningSchedules(root string) map[string]ProbeLocation {
+	winners := make(map[string]ProbeLocation)
+
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return nil, fmt.Errorf("fail to read the probes directory %s : %s", root, err)
+		return winners
 	}
-
-	locations := make([]ProbeLocation, 0)
-	scheduled := make(map[string]bool)
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -440,7 +456,7 @@ func probeLocationsIn(root string) ([]ProbeLocation, error) {
 
 		directory := entry.Name()
 		interval, isSchedule := ProbeDirectoryInterval(directory)
-		if !isSchedule && directory != DisabledProbesDirectory {
+		if !isSchedule {
 			continue
 		}
 
@@ -454,11 +470,129 @@ func probeLocationsIn(root string) ([]ProbeLocation, error) {
 				continue
 			}
 
-			locations = append(locations, ProbeLocation{
+			if held, taken := winners[probe.Name()]; taken && held.Interval <= interval {
+				continue
+			}
+
+			winners[probe.Name()] = ProbeLocation{
 				Name:      probe.Name(),
 				Directory: directory,
 				Interval:  interval,
-				Enabled:   isSchedule,
+				Enabled:   true,
+			}
+		}
+	}
+
+	return winners
+}
+
+// DuplicateSchedules lists the probes scheduled in more than one interval
+// directory, with the directories they sit in, smallest first.
+//
+// Only one of them runs -- see runningSchedules -- and the rest are links doing
+// nothing. Reported rather than deleted, and reported rather than left silent :
+// a link that has no effect is exactly the kind of state somebody comes back to
+// in six months wondering why the interval is not what the directory says.
+func DuplicateSchedules() map[string][]string {
+	return duplicateSchedulesIn(probesRoot())
+}
+
+func duplicateSchedulesIn(root string) map[string][]string {
+	found := make(map[string][]string)
+
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return found
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		directory := entry.Name()
+		if _, isSchedule := ProbeDirectoryInterval(directory); !isSchedule {
+			continue
+		}
+
+		probes, err := os.ReadDir(filepath.Join(filepath.Clean(root), directory))
+		if err != nil {
+			continue
+		}
+
+		for _, probe := range probes {
+			if probe.IsDir() || !IsValidProbeName(probe.Name()) {
+				continue
+			}
+			found[probe.Name()] = append(found[probe.Name()], directory)
+		}
+	}
+
+	for name, directories := range found {
+		if len(directories) < 2 {
+			delete(found, name)
+			continue
+		}
+
+		sort.Slice(directories, func(i, j int) bool {
+			left, _ := ProbeDirectoryInterval(directories[i])
+			right, _ := ProbeDirectoryInterval(directories[j])
+			return left < right
+		})
+		found[name] = directories
+	}
+
+	return found
+}
+
+// LogDuplicateSchedules says once what is scheduled twice.
+func LogDuplicateSchedules() {
+	for name, directories := range DuplicateSchedules() {
+		log.Printf("Probe %s is linked in %s. Only %s runs it, the smallest interval wins ; "+
+			"the other links do nothing and can be removed.",
+			name, strings.Join(directories, ", "), directories[0])
+	}
+}
+
+func probeLocationsIn(root string) ([]ProbeLocation, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read the probes directory %s : %s", root, err)
+	}
+
+	locations := make([]ProbeLocation, 0)
+	scheduled := make(map[string]bool)
+
+	// One row per probe, whatever the directory says : listing a probe twice
+	// would show two intervals for something that runs at one of them, and the
+	// interface would offer to repitch an entry that is not what runs.
+	running := runningSchedules(root)
+	for _, location := range running {
+		locations = append(locations, location)
+		scheduled[location.Name] = true
+	}
+
+	// The legacy disabled directory, which is not a schedule : a probe parked
+	// there by an older wigo stays visible rather than vanishing from the
+	// listing while remaining unscheduled.
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() != DisabledProbesDirectory {
+			continue
+		}
+
+		probes, err := os.ReadDir(filepath.Join(filepath.Clean(root), DisabledProbesDirectory))
+		if err != nil {
+			continue
+		}
+
+		for _, probe := range probes {
+			if probe.IsDir() || scheduled[probe.Name()] || !IsValidProbeName(probe.Name()) {
+				continue
+			}
+
+			locations = append(locations, ProbeLocation{
+				Name:      probe.Name(),
+				Directory: DisabledProbesDirectory,
 			})
 
 			scheduled[probe.Name()] = true
@@ -553,4 +687,41 @@ func ProbeLocations() ([]ProbeLocation, error) {
 // delete what the new directory just produced.
 func IsProbeScheduled(name string) bool {
 	return probeIsScheduledIn(probesRoot(), name)
+}
+
+// ProbesOwnedBy lists the probes an interval directory is responsible for
+// running : the ones no smaller interval also schedules.
+//
+// The scheduler runs one goroutine per interval directory, so without this a
+// probe linked in two of them is executed twice at two rates. See
+// runningSchedules for why the smallest wins.
+func ProbesOwnedBy(directory string) (*list.List, error) {
+	owned := new(list.List)
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	// The directory is handed over as a path, and its parent is the probes root
+	// every other schedule sits under.
+	running := runningSchedules(filepath.Dir(filepath.Clean(directory)))
+	ours := filepath.Base(filepath.Clean(directory))
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		// Something with a name no schedule could hold is not ours to run, and
+		// not ours to claim is a duplicate of either.
+		winner, scheduled := running[entry.Name()]
+		if scheduled && winner.Directory != ours {
+			continue
+		}
+
+		owned.PushBack(entry.Name())
+	}
+
+	return owned, nil
 }

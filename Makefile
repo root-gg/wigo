@@ -153,7 +153,7 @@ run-dev: build-dev
 	mkdir -p $(BASE_DIR)/dev/probes/; \
 	mkdir -p $(BASE_DIR)/dev/probes/disabled; \
 	if [ ! -d $(BASE_DIR)/dev/probes/60 ]; then mkdir -p $(BASE_DIR)/dev/probes/60; fi; \
-	for probe in hardware_load_average hardware_disks hardware_memory ifstat supervisord needrestart check_mdadm check_process haproxy lm-sensors iostat check_uptime smart check_ntp packages-apt; do \
+	for probe in hardware_load_average hardware_disks hardware_memory ifstat supervisord needrestart check_mdadm check_process haproxy lm-sensors iostat check_uptime; do \
 		if [ ! -e $(BASE_DIR)/dev/probes/60/$$probe ]; then \
 			ln -s $(BASE_DIR)/probes/examples/$$probe $(BASE_DIR)/dev/probes/60/$$probe; \
 		fi; \

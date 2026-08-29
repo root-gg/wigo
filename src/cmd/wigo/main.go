@@ -51,6 +51,11 @@ func main() {
 	// result it just asked for.
 	wigo.SetProbeRunner(execProbe)
 
+	// A probe linked in two interval directories runs from the smaller one only.
+	// The other links do nothing, and a link doing nothing is worth one line at
+	// boot rather than an interval somebody spends an afternoon disbelieving.
+	wigo.LogDuplicateSchedules()
+
 	// Brings back the probes whose disable was meant to be temporary. It is the
 	// only thing that reads that table to act, and it can only ever start a
 	// probe, never stop one.
@@ -210,15 +215,18 @@ func threadLocalChecks() {
 // seconds, until stop is closed.
 func scheduleProbesDirectory(directory string, interval int, stop chan struct{}) {
 
-	// Local view of the directory, to detect the probes that appear and go away
-	currentProbesList, err := wigo.ListProbesInDirectory(directory)
+	// Local view of the directory, to detect the probes that appear and go away.
+	// Only what this directory owns : a probe also linked in a smaller interval
+	// runs from there, and running it here as well would have two schedulers
+	// overwrite each other's result at two different rates.
+	currentProbesList, err := wigo.ProbesOwnedBy(directory)
 	if err != nil {
 		log.Printf("Fail to read directory %s : %s", directory, err)
 		currentProbesList = list.New()
 	}
 
 	for {
-		if newProbesList, err := wigo.ListProbesInDirectory(directory); err == nil {
+		if newProbesList, err := wigo.ProbesOwnedBy(directory); err == nil {
 			for _, probeName := range reconcileProbesList(directory, currentProbesList, newProbesList) {
 				// Leaving this directory does not mean the probe is gone : it
 				// may have been repitched to another interval, and that

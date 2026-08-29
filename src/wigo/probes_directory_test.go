@@ -1,6 +1,7 @@
 package wigo
 
 import (
+	"container/list"
 	"os"
 	"path/filepath"
 	"strings"
@@ -713,4 +714,112 @@ func TestProbeIsScheduledWithoutProbesDirectory(t *testing.T) {
 	if probeIsScheduledIn(filepath.Join(t.TempDir(), "gone"), "check_load") {
 		t.Errorf("An unreadable probes directory must not report a probe as scheduled")
 	}
+}
+
+// The rule : a probe is scheduled once, and the smallest interval is the one
+// that runs. Running something more often than asked costs cpu ; running it
+// less often is a gap in the monitoring nobody sees.
+func TestTheSmallestIntervalWins(t *testing.T) {
+	root := newTestProbesDirectory(t, "300/check_load", "60/check_load", "3600/check_load")
+
+	running := runningSchedules(root)
+	if len(running) != 1 {
+		t.Fatalf("Got %+v, expected one schedule", running)
+	}
+	if running["check_load"].Directory != "60" || running["check_load"].Interval != 60 {
+		t.Errorf("Got %+v, expected the 60 second one to win", running["check_load"])
+	}
+}
+
+// The listing has to agree with what runs, or the interface offers to repitch
+// an entry that is not the one being executed.
+func TestAProbeIsListedOnceWhateverTheDirectoriesSay(t *testing.T) {
+	root := newTestProbesDirectory(t, "300/check_load", "60/check_load", "120/check_ntp")
+
+	locations, err := probeLocationsIn(root)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	seen := make(map[string]ProbeLocation)
+	for _, location := range locations {
+		if _, twice := seen[location.Name]; twice {
+			t.Fatalf("Probe %s is listed more than once : %+v", location.Name, locations)
+		}
+		seen[location.Name] = location
+	}
+
+	if seen["check_load"].Interval != 60 {
+		t.Errorf("Got %+v, expected the smallest interval", seen["check_load"])
+	}
+	if seen["check_ntp"].Interval != 120 {
+		t.Errorf("Got %+v", seen["check_ntp"])
+	}
+}
+
+// The scheduler runs one goroutine per directory. Without this the probe is
+// executed twice at two rates, each overwriting the other's result.
+func TestOnlyTheSmallestDirectoryOwnsAProbe(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load", "300/check_load", "300/check_ntp")
+
+	fast, err := ProbesOwnedBy(filepath.Join(root, "60"))
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if names := listNames(fast); len(names) != 1 || names[0] != "check_load" {
+		t.Errorf("Got %v, expected the 60 second directory to own check_load", names)
+	}
+
+	slow, err := ProbesOwnedBy(filepath.Join(root, "300"))
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if names := listNames(slow); len(names) != 1 || names[0] != "check_ntp" {
+		t.Errorf("Got %v, expected the 300 second directory to own only check_ntp", names)
+	}
+}
+
+// Reported, because a link that has no effect is exactly the state somebody
+// comes back to in six months wondering why the interval is not what the
+// directory says.
+func TestDuplicateSchedulesAreReportedSmallestFirst(t *testing.T) {
+	root := newTestProbesDirectory(t, "300/check_load", "60/check_load", "120/check_ntp")
+
+	duplicates := duplicateSchedulesIn(root)
+	if len(duplicates) != 1 {
+		t.Fatalf("Got %+v, expected only check_load", duplicates)
+	}
+	if got := duplicates["check_load"]; len(got) != 2 || got[0] != "60" || got[1] != "300" {
+		t.Errorf("Got %v, expected [60 300]", got)
+	}
+}
+
+// Somebody's links are theirs. Enforcing the rule decides which one counts, it
+// does not delete the others.
+func TestNothingOnDiskIsTouched(t *testing.T) {
+	root := newTestProbesDirectory(t, "60/check_load", "300/check_load")
+
+	runningSchedules(root)
+	if _, err := probeLocationsIn(root); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if _, err := ProbesOwnedBy(filepath.Join(root, "300")); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+
+	if !probeIsIn(t, root, "300", "check_load") {
+		t.Errorf("The link in 300 was removed, it should only have been ignored")
+	}
+	if !probeIsIn(t, root, "60", "check_load") {
+		t.Errorf("The link in 60 disappeared")
+	}
+}
+
+func listNames(probes *list.List) []string {
+	names := make([]string, 0)
+	for element := probes.Front(); element != nil; element = element.Next() {
+		names = append(names, element.Value.(string))
+	}
+
+	return names
 }
