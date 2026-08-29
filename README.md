@@ -290,6 +290,43 @@ The Debian package only seeds the default symlinks on a **fresh install**, so up
 
 Probes config files are located in `ProbesConfigDirectory` (e.g. `/etc/wigo/conf.d`).
 
+**A config file is an opinion about some settings, not a replacement for all of them.** It is merged over the probe's defaults, so a file naming one key keeps every other default. It used to replace them outright, which meant adding a single line silently dropped the rest and left the probe comparing values against nothing.
+
+#### check_ssl_cert
+
+A certificate expires on a date known months in advance and takes the site down anyway. There is nothing to detect and nothing to react to: the only useful thing a monitoring tool can do is count the days out loud, early enough that renewing is boring.
+
+```json
+{
+  "enabled"  : true,
+  "hosts"    : ["example.com", "api.example.com:8443", "10.0.0.5:443:api.example.com"],
+  "warning"  : 30,
+  "critical" : 7,
+  "timeout"  : 5
+}
+```
+
+Each entry is `host`, `host:port`, or `host:port:servername` when the certificate to check is not the one served for the name you connect to. Days remaining are exposed as a metric per host, so the graph shows the sawtooth of renewals and a flat line that should have been one.
+
+Certificates are read, not validated: an expired or self-signed one is exactly what has to be **reported** rather than refused. A host that cannot be reached is reported as the probe failing, not as a certificate being fine — not being able to look is not the same as having looked.
+
+With no hosts configured it stays OK and says so. A machine that serves no TLS has nothing to say here, and saying it in red would be one more red thing nobody can act on.
+
+#### check_systemd
+
+A failed unit is already known: systemd noticed, wrote it down, and stopped trying. What is missing is somebody being told.
+
+```json
+{
+  "enabled"         : true,
+  "ignore"          : ["some-unit-that-fails-on-purpose.service"],
+  "status"          : 300,
+  "check_not_found" : true
+}
+```
+
+`ignore` takes exact names rather than patterns — a pattern that quietly grows to cover a unit somebody cared about is how this kind of list stops being trustworthy. Units systemd could not even load are counted separately from units that ran and failed, because they are a different problem: a typo in a name, a dropped file.
+
 ### Managing probes through the API
 
 | Endpoint | Description |

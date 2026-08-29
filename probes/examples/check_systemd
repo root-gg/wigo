@@ -1,0 +1,126 @@
+#!/usr/bin/perl
+
+# Units that systemd gave up on.
+#
+# A failed unit is already known -- systemd noticed, wrote it down, and stopped
+# trying. What is missing is somebody being told. This is the shortest path
+# between the two.
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    # Units that are expected to fail and are not news. Exact names, because a
+    # pattern that quietly grows to cover a unit somebody cared about is how
+    # this kind of list stops being trustworthy.
+    'ignore'          => [],
+
+    # A unit that failed is a unit that is not doing its job. Warning is for
+    # people who run things that fail on purpose and want to see it first.
+    'status'          => 300,
+
+    # Units systemd could not even load : a typo in a name, a dropped file. It
+    # is a different problem from a unit that ran and failed, so it is counted
+    # separately and can be turned off on machines where it is expected.
+    'check_not_found' => 1,
+};
+
+init( config => $conf );
+
+my %ignored = map { $_ => 1 } @{ config->{'ignore'} || [] };
+
+my $output = qx{systemctl list-units --state=failed --all --no-legend --plain --no-pager 2>&1};
+my $code   = $? >> 8;
+
+my @failed  = ();
+my @missing = ();
+
+# How many unit lines were understood, counted before the ignore list : all of
+# them being ignored is a working answer, none of them being readable is not.
+my $parsed = 0;
+
+foreach my $line ( split /\n/, $output )
+{
+    $line = trim($line);
+    next unless length $line;
+
+    # UNIT LOAD ACTIVE SUB DESCRIPTION, with a leading bullet on some versions
+    $line =~ s/^[^\w]+//;
+    my ( $unit, $load, $active, $sub, @description ) = split /\s+/, $line;
+    next unless defined $unit && defined $load;
+
+    # A unit name has a shape. Without this an error message on stderr splits
+    # into words and the first one passes for a unit, so a missing systemctl
+    # was reported as a failed unit called "sh:".
+    next unless $unit =~ /^[\w@:.\\-]+\.(service|socket|target|timer|mount|automount|path|slice|scope|device|swap)$/;
+
+    $parsed++;
+    next if $ignored{$unit};
+
+    my $entry = {
+        'load'        => $load,
+        'active'      => $active,
+        'sub'         => $sub,
+        'description' => join( " ", @description ),
+    };
+
+    if ( $load eq "not-found" )
+    {
+        next unless config->{'check_not_found'};
+        push @missing, $unit;
+        detail->{$unit} = $entry;
+        next;
+    }
+
+    push @failed, $unit;
+    detail->{$unit} = $entry;
+}
+
+# systemctl says nothing and exits zero when nothing is failed, which is the
+# good case. So a non zero code only means trouble when nothing at all could be
+# read out of the answer -- a missing command, or a systemd that will not talk.
+if ( !$parsed && $code != 0 && length( trim($output) ) )
+{
+    status  500;
+    message "Cannot ask systemd : " . trim($output);
+    output 1;
+}
+
+add_metric { "Tags" => { 'metric' => 'failed' },    'Value' => scalar(@failed) };
+add_metric { "Tags" => { 'metric' => 'not_found' }, 'Value' => scalar(@missing) };
+
+if ( !@failed && !@missing )
+{
+    status  100;
+    message "No failed units";
+    output 0;
+}
+
+status config->{'status'};
+
+my @parts = ();
+push @parts, sprintf( "%d failed : %s", scalar(@failed), join( ", ", @failed ) ) if @failed;
+push @parts, sprintf( "%d not found : %s", scalar(@missing), join( ", ", @missing ) ) if @missing;
+
+message join( " ; ", @parts );
+
+output 0;
+
+sub trim
+{
+    my ($value) = @_;
+    return "" unless defined $value;
+
+    $value =~ s/^\s+//;
+    $value =~ s/\s+$//;
+
+    return $value;
+}
