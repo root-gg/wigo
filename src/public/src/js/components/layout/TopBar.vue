@@ -193,6 +193,52 @@
             <i class="fas fa-lock fa-fw"></i>
           </router-link>
         </li>
+
+        <!-- Sur un wigo qui laisse lire sans identifiants, le navigateur n'est
+             jamais challengé : sans ce bouton l'identifiant existe et reste
+             hors d'atteinte. Une navigation, pas une requête -- le prompt du
+             navigateur n'apparaît de façon fiable que comme ça. -->
+        <li v-if="showSignIn" class="nav-item">
+          <a
+            class="nav-link"
+            :href="signInUrl"
+            title="Sign in to change anything"
+          >
+            <i class="fas fa-right-to-bracket fa-fw"></i>
+          </a>
+        </li>
+
+        <li v-if="signedIn" class="nav-item dropdown">
+          <!-- Un bouton, pas un lien vers "#" : la page est routée par le
+               hash, et un href vide renverrait à l'accueil. -->
+          <button
+            type="button"
+            class="nav-link dropdown-toggle btn btn-link"
+            data-bs-toggle="dropdown"
+            :title="`Signed in as ${caller.Name}`"
+          >
+            <i class="fas fa-user fa-fw"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <span class="dropdown-item-text small text-body-secondary">
+                Signed in as <strong>{{ caller.Name }}</strong>
+              </span>
+            </li>
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+              <a class="dropdown-item" href="api/logout">
+                <i class="fas fa-right-from-bracket fa-fw"></i> Sign out
+              </a>
+            </li>
+            <li>
+              <span class="dropdown-item-text small text-body-secondary">
+                A browser cannot be told to forget a password. Cancelling the
+                prompt it shows next is what clears it.
+              </span>
+            </li>
+          </ul>
+        </li>
       </ul>
     </div>
   </nav>
@@ -207,6 +253,7 @@ import {
 } from "../../utils/status.js";
 import { useDashboardFilter } from "../../composables/useDashboardFilter.js";
 import { useTheme } from "../../composables/useTheme.js";
+import api from "../../api/client.js";
 
 const REFRESH_INTERVALS = [5, 15, 30, 60, 300];
 
@@ -330,8 +377,51 @@ function handleShortcut(event) {
   searchInput.value?.focus();
 }
 
-onMounted(() => {
+/**
+ * Qui on est, et si se connecter est seulement possible.
+ *
+ * Les vues portent déjà WriteActionsAllowed, mais elles parlent d'un host. La
+ * barre du haut doit savoir avant, et pour la session.
+ */
+const caller = ref({});
+
+/** Identifié par un identifiant, par opposition à laissé entrer sans rien */
+const signedIn = computed(
+  () =>
+    !!caller.value.Name &&
+    caller.value.Name !== "anonymous" &&
+    caller.value.Name !== "unauthenticated",
+);
+
+/**
+ * Pas de bouton là où il n'y a pas d'identifiant derrière : sur un wigo sans
+ * Login, l'offrir serait une porte sans clé.
+ *
+ * Le critère est le rôle, pas WriteActionsAllowed : sur un host où les écritures
+ * sont fermées, se connecter ne débloque rien, et proposer « sign in to change
+ * anything » y serait un mensonge.
+ */
+const showSignIn = computed(
+  () =>
+    !!caller.value.CanSignIn &&
+    !signedIn.value &&
+    caller.value.Role !== "operator",
+);
+
+const signInUrl = computed(
+  () =>
+    `api/login?next=${encodeURIComponent(location.pathname + location.hash)}`,
+);
+
+onMounted(async () => {
   window.addEventListener("keydown", handleShortcut);
+
+  try {
+    caller.value = await api.getWhoami();
+  } catch {
+    // Un wigo plus ancien n'a pas cette route : rien à proposer, et rien
+    // à signaler non plus
+  }
 });
 
 onUnmounted(() => {

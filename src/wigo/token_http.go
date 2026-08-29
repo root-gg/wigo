@@ -121,14 +121,22 @@ func HttpWhoamiHandler(w http.ResponseWriter, r *http.Request) (int, string) {
 
 	caller := CallerOf(r)
 
+	http := GetLocalWigo().GetConfig().Http
+
 	body, err := json.Marshal(struct {
 		Name                string
 		Role                string
 		WriteActionsAllowed bool
+
+		// Whether there is a credential to sign in with at all. Offering the
+		// interface a sign-in button on a host that has no Login configured
+		// would be offering a door with no key behind it.
+		CanSignIn bool
 	}{
 		Name:                caller.Name,
 		Role:                caller.Role,
-		WriteActionsAllowed: GetLocalWigo().GetConfig().Http.AllowWriteActions && caller.May(RoleOperator),
+		WriteActionsAllowed: http.AllowWriteActions && caller.May(RoleOperator),
+		CanSignIn:           http.Login != "" && http.Password != "",
 	})
 	if err != nil {
 		return 500, fmt.Sprintf("Fail to encode the caller : %s", err)

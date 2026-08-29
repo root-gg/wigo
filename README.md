@@ -427,6 +427,14 @@ An unknown value resolves to `readonly`, not to `operator`: a typo in the settin
 
 Presenting a wrong password is refused even where an anonymous caller would have been welcome — serving the typo as anonymous would hide it behind a dashboard that half works. Credentials sent to a wigo that has none configured are ignored rather than refused.
 
+**Signing in from the interface.** A wigo that lets anonymous callers read never sends a 401, so a browser is never challenged and the credential exists without being reachable. `GET /api/login` is the only thing that provokes that challenge on purpose; the top bar links to it and sends you back to the page you were on afterwards.
+
+It is a **navigation, not a request**. A browser shows its credential prompt for a top level navigation reliably; for an XHR it depends on the browser and the version, which is not something to build a sign-in on. `?next=` is checked to be a path on this host — an open redirect on the page somebody just typed a password into is the one place it really matters.
+
+The button appears only when there is something behind it: a `Login` has to be configured, and the caller must not already be an operator. Offering it on a host with no credential would be a door with no key.
+
+`GET /api/logout` answers 401 forever. There is no way to tell a browser to drop a basic auth credential; making it ask again, and cancelling that prompt, is what clears it. The interface says so rather than pretending otherwise.
+
 A token that is presented and refused does **not** fall back on the shared credential — a revoked token would otherwise still work for anyone who also knows the password. Revoking keeps the row: what it was called and when it was turned off is a question somebody asks later. `LastUsed` is recorded so the tokens nobody uses can be found and revoked.
 
 Both gates apply to writes, and both must say yes: the host has to accept being changed (`AllowWriteActions`), and the caller has to be an operator. Forwarding to a remote is checked the same way, so reaching through this host is not a way around the check that just failed.

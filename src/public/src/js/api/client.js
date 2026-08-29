@@ -236,6 +236,18 @@ const api = {
   },
 
   /**
+   * Qui appelle, et ce qu'il a le droit de faire.
+   *
+   * Séparé des réponses qui portent déjà WriteActionsAllowed : celles-là
+   * parlent d'un host, celle-ci parle de la session, et la barre du haut a
+   * besoin de la seconde avant de savoir quel host on regarde.
+   */
+  async getWhoami() {
+    const response = await apiClient.get("/whoami");
+    return response.data;
+  },
+
+  /**
    * L'historique des changements de statut. Toujours servi par ce wigo-ci et
    * jamais relayé : un maître a vu de son remote des choses que celui-ci ne
    * peut pas avoir enregistrées sur lui-même, tomber en étant la première.

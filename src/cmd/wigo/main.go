@@ -747,6 +747,12 @@ func registerRoutes(mux *http.ServeMux) {
 	post("/api/groups/{group}/unsuppress", wigo.HttpGroupUnsuppressHandler)
 
 	get("/api/whoami", wigo.HttpWhoamiHandler)
+
+	// Navigated to rather than fetched : provoking the browser credential
+	// prompt is the whole point, and only a top level navigation does it
+	// reliably.
+	get("/api/login", wigo.HttpLoginHandler)
+	get("/api/logout", wigo.HttpLogoutHandler)
 	get("/api/tokens", wigo.HttpTokensHandler)
 	post("/api/tokens", wigo.HttpTokenCreateHandler)
 	post("/api/tokens/{id}/revoke", wigo.HttpTokenRevokeHandler)
