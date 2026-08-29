@@ -52,6 +52,7 @@ RUN apt-get update \
         libjson-perl \
         libwww-perl \
         libnet-ntp-perl \
+        libnet-dns-perl \
         procps \
         coreutils \
         ca-certificates \
