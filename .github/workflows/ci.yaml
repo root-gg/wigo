@@ -10,15 +10,21 @@ on:
   push:
     branches: ["**"]
 
-# A branch pushed again has superseded its own run. The group is the branch name
-# for both events, so a pull request and the push that updated it do not build
-# the same commit twice.
+# A branch pushed again has superseded its own run.
+#
+# The event is part of the group on purpose, so a push and the pull request on
+# the same branch never cancel each other. Sharing a group looks tempting -- it
+# would build the head once instead of twice -- but the cancelled run keeps the
+# name of the required check, "Build", and lands on the very commit being
+# merged. Branch protection then sees a cancelled Build next to the successful
+# one and refuses the merge. A wasted build is cheaper than a gate that blocks
+# on a run nobody asked to be cancelled.
 #
 # A cancelled run has no "success" conclusion, so it cannot trigger a release ;
 # that is the wanted behaviour, since the commit it was building is not the head
 # any more.
 concurrency:
-  group: "${{ github.workflow }}-${{ github.head_ref || github.ref_name }}"
+  group: "${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}"
   cancel-in-progress: true
 
 jobs:
