@@ -119,6 +119,7 @@ import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useRefresh } from "../composables/useRefresh.js";
+import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";
 
 const router = useRouter();
@@ -260,6 +261,9 @@ const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(
 function handleRefreshSettings(seconds) {
   setRefreshInterval(seconds);
 }
+
+// Le flux donne l'immédiateté, le rafraîchissement périodique reste le filet
+useLiveEvents(load);
 
 onMounted(() => {
   load();

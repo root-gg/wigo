@@ -198,6 +198,16 @@ func NewNotificationProbe(oldProbe *ProbeResult, newProbe *ProbeResult) (this *N
 			// the ones too mild to be notified about : a probe bouncing between
 			// OK and WARNING is exactly as unsteady as one bouncing between OK
 			// and CRITICAL, it just shouts less about it.
+			// The interface hears about it now rather than at its next poll,
+			// which is up to a minute of looking at a green screen about a
+			// machine that is already down.
+			PublishEvent(LiveEvent{
+				Type:   EventProbe,
+				Host:   this.Hostname,
+				Probe:  newProbe.Name,
+				Status: newProbe.Status,
+			})
+
 			this.flap = RecordStatusChange(this.Hostname, newProbe.Name)
 			if this.flap.JustSettled {
 				logSettled(this.Hostname, newProbe.Name, this.flap)

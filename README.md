@@ -321,6 +321,16 @@ The most specific suppression wins: one on a probe beats one on its host, which 
 
 These are decided **where the notifications are sent**, which on a fleet is the master, so they are never forwarded to the host being silenced — that host does not send the messages being stopped.
 
+### Live updates
+
+`GET /api/events` streams what happens as server sent events, so a probe going critical shows up in the interface at once rather than at the next poll — up to a minute of looking at a green screen about a machine that is already down.
+
+What travels is deliberately thin: *what* changed, not what it changed to. The browser refetches, which keeps one serialisation of the state instead of two and means a missed event costs nothing. A subscriber that cannot keep up has its events dropped rather than slowing the scheduler down, for the same reason.
+
+**The periodic refresh is not replaced.** A stream can die quietly — a proxy, a laptop waking up — and a page that has stopped refreshing while looking up to date is worse than no stream at all. The stream adds immediacy; the poll stays the safety net. A keepalive every 25 seconds keeps idle proxies from cutting the connection.
+
+`wigo_event_subscribers` is exposed to Prometheus: a number that only ever grows is a leak.
+
 ### Authentication and roles
 
 A single shared basic auth credential was tolerable while everything was read only. It stopped being tolerable the moment the API could disable a probe, silence a host or acknowledge an alert: anyone handed the dashboard URL to look at a graph could switch the monitoring off for the whole fleet.

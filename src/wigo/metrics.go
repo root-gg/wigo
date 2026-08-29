@@ -70,6 +70,10 @@ func renderMetrics() string {
 			probeLabels(host, probe.Name), probe.Interval)
 	})
 
+	writeHelp(out, "wigo_event_subscribers", "gauge",
+		"Interfaces currently listening to the event stream. A number that only ever grows is a leak.")
+	fmt.Fprintf(out, "wigo_event_subscribers %d\n", EventSubscribers())
+
 	writeProbeMetrics(out, hosts)
 	writeQuietMetrics(out, hosts)
 

@@ -729,6 +729,9 @@ func registerRoutes(mux *http.ServeMux) {
 	post("/api/authority/hosts/{uuid}/allow", wigo.HttpAuthorityAllowHandler)
 	post("/api/authority/hosts/{uuid}/revoke", wigo.HttpAuthorityRevokeHandler)
 
+	// Not a wigo.Handler : a stream has no status and body to return
+	mux.Handle("GET /api/events", http.HandlerFunc(wigo.HttpEventsHandler))
+
 	// Outside /api on purpose : /metrics is where every scraper looks
 	get("/metrics", wigo.HttpMetricsHandler)
 

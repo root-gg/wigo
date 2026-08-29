@@ -517,12 +517,24 @@ func probesRoot() string {
 // ScheduleProbe runs a probe every interval seconds, enabling it when it was
 // disabled.
 func ScheduleProbe(name string, interval int) error {
-	return scheduleProbeIn(probesRoot(), name, interval)
+	if err := scheduleProbeIn(probesRoot(), name, interval); err != nil {
+		return err
+	}
+
+	PublishEvent(LiveEvent{Type: EventSchedule, Host: GetLocalWigo().GetHostname(), Probe: name})
+
+	return nil
 }
 
 // UnscheduleProbe stops a probe from being scheduled at all.
 func UnscheduleProbe(name string) error {
-	return unscheduleProbeIn(probesRoot(), name)
+	if err := unscheduleProbeIn(probesRoot(), name); err != nil {
+		return err
+	}
+
+	PublishEvent(LiveEvent{Type: EventSchedule, Host: GetLocalWigo().GetHostname(), Probe: name})
+
+	return nil
 }
 
 // FindProbeLocations lists every directory a probe is currently installed in.

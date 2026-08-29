@@ -336,6 +336,8 @@ func (this *Wigo) Down() {
 	this.IsAlive = false
 
 	// Send notification
+	PublishEvent(LiveEvent{Type: EventHost, Host: this.Hostname, Status: 500})
+
 	// A host that is gone is as bad as it gets : an ack taken while it was
 	// merely critical does not cover it going away entirely.
 	SendNotification(NewNotificationFromMessageForHost(
@@ -350,6 +352,8 @@ func (this *Wigo) Up() {
 	this.IsAlive = true
 
 	// Send notification
+	PublishEvent(LiveEvent{Type: EventHost, Host: this.Hostname, Status: 100})
+
 	// Back up, which clears whatever was acknowledged about it being down
 	SendNotification(NewNotificationFromMessageForHost(
 		fmt.Sprintf("Host %s UP", this.Hostname), this.Hostname, this.GetGroup()).SetStatus(100))

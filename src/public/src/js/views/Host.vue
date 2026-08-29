@@ -203,6 +203,7 @@ import StatusBadge from "../components/StatusBadge.vue";
 import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
 import SuppressionControl from "../components/SuppressionControl.vue";
 import { useRefresh } from "../composables/useRefresh.js";
+import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";
 import {
   disableRecordsByProbe,
@@ -522,6 +523,9 @@ watch(
     loadAll();
   },
 );
+
+// Le flux donne l'immédiateté, le rafraîchissement périodique reste le filet
+useLiveEvents(loadAll);
 
 onMounted(() => {
   hostName.value = route.query.name || "";

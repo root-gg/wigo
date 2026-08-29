@@ -233,6 +233,14 @@ func Gzip() Middleware {
 				return
 			}
 
+			// A stream is never compressed : buffering it is exactly what a
+			// stream is not. EventSource says what it wants, so nothing here
+			// needs to know which path serves one.
+			if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			writer := gzipWriters.Get().(*gzip.Writer)
 			writer.Reset(w)
 			defer func() {
