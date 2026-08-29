@@ -36,6 +36,11 @@ type Config struct {
 	// What sits behind what. A router going down should be one message, not
 	// forty. See dependency.go.
 	Dependencies []DependencyConfig
+
+	// How long individual probes get to answer, by name. Anything not named
+	// here keeps the interval minus a second it has always had. See
+	// probe_timeout.go.
+	ProbeTimeouts map[string]int
 }
 
 func NewConfig(configFile string) (this *Config) {

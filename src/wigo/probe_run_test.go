@@ -219,3 +219,28 @@ func TestRunProbeNowOnAProbeThatVanished(t *testing.T) {
 		t.Errorf("Nothing should have been run")
 	}
 }
+
+// A probe given ten seconds by the config is not handed thirty because
+// somebody clicked recheck : the cap is a ceiling on the wait, not a grant.
+func TestRunProbeNowHonoursAConfiguredTimeout(t *testing.T) {
+	_, runner := setupRunTest(t, "300/check_load")
+	LocalWigo.config.ProbeTimeouts = map[string]int{"check_load": 5}
+
+	if err := RunProbeNow("check_load"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if runner.timeout != 5 {
+		t.Errorf("Got timeout %d, expected the configured 5", runner.timeout)
+	}
+
+	// And a configured timeout above the cap is still capped : an http request
+	// is waiting on this one.
+	LocalWigo.config.ProbeTimeouts["check_load"] = 120
+
+	if err := RunProbeNow("check_load"); err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if runner.timeout != maxOnDemandProbeTimeout {
+		t.Errorf("Got timeout %d, expected it capped at %d", runner.timeout, maxOnDemandProbeTimeout)
+	}
+}

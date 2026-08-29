@@ -59,22 +59,9 @@ func RunProbeNow(name string) error {
 		return fmt.Errorf("this wigo cannot run a probe on demand")
 	}
 
-	locations, err := FindProbeLocations(name)
+	interval, directory, err := ScheduledPace(name)
 	if err != nil {
 		return err
-	}
-
-	// The pace it actually keeps, if it somehow runs at several
-	interval := 0
-	directory := ""
-	for _, location := range locations {
-		if !location.Enabled {
-			continue
-		}
-		if interval == 0 || location.Interval < interval {
-			interval = location.Interval
-			directory = location.Directory
-		}
 	}
 
 	if interval == 0 {
@@ -91,7 +78,10 @@ func RunProbeNow(name string) error {
 	// again during this very run and takes itself back out.
 	GetLocalWigo().ClearSkippedProbe(name)
 
-	timeout := interval - 1
+	// Whichever is shorter : a probe given ten seconds by the config is not
+	// given thirty because somebody clicked, and one that would take an hour
+	// on its own schedule does not hold an http request open for it.
+	timeout := ProbeTimeout(name, interval)
 	if timeout > maxOnDemandProbeTimeout {
 		timeout = maxOnDemandProbeTimeout
 	}

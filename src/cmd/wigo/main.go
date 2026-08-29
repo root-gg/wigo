@@ -67,6 +67,7 @@ func main() {
 	// A dependency rule naming a host this wigo does not watch does nothing at
 	// all, and doing nothing at all is what a working dependency looks like.
 	wigo.LogDependencyProblems()
+	wigo.LogProbeTimeoutProblems()
 
 	// Brings back the probes whose disable was meant to be temporary. It is the
 	// only thing that reads that table to act, and it can only ever start a
@@ -262,7 +263,7 @@ func scheduleProbesDirectory(directory string, interval int, stop chan struct{})
 			if wigo.GetLocalWigo().IsProbeDisabled(probeName) {
 				log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName)
 			} else {
-				go execProbe(directory+"/"+probeName, interval, interval-1)
+				go execProbe(directory+"/"+probeName, interval, wigo.ProbeTimeout(probeName, interval))
 			}
 		}
 

@@ -681,6 +681,43 @@ func ProbeLocations() ([]ProbeLocation, error) {
 	return probeLocationsIn(probesRoot())
 }
 
+// ScheduledPace is the pace a probe actually keeps, and the directory setting
+// it. The interval is zero when nothing schedules the probe.
+//
+// A probe can sit in several interval directories at once -- a leftover
+// symlink, or two of them installed by different hands. The shortest wins,
+// because that is what the scheduler does : each directory fires on its own
+// timer, so the fastest one is the pace the probe is really kept at, whatever
+// the others say.
+func ScheduledPace(name string) (interval int, directory string, err error) {
+	locations, err := FindProbeLocations(name)
+	if err != nil {
+		return 0, "", err
+	}
+
+	interval, directory = paceOf(locations)
+
+	return interval, directory, nil
+}
+
+// paceOf picks the pace out of locations already read, so a caller that needs
+// both the pace and the locations themselves -- to tell a probe that does not
+// exist from one nothing schedules, which look identical from the pace alone --
+// does not walk the probes directory twice to get them.
+func paceOf(locations []ProbeLocation) (interval int, directory string) {
+	for _, location := range locations {
+		if !location.Enabled {
+			continue
+		}
+		if interval == 0 || location.Interval < interval {
+			interval = location.Interval
+			directory = location.Directory
+		}
+	}
+
+	return interval, directory
+}
+
 // IsProbeScheduled reports whether a probe runs from some interval directory.
 // Leaving one directory does not mean a probe is gone : it may have been
 // repitched to another interval, and dropping its result on the way would

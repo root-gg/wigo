@@ -327,6 +327,31 @@ A failed unit is already known: systemd noticed, wrote it down, and stopped tryi
 
 `ignore` takes exact names rather than patterns — a pattern that quietly grows to cover a unit somebody cared about is how this kind of list stops being trustworthy. Units systemd could not even load are counted separately from units that ran and failed, because they are a different problem: a typo in a name, a dropped file.
 
+### How long a probe gets to answer
+
+A probe gets its **interval minus one second**, which is what every probe has always got. That is a ceiling, not a sensible wait. A probe wedged on an unreachable server holds on for the whole interval, and the dashboard shows the result from *before* the outage that entire time — a check pitched at five minutes sits on a dead socket for four minutes fifty-nine, when the useful answer, *it did not answer*, was there after ten seconds.
+
+Name a probe in `[ProbeTimeouts]` to shorten that:
+
+```toml
+[ProbeTimeouts]
+check_ssl_cert            = 15
+check_dns                 = 5
+```
+
+**It only ever shortens.** Asking for longer than the interval is refused rather than obeyed, and said so at startup:
+
+```
+Config : probe timeout for check_slow is 120s but it runs every 60s : ignored, since a run
+outliving its interval would overlap the next one. Pitch it at a longer interval instead
+```
+
+The scheduler fires a run every interval regardless of whether the last one finished. A run allowed to outlive its interval would overlap the next one: two copies of the same probe talking to the same thing at once, and whichever finished last winning. A probe that genuinely needs more time needs a longer interval, which is a different thing to change — so the operator is told, not quietly given something other than what they asked for.
+
+Everything that will be ignored is named at startup, in a stable order, including a timeout for a probe that does not exist and one for a probe nothing schedules. Those two get different advice, since a name matching no probe is usually a typo while an unscheduled probe is installed and merely turned off.
+
+A recheck asked for by hand takes whichever is shorter, the configured timeout or the 30-second cap: a probe given ten seconds by the config is not handed thirty because somebody clicked, and one that would take an hour on its own schedule does not hold an HTTP request open for it.
+
 ### Managing probes through the API
 
 | Endpoint | Description |
