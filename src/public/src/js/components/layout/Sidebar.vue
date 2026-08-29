@@ -77,6 +77,41 @@ defineEmits(["toggle"]);
   min-width: 56px;
 }
 
+/*
+ * Sur un téléphone, un rail de 56px n'est pas une barre latérale repliée :
+ * c'est 14% de la largeur occupés par des pictogrammes tous identiques. En
+ * dessous de md, elle sort donc de l'écran au lieu de rétrécir, et le contenu
+ * prend toute la place.
+ */
+@media (max-width: 767.98px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    z-index: 1045;
+    width: min(280px, 85vw);
+    min-width: min(280px, 85vw);
+    transition: transform 0.2s ease;
+    box-shadow: 0 0 2rem rgba(0, 0, 0, 0.4);
+  }
+
+  /* Repliée veut dire fermée, pas étroite */
+  .sidebar--reduced {
+    width: min(280px, 85vw);
+    min-width: min(280px, 85vw);
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+
+  /* ... et rien n'est caché dedans, puisqu'elle est ouverte ou absente */
+  .sidebar--reduced .sidebar__header {
+    justify-content: space-between;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
 .sidebar__header {
   min-height: var(--navbar-block-height);
   box-sizing: border-box;
@@ -118,5 +153,12 @@ defineEmits(["toggle"]);
 
 .sidebar--reduced .nav-link > *:not(i) {
   display: none !important;
+}
+
+@media (max-width: 767.98px) {
+  /* Le tiroir fermé est hors écran, pas réduit : son contenu reste entier */
+  .sidebar--reduced .nav-link > *:not(i) {
+    display: inline !important;
+  }
 }
 </style>

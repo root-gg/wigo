@@ -1,8 +1,22 @@
 <template>
   <div class="d-flex flex-nowrap" style="min-height: 100vh">
-    <Sidebar :collapsed="sidebarCollapsed" @toggle="toggleSidebar">
+    <!-- Sur mobile le tiroir couvre le contenu : choisir une entrée doit le
+         refermer, sinon on atterrit derrière lui. -->
+    <Sidebar
+      :collapsed="sidebarCollapsed"
+      @toggle="toggleSidebar"
+      @click="closeDrawerOnNarrowScreens"
+    >
       <slot name="sidebar"></slot>
     </Sidebar>
+
+    <!-- Un voile, pour que toucher à côté referme -- et pour que le contenu
+         derrière se lise comme inactif plutôt que comme cliquable. -->
+    <div
+      v-if="!sidebarCollapsed"
+      class="sidebar-backdrop d-md-none"
+      @click="toggleSidebar"
+    ></div>
 
     <!-- min-width-0 : sans ça le panneau refuse de passer sous la largeur de
          son contenu et la page entière déborde horizontalement -->
@@ -13,6 +27,7 @@
         :sidebar-collapsed="sidebarCollapsed"
         :current-interval="currentInterval"
         @refresh-settings="handleRefreshSettings"
+        @toggle-sidebar="toggleSidebar"
       />
 
       <main
@@ -122,7 +137,33 @@ function toggleSidebar() {
   }
 }
 
+/**
+ * En dessous de md, la sidebar est un tiroir posé sur le contenu.
+ *
+ * On interroge la même requête que la feuille de style plutôt que de comparer
+ * innerWidth à 768 : un `<th>` collant dans un cadre défilant gonfle
+ * innerWidth -- 881 sur un écran de 390 -- et la comparaison disait alors
+ * « grand écran » sur un téléphone. Le tiroir ne se refermait jamais.
+ */
+const DRAWER_QUERY = "(max-width: 767.98px)";
+
+function closeDrawerOnNarrowScreens() {
+  if (sidebarCollapsed.value) return;
+  if (!window.matchMedia(DRAWER_QUERY).matches) return;
+
+  toggleSidebar();
+}
+
 function handleRefreshSettings(seconds) {
   emit("refresh-settings", seconds);
 }
 </script>
+
+<style scoped>
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  background: rgba(0, 0, 0, 0.5);
+}
+</style>

@@ -8,11 +8,23 @@
       { 'sidebar-collapsed': sidebarCollapsed },
     ]"
   >
-    <div class="container-fluid d-flex align-items-center gap-2">
+    <div class="container-fluid d-flex align-items-center gap-2 flex-wrap">
+      <!-- Sous md la barre latérale est un tiroir hors écran, et son propre
+           bouton part avec elle. Celui-ci reste. -->
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary d-md-none flex-shrink-0"
+        title="Show the hosts and probes"
+        aria-label="Show the hosts and probes"
+        @click="$emit('toggle-sidebar')"
+      >
+        <i class="fas fa-bars fa-fw"></i>
+      </button>
+
       <a
         v-if="sidebarCollapsed"
         href="/"
-        class="wigo-logo navbar-brand text-body text-decoration-none ms-3 me-2"
+        class="wigo-logo navbar-brand text-body text-decoration-none ms-3 me-2 d-none d-md-inline"
       >
         W I G O
       </a>
@@ -292,7 +304,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["refresh-settings"]);
+const emit = defineEmits(["refresh-settings", "toggle-sidebar"]);
 
 const {
   search,

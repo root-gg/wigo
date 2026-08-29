@@ -460,6 +460,10 @@ The raw JSON is one click away regardless, next to a copy button — that is wha
 
 INFO becomes cyan in the process, which is what the counter in the top bar has always been: one level, one hue, everywhere.
 
+**On a phone the sidebar is a drawer.** Below `md` it slides over the content instead of squeezing it, and the collapsed state gets out of the way entirely: what it left behind was a 56-pixel rail of identical chart icons, which is width spent to say nothing. Choosing an entry closes it, and so does touching the veil beside it — a drawer that stays open leaves you standing behind the thing you just asked for.
+
+One trap, since the fix is not the obvious one. The close-on-choose check compared `window.innerWidth` to 768 and never fired: a `position: sticky` table header inside a scrolling probe detail inflates `innerWidth` to **881 on a 390-pixel screen**, so the page believed it was on a desktop. It asks `matchMedia("(max-width: 767.98px)")` now, which is the same question the stylesheet asks — one breakpoint, one answer, no way for the two to drift apart.
+
 ### The wall
 
 `/wall` is a dense grid of every host, one tile each, for a screen nobody sits in front of. No sidebar, no filters, no chrome: colour, hostname, and what is wrong.
