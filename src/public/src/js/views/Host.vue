@@ -175,6 +175,17 @@
           </div>
           <template v-else>
             <p class="mb-3">{{ probe.Message }}</p>
+
+            <!-- Ce que la sonde mesure, dans le temps. Seulement si elle mesure
+                 quelque chose : une sonde qui ne rend qu'un statut n'a pas de
+                 courbe, et un cadre vide sous chaque carte serait du bruit. -->
+            <MetricChart
+              v-if="hasMetrics(probe)"
+              :host-name="hostName"
+              :probe-name="probe.Name"
+              class="mb-3"
+            />
+
             <div v-if="probe.Detail" class="mt-3">
               <pre
                 class="border rounded p-3 bg-body-tertiary"
@@ -202,6 +213,7 @@ import StatusCard from "../components/StatusCard.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
 import SuppressionControl from "../components/SuppressionControl.vue";
+import MetricChart from "../components/MetricChart.vue";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";
@@ -425,6 +437,11 @@ function probeTitle(probe) {
     return `${probe.Name} - scheduled every ${formatInterval(probe.Interval)}, waiting for its first result`;
   }
   return `${probe.Name} - ${probe.Disabled ? "disabled" : probe.Status}`;
+}
+
+/** Une sonde qui ne rend qu'un statut n'a rien à tracer */
+function hasMetrics(probe) {
+  return Array.isArray(probe.Metrics) && probe.Metrics.length > 0;
 }
 
 function gotoAnchor(anchor) {

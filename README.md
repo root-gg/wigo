@@ -338,6 +338,18 @@ Points are **bucketed**: a week at one point a minute is ten thousand points per
 
 Nothing about the monitoring depends on this table: losing it loses history and nothing else.
 
+### Graphs
+
+Each probe card carries a chart of what that probe measured, over 1 hour to 7 days. Drawn as plain SVG — no charting library, for the same reason the Prometheus format is written by hand: it would be the largest dependency in the tree, for a line and some axes.
+
+Two decisions are worth knowing about:
+
+**Colour follows the series, never its rank.** Hiding a line from the legend does not repaint the others — a reader who learned "load5 is green" is not lied to a moment later. The eight hues are used in a fixed, validated order and a ninth series is never given a generated colour: past eight, another hue is indistinguishable from one already on screen under colour blindness, so the extra series are named and left out rather than drawn misleadingly.
+
+**The average is not the whole story.** With one or two series the chart shades the min–max band behind the line, and the tooltip always carries the range, so a spike that a bucket averaged away is still visible. A table view is one click away for anything the colours alone cannot carry.
+
+Dark mode uses the same eight hues re-stepped for the dark surface, not an automatic flip. Both were validated against wigo's real card backgrounds.
+
 ### Live updates
 
 `GET /api/events` streams what happens as server sent events, so a probe going critical shows up in the interface at once rather than at the next poll — up to a minute of looking at a green screen about a machine that is already down.

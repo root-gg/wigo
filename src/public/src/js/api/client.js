@@ -219,6 +219,22 @@ const api = {
    * @param {string} probeName - Nom de la probe
    * @returns {Promise<Object>} L'ordonnancement mis à jour
    */
+  /**
+   * L'historique d'une sonde. Les points sont regroupés côté serveur : une
+   * semaine à un point par minute, c'est dix mille points par série.
+   */
+  async getProbeMetrics(hostname, probeName, since, until, points) {
+    const params = { since };
+    if (until) params.until = until;
+    if (points) params.points = points;
+
+    const response = await apiClient.get(
+      `/hosts/${encodeURIComponent(hostname)}/probes/${encodeURIComponent(probeName)}/metrics`,
+      { params },
+    );
+    return response.data;
+  },
+
   /** Les jetons d'API, jamais leurs secrets : ils ne sont pas stockés */
   async getTokens() {
     const response = await apiClient.get("/tokens");
