@@ -75,8 +75,12 @@ release: build-frontend
 	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/cmd/wigocli; \
 	$(build) -o current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
+# The package tree is built from scratch : it is only ever copied into, so
+# anything dropped from the sources -- a probe, a vendored module -- would go on
+# being shipped from here forever, and a stale module shadows the real one.
 debs: releases
 	@echo "Building Wigo Debian packages"
+	@rm -rf $(DEBSRC)
 	@mkdir -p $(DEBSRC)
 	@mkdir -p $(DEBSRC)/etc/wigo/conf.d
 	@mkdir -p $(DEBSRC)/etc/logrotate.d

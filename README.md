@@ -327,6 +327,33 @@ A failed unit is already known: systemd noticed, wrote it down, and stopped tryi
 
 `ignore` takes exact names rather than patterns — a pattern that quietly grows to cover a unit somebody cared about is how this kind of list stops being trustworthy. Units systemd could not even load are counted separately from units that ran and failed, because they are a different problem: a typo in a name, a dropped file.
 
+#### check_dns
+
+When name resolution stops, everything on the machine breaks at once and nothing says why: connections do not fail, they hang, and the failure surfaces as every *other* service being slow.
+
+```json
+{
+  "enabled"     : true,
+  "nameservers" : [],
+  "queries"     : ["example.com", "mail.example.com:MX", "www.example.com:A:203.0.113.10"],
+  "warning"     : 500,
+  "critical"    : 2000,
+  "timeout"     : 3,
+  "retry"       : 1
+}
+```
+
+`nameservers` empty means **the machine's own**, from `resolv.conf` — the one that matters. A probe pointed at a public resolver tells you that resolver is up, not that this host can resolve anything.
+
+Each query is `name`, `name:type`, or `name:type:expected,expected`. Without an expected value the check is that an answer comes back at all, which is deliberately the common case: an A record that legitimately changes should not turn a screen red. Response time is a metric per query, in milliseconds, so slow resolution is visible before it becomes total.
+
+The answer section is filtered to the type actually asked for. A reply routinely carries the CNAME chain that led to the records, and counting those as answers would let a name that resolves to nothing look answered.
+
+**NXDOMAIN, a wrong answer and no answer at all are all CRITICAL, and say which.** A resolver that does not answer is the finding this probe exists to make, not a failure to observe one — unlike `check_ssl_cert`, where being unable to look says nothing about the date. A confident answer pointing at the wrong place is worse still.
+
+Ships with no queries configured, and stays OK saying so.
+
+
 ### How long a probe gets to answer
 
 A probe gets its **interval minus one second**, which is what every probe has always got. That is a ceiling, not a sensible wait. A probe wedged on an unreachable server holds on for the whole interval, and the dashboard shows the result from *before* the outage that entire time — a check pitched at five minutes sits on a dead socket for four minutes fifty-nine, when the useful answer, *it did not answer*, was there after ten seconds.
@@ -743,6 +770,10 @@ Example output:
 ```
 
 If the process fails (non-zero exit, timeout), Wigo reports status **500** for that probe. Exit code **12** disables the probe until restart; **13** disables and removes its result.
+
+Perl probes get `Wigo::Probe` from `lib/`, which `use lib` puts at the **front** of `@INC`. Nothing else lives there: the modules the probes need are Debian packages, named in the `Depends:` line of the .deb — `libjson-perl`, `libnet-dns-perl`, `libnet-ntp-perl`, `libwww-perl`.
+
+`Net::NTP` used to be shipped in `lib/` as well, *and* depended on. Since `use lib` prepends, the shipped copy won: the package paid for a dependency it then shadowed with a copy three versions behind (1.2 against Debian's 1.5). Vendoring a CPAN module here is not a fallback, it is an override — so it is not done, and a probe that needs a module gets it from the distribution.
 
 ---
 
