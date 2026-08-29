@@ -395,6 +395,19 @@ What travels is deliberately thin: *what* changed, not what it changed to. The b
 
 `wigo_event_subscribers` is exposed to Prometheus: a number that only ever grows is a leak.
 
+### Caching the interface
+
+`http.FileServer` sends `Last-Modified` and no `Cache-Control`, which leaves the browser to invent a freshness lifetime of its own. That is the worst of both worlds: `index.html` gets held on to, and the bundle it names is deleted by the next build — Vite empties the output directory — so an upgraded wigo serves a blank page to anyone who has not pressed reload twice.
+
+The two are now told apart:
+
+| | |
+|---|---|
+| `/` | `Cache-Control: no-cache` — revalidated every time. |
+| `/assets/*` | `Cache-Control: public, max-age=31536000, immutable` |
+
+`no-cache` asks, it does not refetch: the answer to an unchanged index is a **304 the size of a header**, which is why it is not `no-store`. Everything under `assets/` is named after a hash of its own content, so it can never change under that name and never needs asking about again.
+
 ### Authentication and roles
 
 A single shared basic auth credential was tolerable while everything was read only. It stopped being tolerable the moment the API could disable a probe, silence a host or acknowledge an alert: anyone handed the dashboard URL to look at a graph could switch the monitoring off for the whole fleet.

@@ -769,7 +769,7 @@ func registerRoutes(mux *http.ServeMux) {
 
 	// Everything else is the built interface. Registered last and on the bare
 	// root, so it only ever sees what no route above claimed.
-	mux.Handle("/", http.FileServer(http.Dir("public")))
+	mux.Handle("/", wigo.StaticFiles("public"))
 }
 
 func threadPush(config *wigo.PushClientConfig) {

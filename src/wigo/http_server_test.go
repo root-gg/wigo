@@ -3,6 +3,8 @@ package wigo
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -267,5 +269,72 @@ func TestAnonymousRoleIsHonouredWhenSet(t *testing.T) {
 		if got := ResolvedAnonymousRole(config); got != role {
 			t.Errorf("Got %q, expected %q", got, role)
 		}
+	}
+}
+
+// index.html names the bundle, and the next build deletes the bundle it names.
+// A browser left to invent its own freshness serves a blank page after an
+// upgrade until somebody reloads twice.
+func TestTheInterfaceIsRevalidatedAndItsAssetsAreNot(t *testing.T) {
+	root := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(root, "index.html"), []byte("<html></html>"), 0644); err != nil {
+		t.Fatalf("Fail to write the index : %s", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "assets"), 0755); err != nil {
+		t.Fatalf("Fail to create the assets directory : %s", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "assets", "index-abc123.js"), []byte("//"), 0644); err != nil {
+		t.Fatalf("Fail to write the bundle : %s", err)
+	}
+
+	handler := StaticFiles(root)
+
+	// Not /index.html : http.FileServer redirects that to /, so it is not a
+	// path a browser ever asks for.
+	cases := map[string]string{
+		"/":                       "no-cache",
+		"/assets/index-abc123.js": "public, max-age=31536000, immutable",
+	}
+
+	for path, expected := range cases {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("GET", path, nil))
+
+		if recorder.Code != 200 {
+			t.Errorf("%s got %d, expected it to be served", path, recorder.Code)
+		}
+		if got := recorder.Header().Get("Cache-Control"); got != expected {
+			t.Errorf("%s got %q, expected %q", path, got, expected)
+		}
+	}
+}
+
+// no-cache means ask, not refetch : the answer to an unchanged index is a 304
+// the size of a header, which is the whole point of not saying no-store.
+func TestAnUnchangedInterfaceIsAnsweredWithoutItsBody(t *testing.T) {
+	root := t.TempDir()
+
+	index := filepath.Join(root, "index.html")
+	if err := os.WriteFile(index, []byte("<html></html>"), 0644); err != nil {
+		t.Fatalf("Fail to write the index : %s", err)
+	}
+
+	info, err := os.Stat(index)
+	if err != nil {
+		t.Fatalf("Fail to stat the index : %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/", nil)
+	request.Header.Set("If-Modified-Since", info.ModTime().UTC().Format(http.TimeFormat))
+
+	recorder := httptest.NewRecorder()
+	StaticFiles(root).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotModified {
+		t.Errorf("Got %d, expected 304", recorder.Code)
+	}
+	if recorder.Body.Len() != 0 {
+		t.Errorf("Got a body of %d bytes with the 304", recorder.Body.Len())
 	}
 }

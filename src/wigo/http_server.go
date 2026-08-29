@@ -328,3 +328,33 @@ func ResolvedAnonymousRole(config *HttpConfig) string {
 		return RoleReadOnly
 	}
 }
+
+// Where the build puts everything whose name carries a content hash.
+const hashedAssetsPrefix = "/assets/"
+
+// StaticFiles serves the built interface, with cache headers that match what
+// the build actually produces.
+//
+// http.FileServer sends Last-Modified and no Cache-Control, which leaves the
+// browser to invent a freshness lifetime of its own. That is the worst of both
+// worlds here : index.html gets held on to, and the bundle it names is deleted
+// by the next build -- vite empties the output directory -- so an upgraded wigo
+// serves a blank page to anyone who has not pressed reload twice.
+//
+// So the two are told apart. index.html is revalidated every time : no-cache
+// asks, it does not refetch, and the answer is a 304 the size of a header.
+// Anything under assets/ is named after a hash of its own content, so it can
+// never change under that name and never needs asking about again.
+func StaticFiles(root string) http.Handler {
+	files := http.FileServer(http.Dir(root))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, hashedAssetsPrefix) {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+
+		files.ServeHTTP(w, r)
+	})
+}
