@@ -20,15 +20,19 @@
       >
         W I G O
       </a>
+      <!-- Le titre va sur le bouton, pas sur l'icône : une infobulle posée sur
+           un enfant ne s'affiche que si le pointeur touche l'icône elle-même,
+           et pas le reste de la zone cliquable. -->
       <button
         type="button"
         class="btn btn-link text-white sidebar__toggle p-0 border-0"
-        aria-label="Réduire / agrandir la barre latérale"
+        :aria-label="collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'"
+        :aria-expanded="!collapsed"
+        :title="collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'"
         @click="$emit('toggle')"
       >
         <i
           :class="['fas', collapsed ? 'fa-chevron-right' : 'fa-chevron-left']"
-          :title="collapsed ? 'Agrandir la sidebar' : 'Réduire la sidebar'"
         ></i>
       </button>
     </div>

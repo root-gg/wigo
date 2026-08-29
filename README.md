@@ -639,6 +639,18 @@ Runs the Go test suite with the race detector. `make lint` checks `gofmt` and
 `go vet` without touching the files, `make fmt` rewrites them, and `make all`
 runs the lint and the tests along with the build.
 
+### A note on languages
+
+**Everything a user can read is in English**: labels, titles, `aria-label`,
+placeholders, and every message the API can answer with. The interface declares
+`lang="en"` and there is no i18n layer, so a French string in there is simply a
+string most readers cannot read.
+
+**Comments are in French**, and deliberately so — they are read by whoever
+maintains this, not by whoever runs it. The two rules are independent, which is
+easy to forget while writing a component that has both a comment and a title on
+the same line.
+
 ### Releasing
 
 Releases are driven by the `VERSION` file:
