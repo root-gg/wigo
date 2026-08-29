@@ -53,7 +53,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh run download "${{ github.event.workflow_run.id }}" --dir artifacts
+
+          # By name, not everything the run produced : docker/build-push-action
+          # uploads a build record of its own, and that one does not extract --
+          # "zip: not a valid zip file" -- which failed the whole release for an
+          # artifact it never wanted.
+          gh run download "${{ github.event.workflow_run.id }}" --name artifact --dir artifacts
 
           mkdir debs
           find artifacts -name '*.deb' -exec mv {} debs/ \;
