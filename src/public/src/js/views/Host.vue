@@ -198,11 +198,8 @@
               class="mb-3"
             />
 
-            <div v-if="probe.Detail" class="mt-3">
-              <pre
-                class="border rounded p-3 bg-body-tertiary"
-                style="max-height: 400px; overflow: auto"
-                >{{ JSON.stringify(probe.Detail, null, 2) }}</pre>
+            <div class="mt-3">
+              <ProbeDetail :detail="probe.Detail" />
             </div>
           </template>
         </template>
@@ -227,6 +224,7 @@ import ProbeScheduleControl from "../components/ProbeScheduleControl.vue";
 import SuppressionControl from "../components/SuppressionControl.vue";
 import MetricChart from "../components/MetricChart.vue";
 import StatusTimeline from "../components/StatusTimeline.vue";
+import ProbeDetail from "../components/ProbeDetail.vue";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { useDashboardFilter } from "../composables/useDashboardFilter.js";

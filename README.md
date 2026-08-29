@@ -364,6 +364,16 @@ The transitions are recorded as what they are — two statuses and a time — in
 
 **Never watched is not the same as fine.** A probe installed yesterday has no history for the 29 days before it, and that part of the band is hatched rather than green — and the summary line says how much of the window is unknown instead of claiming everything was fine.
 
+### Probe detail
+
+What a probe returned in `Detail` used to be dumped as raw JSON. `iostat` on a machine with twenty-three block devices is two hundred and fifty lines of braces that nobody reads.
+
+It is now rendered as a table when the shape allows one — a flat object becomes name/value rows, and an object of objects (a disk per key, a device, a service) becomes one row each with the shared keys as columns, which is the shape that actually turns up. Measurements are monospaced and never wrapped, so a column of `0.00 kB/s` lines up and can be compared; text still wraps.
+
+**The threshold is deliberately blunt: either every cell is a scalar or a list of scalars, or the whole thing stays JSON.** A table with half its cells holding a JSON blob is harder to read than the JSON was, and it quietly suggests you have seen everything.
+
+The raw JSON is one click away regardless, next to a copy button — that is what goes into a ticket.
+
 ### Live updates
 
 `GET /api/events` streams what happens as server sent events, so a probe going critical shows up in the interface at once rather than at the next poll — up to a minute of looking at a green screen about a machine that is already down.
