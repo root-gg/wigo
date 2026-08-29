@@ -479,6 +479,19 @@ The two are now told apart:
 
 `no-cache` asks, it does not refetch: the answer to an unchanged index is a **304 the size of a header**, which is why it is not `no-store`. Everything under `assets/` is named after a hash of its own content, so it can never change under that name and never needs asking about again.
 
+### The API, written down
+
+`GET /api/openapi.yaml` is an OpenAPI 3.1 document describing every path this wigo answers — served as well as kept in the tree, so whatever reads it can ask *this* wigo what it answers rather than guess from a version number.
+
+**It is compared to the code, not trusted.** A specification nobody checks is a specification that lies within a month, and quietly, which is the only way one hurts. Two tests run on every build:
+
+- every registered route is documented, and every documented path exists — both directions, because an undocumented route leaves a caller guessing and a documented route that answers 404 is worse, since they trusted it;
+- every `$ref` points at a component that exists. That one caught six references to a `Logs` schema that was never written: the paths all lined up, and a generator reading it would have produced nothing.
+
+The reader behind those tests is forty lines rather than a YAML dependency. What it needs to know is the paths, the verbs under each, and the references — pulling in a parser to learn that would be a dependency larger than the document it checks.
+
+The big tree under `/api` is deliberately **not** written out field by field. It is the internal state serialised, it is large, and a specification that copies a struct is a specification that disagrees with it.
+
 ### Authentication and roles
 
 A single shared basic auth credential was tolerable while everything was read only. It stopped being tolerable the moment the API could disable a probe, silence a host or acknowledge an alert: anyone handed the dashboard URL to look at a graph could switch the monitoring off for the whole fleet.

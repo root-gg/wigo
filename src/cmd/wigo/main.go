@@ -701,12 +701,27 @@ func threadHttp(config *wigo.HttpConfig) {
 // {name} for the parts a handler reads with r.PathValue. The most specific
 // pattern wins, so /api/hosts and /api/hosts/{hostname} can both be registered
 // without ordering them by hand.
+// Every route this binary answers, in the order it was registered.
+//
+// Kept so the openapi document can be checked against it rather than trusted :
+// a specification nobody compares to the code is a specification that lies
+// within a month, and quietly, which is the only way a specification hurts.
+var registeredRoutes []wigo.Route
+
 func registerRoutes(mux *http.ServeMux) {
 
+	registeredRoutes = nil
+
+	record := func(method string, pattern string) {
+		registeredRoutes = append(registeredRoutes, wigo.Route{Method: method, Pattern: pattern})
+	}
+
 	get := func(pattern string, handler wigo.Handler) {
+		record("get", pattern)
 		mux.Handle("GET "+pattern, handler)
 	}
 	post := func(pattern string, handler wigo.Handler) {
+		record("post", pattern)
 		mux.Handle("POST "+pattern, handler)
 	}
 
@@ -778,6 +793,10 @@ func registerRoutes(mux *http.ServeMux) {
 
 	// Outside /api on purpose : /metrics is where every scraper looks
 	get("/metrics", wigo.HttpMetricsHandler)
+
+	// What this wigo answers, written down. Served as well as kept in the tree
+	// so a client can ask rather than guess from a version number.
+	get("/api/openapi.yaml", wigo.HttpOpenApiHandler)
 
 	// Everything else is the built interface. Registered last and on the bare
 	// root, so it only ever sees what no route above claimed.
