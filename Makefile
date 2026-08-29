@@ -3,12 +3,16 @@ SHELL = /bin/bash
 BASE_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 RELEASE_VERSION:=$(shell cat $(BASE_DIR)/VERSION)
 RELEASE_DIR="release/plik-$(RELEASE_VERSION)"
-RELEASE_TARGETS=linux-amd64 linux-arm
+RELEASE_TARGETS=linux-amd64 linux-arm linux-arm64
 GOHOSTOS=$(shell go env GOHOSTOS)
 GOHOSTARCH=$(shell go env GOHOSTARCH)
 
 DEBROOT=debs
 DEBSRC=$(DEBROOT)/src
+
+# The debian architecture names, which are not the Go ones : armhf is linux-arm
+# with GOARM=7, everything else matches.
+DEB_ARCHS=amd64 armhf arm64
 
 ifdef REPOROOT
 else
@@ -81,7 +85,6 @@ debs: releases
 	@mkdir -p $(DEBSRC)/usr/local/wigo/bin
 	@mkdir -p $(DEBSRC)/usr/local/wigo/etc/conf.d
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/examples
-	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/disabled
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/60
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/120
 	@mkdir -p $(DEBSRC)/usr/local/wigo/probes/300
@@ -96,22 +99,18 @@ debs: releases
 	@cp etc/wigo.logrotate $(DEBSRC)/etc/logrotate.d/wigo
 	@cp -R public $(DEBSRC)/usr/local/wigo
 	@sed -i "s/##VERSION##/Wigo v$(RELEASE_VERSION)/" $(DEBSRC)/usr/local/wigo/public/index.html
-	@for arch in amd64 armhf ; do \
+	@for arch in $(DEB_ARCHS) ; do \
 		echo "Building Wigo Debian package for $$arch to $(DEBSRC)"; \
 		cp -R build/deb/DEBIAN/control $(DEBSRC)/DEBIAN/control ; \
 		sed -i "s/^Version:.*/Version: $(RELEASE_VERSION)/" $(DEBSRC)/DEBIAN/control ; \
 		sed -i "s/^Architecture:.*/Architecture: $$arch/" $(DEBSRC)/DEBIAN/control ; \
-		if [ $$arch = 'armhf' ]; then  \
-			cp release/linux-arm/* $(DEBSRC)/usr/local/wigo/bin/ ; \
-		else \
-			cp release/linux-$$arch/* $(DEBSRC)/usr/local/wigo/bin/ ; \
-		fi ; \
+		cp release/linux-`echo $$arch | sed 's/^armhf$$/arm/'`/* $(DEBSRC)/usr/local/wigo/bin/ ; \
 		fakeroot dpkg-deb -Z xz --build $(DEBSRC) $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 	done
 
 publish-debs:
 	@echo "Publishing Wigo Debian packages to repo"
-	@for arch in amd64 armhf ; do \
+	@for arch in $(DEB_ARCHS) ; do \
 		for release in stretch buster bullseye bookworm trixie; do \
 		  	echo "Adding package with arch $$arch and release $$release to repo $(REPOROOT)" ; \
 			reprepro --ask-passphrase -b $(REPOROOT) includedeb $$release $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
