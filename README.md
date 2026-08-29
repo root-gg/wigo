@@ -444,6 +444,22 @@ It is now rendered as a table when the shape allows one — a flat object become
 
 The raw JSON is one click away regardless, next to a copy button — that is what goes into a ticket.
 
+### Reachable without a mouse
+
+**Navigation is links.** Every tile on the wall, every host name on the *Held back* and *Disabled probes* pages used to be an `<a>` with a click handler and no `href`. That is not a link: it is out of the tab order, it does nothing on Enter, a screen reader announces it as text, and it cannot be opened in a new tab. They are `router-link` now, which renders a real anchor and gets all of that from the browser.
+
+**In-page actions are buttons.** The four sidebar entries that scroll to an anchor are not navigation, so they stay where they are and take a button's behaviour instead: `role="button"`, `tabindex="0"`, and Enter and Space activating them.
+
+**Status badges let Bootstrap pick the text colour.** `.badge` sets it to white and `.bg-*` only sets a background, so the WARNING badge was white on Bootstrap's yellow — **1.63:1**, where 4.5:1 is the floor for text that size. Using `text-bg-*` hands the choice back to Bootstrap, which computed it:
+
+| | before | after |
+|---|---|---|
+| WARNING | 1.63 | **12.88** |
+| INFO | 4.50 | **10.72** |
+| OK, CRITICAL, ERROR, DISABLED | 4.53 – 15.43 | unchanged |
+
+INFO becomes cyan in the process, which is what the counter in the top bar has always been: one level, one hue, everywhere.
+
 ### The wall
 
 `/wall` is a dense grid of every host, one tile each, for a screen nobody sits in front of. No sidebar, no filters, no chrome: colour, hostname, and what is wrong.

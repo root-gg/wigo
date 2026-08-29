@@ -82,15 +82,20 @@ export function getBgLevelClass(level) {
  * @returns {string} Classe CSS
  */
 export function getBadgeLevelClass(level) {
+  // text-bg-* et non bg-* : .badge fixe la couleur du texte en blanc, et
+  // bg-* ne pose que le fond. Le badge WARNING était donc du blanc sur le
+  // jaune Bootstrap, à 1.63:1 là où il en faut 4.5. text-bg-* laisse Bootstrap
+  // choisir la couleur de texte qu'il a lui-même calculée pour chaque fond,
+  // comme il le fait déjà pour les boutons.
   const classes = {
-    DISABLED: "badge bg-secondary",
-    OK: "badge bg-success",
-    INFO: "badge bg-primary",
-    WARNING: "badge bg-warning",
-    CRITICAL: "badge bg-danger",
-    ERROR: "badge bg-dark",
+    DISABLED: "badge text-bg-secondary",
+    OK: "badge text-bg-success",
+    INFO: "badge text-bg-info",
+    WARNING: "badge text-bg-warning",
+    CRITICAL: "badge text-bg-danger",
+    ERROR: "badge text-bg-dark",
   };
-  return classes[level] || "badge bg-secondary";
+  return classes[level] || "badge text-bg-secondary";
 }
 
 /**

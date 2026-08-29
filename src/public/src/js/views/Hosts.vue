@@ -14,8 +14,12 @@
       <li v-for="group in visibleGroups" :key="group.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
+          role="button"
+          tabindex="0"
           :title="groupTitle(group)"
           @click="gotoAnchor(group.Name)"
+          @keydown.enter.prevent="gotoAnchor(group.Name)"
+          @keydown.space.prevent="gotoAnchor(group.Name)"
         >
           <i class="fas fa-fw fa-folder"></i
           ><span

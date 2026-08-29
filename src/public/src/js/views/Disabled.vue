@@ -15,8 +15,12 @@
       <li v-for="host in hostsWithDisabled" :key="host.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
+          role="button"
+          tabindex="0"
           :title="`${host.Name} — ${host.DisabledCount} disabled`"
           @click="gotoAnchor(host.Name)"
+          @keydown.enter.prevent="gotoAnchor(host.Name)"
+          @keydown.space.prevent="gotoAnchor(host.Name)"
         >
           <i class="fas fa-fw fa-server"></i
           ><span
@@ -94,13 +98,12 @@
                   :class="{ 'table-success': probe.JustEnabled }"
                 >
                   <td class="align-middle">
-                    <a
-                      class="cursor-pointer"
+                    <router-link
+                      :to="hostRoute(host.Name, probe.Name)"
                       :title="`Open ${host.Name}`"
-                      @click="gotoHost(host.Name, probe.Name)"
                     >
                       {{ probe.Name }}
-                    </a>
+                    </router-link>
                     <span
                       v-if="probe.JustEnabled"
                       class="ms-2 small text-body-secondary"
@@ -151,7 +154,6 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
 import api from "../api/client.js";
 import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
@@ -163,7 +165,6 @@ import {
   describeExpiry,
 } from "../utils/disable.js";
 
-const router = useRouter();
 const schedules = ref([]);
 const unreachable = ref([]);
 const loaded = ref(false);
@@ -250,12 +251,12 @@ function gotoAnchor(anchor) {
   }
 }
 
-function gotoHost(hostName, probeName) {
-  router.push({
+function hostRoute(hostName, probeName) {
+  return {
     path: "/host",
     query: { name: hostName },
     hash: `#${probeName}`,
-  });
+  };
 }
 
 async function load() {

@@ -39,8 +39,12 @@
       <li v-for="probe in visibleProbes" :key="probe.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
+          role="button"
+          tabindex="0"
           :title="probeTitle(probe)"
           @click="gotoAnchor(probe.Name)"
+          @keydown.enter.prevent="gotoAnchor(probe.Name)"
+          @keydown.space.prevent="gotoAnchor(probe.Name)"
         >
           <i class="fas fa-fw fa-chart-line"></i
           ><span

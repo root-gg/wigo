@@ -58,24 +58,23 @@
     <!-- Le pire en premier : sur un mur, le regard part en haut à gauche, et
          c'est là que doit se trouver ce qui est cassé. -->
     <div v-else class="wall__grid">
-      <a
+      <router-link
         v-for="tile in tiles"
         :key="tile.name"
+        :to="hostRoute(tile.name)"
         :class="['wall__tile', getBadgeLevelClass(tile.level)]"
         :title="tile.message"
-        @click="gotoHost(tile.name)"
       >
         <span class="wall__group">{{ tile.group }}</span>
         <span class="wall__host">{{ tile.short }}</span>
         <span class="wall__note">{{ tile.note }}</span>
-      </a>
+      </router-link>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
 import api from "../api/client.js";
 import { useRefresh } from "../composables/useRefresh.js";
 import { useLiveEvents } from "../composables/useLiveEvents.js";
@@ -88,7 +87,6 @@ import {
 /** Au-delà, un écran non rafraîchi ne raconte plus le présent */
 const STALE_AFTER = 180;
 
-const router = useRouter();
 const tiles = ref([]);
 const counts = ref({});
 const loaded = ref(false);
@@ -114,8 +112,8 @@ const updatedLabel = computed(() => {
   return `updated ${Math.floor(seconds / 60)}m ago`;
 });
 
-function gotoHost(name) {
-  router.push({ path: "/host", query: { name } });
+function hostRoute(name) {
+  return { path: "/host", query: { name } };
 }
 
 /**

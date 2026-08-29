@@ -67,14 +67,13 @@
                     {{ one.Kind }}
                   </span>
 
-                  <a
+                  <router-link
                     v-if="one.Scope === 'host'"
-                    class="cursor-pointer"
+                    :to="hostRoute(one.Target, one.Probe)"
                     :title="`Open ${one.Target}`"
-                    @click="gotoHost(one.Target, one.Probe)"
                   >
                     {{ describeTarget(one) }}
-                  </a>
+                  </router-link>
                   <span v-else>{{ describeTarget(one) }}</span>
                 </td>
 
@@ -122,12 +121,11 @@
         </p>
         <ul class="mb-0">
           <li v-for="name in flapping" :key="name">
-            <a
-              class="cursor-pointer"
-              @click="gotoHost(name.split('/')[0], name.split('/')[1])"
+            <router-link
+              :to="hostRoute(name.split('/')[0], name.split('/')[1])"
             >
               {{ name }}
-            </a>
+            </router-link>
           </li>
         </ul>
       </template>
@@ -158,22 +156,20 @@
           <tbody>
             <tr v-for="one in behind" :key="one.Host">
               <td class="align-middle">
-                <a
-                  class="cursor-pointer"
+                <router-link
+                  :to="hostRoute(one.Host)"
                   :title="`Open ${one.Host}`"
-                  @click="gotoHost(one.Host)"
                 >
                   {{ one.Host }}
-                </a>
+                </router-link>
               </td>
               <td class="align-middle">
-                <a
-                  class="cursor-pointer"
+                <router-link
+                  :to="hostRoute(one.Behind)"
                   :title="`Open ${one.Behind}`"
-                  @click="gotoHost(one.Behind)"
                 >
                   {{ one.Behind }}
-                </a>
+                </router-link>
               </td>
             </tr>
           </tbody>
@@ -189,7 +185,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
 import api from "../api/client.js";
 import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
@@ -197,7 +192,6 @@ import { useRefresh } from "../composables/useRefresh.js";
 import { useLiveEvents } from "../composables/useLiveEvents.js";
 import { describeSuppression } from "../utils/suppression.js";
 
-const router = useRouter();
 const suppressions = ref([]);
 const flapping = ref([]);
 const behind = ref([]);
@@ -219,12 +213,12 @@ function describeTarget(one) {
   return one.Target;
 }
 
-function gotoHost(hostName, probeName) {
-  router.push({
+function hostRoute(hostName, probeName) {
+  return {
     path: "/host",
     query: { name: hostName },
     hash: probeName ? `#${probeName}` : undefined,
-  });
+  };
 }
 
 async function load() {

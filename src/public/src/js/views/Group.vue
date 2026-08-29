@@ -33,8 +33,12 @@
       <li v-for="host in visibleHosts" :key="host.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
+          role="button"
+          tabindex="0"
           :title="hostTitle(host)"
           @click="gotoAnchor(host.Name)"
+          @keydown.enter.prevent="gotoAnchor(host.Name)"
+          @keydown.space.prevent="gotoAnchor(host.Name)"
         >
           <i class="fas fa-fw fa-server"></i
           ><span
