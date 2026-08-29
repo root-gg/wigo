@@ -234,6 +234,13 @@ Options:
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
 	}
 
+	// A database written before metrics carried a host has to gain the column,
+	// and its rows have to be attributed to this host : nothing else could have
+	// been recorded then.
+	if err = migrateMetricsHost(LocalWigo.sqlLiteConn, LocalWigo.GetHostname()); err != nil {
+		log.Fatalf("Fail to migrate the metrics table : %s\n", err)
+	}
+
 	_, err = LocalWigo.sqlLiteConn.Exec(createStatusChangesTable)
 	if err != nil {
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)

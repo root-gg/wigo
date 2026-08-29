@@ -1,6 +1,7 @@
 package wigo
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,24 +26,79 @@ import (
 // retention. Nothing about the monitoring depends on it : losing this table
 // loses history and nothing else.
 //
-// Each wigo keeps its own, and only its own. A master reads a remote's history
-// through that remote's api, the same way it reads its schedule. Storing the
-// fleet's series on the master as well would write everything twice and make
-// the master's database grow with the size of the fleet, which is exactly the
-// thing that pushes people towards a separate stack.
+// A wigo keeps its own, and a master reads a polled remote's through that
+// remote's api, the same way it reads its schedule. Storing the whole fleet's
+// series on the master would write everything twice and make its database grow
+// with the size of the fleet, which is exactly the thing that pushes people
+// towards a separate stack.
+//
+// With one exception, and it is not a softening of that rule but the only place
+// it cannot hold : a host that pushes cannot be asked anything, it sits behind
+// a NAT. Its measurements arrive here with every push and used to be dropped,
+// so half a fleet had no graphs at all and the screen said so in a 501. Those
+// are kept, under the name of the host they came from. The growth is bounded by
+// the number of pushing clients rather than by the fleet, and those clients are
+// precisely the ones with no other way of being read.
 
 const defaultMetricsRetentionDays = 7
 
+// Rows carry the host they were measured on. Local ones say so too rather than
+// leaving it empty : a column that means "here" for some rows and names a host
+// for others is one every later query has to remember to special case.
 const createMetricsTable = `
     CREATE TABLE IF NOT EXISTS metrics (
         id integer not null primary key,
+        host text not null default '',
         probe text not null,
         tags text not null,
         value real not null,
         at int not null
     ) ;
-    CREATE INDEX IF NOT EXISTS metrics_lookup ON metrics(probe, tags, at) ;
+    CREATE INDEX IF NOT EXISTS metrics_lookup ON metrics(host, probe, tags, at) ;
     `
+
+// migrateMetricsHost adds the column to a table written before it existed, and
+// attributes what is already in there to this host -- which is what it was,
+// since nothing else could be recorded then.
+func migrateMetricsHost(db *sql.DB, hostname string) error {
+	rows, err := db.Query(`PRAGMA table_info(metrics);`)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for rows.Next() {
+		var index int
+		var name, kind string
+		var notNull, primaryKey int
+		var fallback interface{}
+
+		if err := rows.Scan(&index, &name, &kind, &notNull, &fallback, &primaryKey); err != nil {
+			continue
+		}
+		if name == "host" {
+			found = true
+		}
+	}
+	rows.Close()
+
+	if found {
+		return nil
+	}
+
+	if _, err := db.Exec(`ALTER TABLE metrics ADD COLUMN host text not null default '';`); err != nil {
+		return err
+	}
+
+	// Everything already there was measured here
+	if _, err := db.Exec(`UPDATE metrics SET host = ? WHERE host = '';`, hostname); err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS metrics_lookup ON metrics(host, probe, tags, at) ;`)
+
+	return err
+}
 
 // MetricPoint is one measurement, or one bucket of them.
 type MetricPoint struct {
@@ -79,7 +136,15 @@ func metricsRetentionDays() int {
 // the result is already computed, displayed and notified about, and losing a
 // point of history is not a reason to fail any of that.
 func RecordProbeMetrics(result *ProbeResult) {
-	if result == nil || metricsRetentionDays() == 0 {
+	RecordProbeMetricsOf(GetLocalWigo().GetHostname(), result)
+}
+
+// RecordProbeMetricsOf writes down what a probe measured on a named host.
+//
+// Used for this host, and for the ones that push to it : their measurements
+// arrive with every push and there is nowhere else they could be read from.
+func RecordProbeMetricsOf(hostname string, result *ProbeResult) {
+	if hostname == "" || result == nil || metricsRetentionDays() == 0 {
 		return
 	}
 	if LocalWigo == nil || LocalWigo.sqlLiteConn == nil {
@@ -108,7 +173,7 @@ func RecordProbeMetrics(result *ProbeResult) {
 	}
 
 	statement, err := transaction.Prepare(
-		`INSERT INTO metrics(probe,tags,value,at) VALUES(?,?,?,?);`)
+		`INSERT INTO metrics(host,probe,tags,value,at) VALUES(?,?,?,?,?);`)
 	if err != nil {
 		_ = transaction.Rollback()
 		log.Printf("Unable to record the metrics of probe %s : %s", result.Name, err)
@@ -127,7 +192,7 @@ func RecordProbeMetrics(result *ProbeResult) {
 			continue
 		}
 
-		if _, err := statement.Exec(result.Name, encodeMetricTags(metric["Tags"]), value, at); err != nil {
+		if _, err := statement.Exec(hostname, result.Name, encodeMetricTags(metric["Tags"]), value, at); err != nil {
 			_ = transaction.Rollback()
 			log.Printf("Unable to record the metrics of probe %s : %s", result.Name, err)
 			return
@@ -188,6 +253,12 @@ func decodeMetricTags(encoded string) map[string]string {
 // eye can read. Each bucket carries its average and the range it covers, so the
 // spike that woke somebody up is still visible after being averaged.
 func ProbeMetrics(probe string, since int64, until int64, points int) ([]MetricSeries, error) {
+	return ProbeMetricsOf(GetLocalWigo().GetHostname(), probe, since, until, points)
+}
+
+// ProbeMetricsOf is the same question asked about a named host, which is how a
+// master answers for a client that pushes to it.
+func ProbeMetricsOf(hostname string, probe string, since int64, until int64, points int) ([]MetricSeries, error) {
 	if LocalWigo == nil || LocalWigo.sqlLiteConn == nil {
 		return nil, fmt.Errorf("no database to read metrics from")
 	}
@@ -214,10 +285,10 @@ func ProbeMetrics(probe string, since int64, until int64, points int) ([]MetricS
 	rows, err := LocalWigo.sqlLiteConn.Query(
 		`SELECT tags, (at / ?) * ? AS bucket, avg(value), min(value), max(value)
 		 FROM metrics
-		 WHERE probe = ? AND at >= ? AND at <= ?
+		 WHERE host = ? AND probe = ? AND at >= ? AND at <= ?
 		 GROUP BY tags, bucket
 		 ORDER BY tags, bucket;`,
-		bucket, bucket, probe, since, until)
+		bucket, bucket, hostname, probe, since, until)
 	if err != nil {
 		LocalWigo.sqlLiteLock.Unlock()
 		return nil, err
@@ -323,6 +394,12 @@ type ProbeHistory struct {
 
 // HttpProbeMetricsHandler answers the history of one probe of this host.
 func HttpProbeMetricsHandler(w http.ResponseWriter, r *http.Request) (int, string) {
+	return localMetricsFor(GetLocalWigo().GetHostname(), r)
+}
+
+// localMetricsFor answers from this database, for whichever host the series
+// were recorded under : this one, or a client that pushes to it.
+func localMetricsFor(hostname string, r *http.Request) (int, string) {
 
 	probe := r.PathValue("probe")
 	if probe == "" {
@@ -334,13 +411,13 @@ func HttpProbeMetricsHandler(w http.ResponseWriter, r *http.Request) (int, strin
 		return 400, err.Error()
 	}
 
-	series, err := ProbeMetrics(probe, since, until, points)
+	series, err := ProbeMetricsOf(hostname, probe, since, until, points)
 	if err != nil {
 		return 400, err.Error()
 	}
 
 	body, err := json.Marshal(ProbeHistory{
-		Hostname:      GetLocalWigo().GetHostname(),
+		Hostname:      hostname,
 		Probe:         probe,
 		Since:         since,
 		Until:         until,
@@ -373,12 +450,11 @@ func HttpHostProbeMetricsHandler(w http.ResponseWriter, r *http.Request) (int, s
 		return 400, fmt.Sprintf("invalid probe name %q", r.PathValue("probe"))
 	}
 
-	// A host that pushes to us cannot be asked : we hold its results, not its
-	// history, and it is the one keeping that.
+	// A host that pushes to us cannot be asked, so we answer from what it sent.
+	// Nothing is relayed for it : this master is where its history lives.
 	if remote := GetLocalWigo().FindRemoteWigoByHostname(hostname); remote != nil {
 		if _, polled := remoteEndpointFor(remote.Uuid); !polled {
-			return 501, fmt.Sprintf("%s cannot be asked for its history from here : it pushes to this host "+
-				"rather than being polled, and each wigo keeps its own measurements.", hostname)
+			return localMetricsFor(hostname, r)
 		}
 	}
 
@@ -427,3 +503,84 @@ func parseMetricsWindow(r *http.Request) (int64, int64, int, error) {
 // A cap, because the number of buckets is the number of rows the answer holds
 // and a caller should not be able to ask for a million of them.
 const maxMetricsPoints = 2000
+
+// The last measurement written down for a host and a probe.
+//
+// A client pushes far more often than its probes run -- every five seconds
+// against every minute is a normal pairing -- and each push carries the same
+// result again. Writing it every time stores one measurement a dozen times,
+// which is the master's database growing for nothing : the very cost the choice
+// of keeping these series here was weighed against.
+//
+// Kept in memory rather than asked of the database : it is one comparison per
+// push against a query per push, and the worst a restart can cost is one
+// measurement written twice, which the reading averages away.
+var lastPushedMetric = struct {
+	sync.Mutex
+	at map[string]int64
+}{at: make(map[string]int64)}
+
+// alreadyRecorded reports whether this measurement has been seen, and remembers
+// it when it has not.
+func alreadyRecorded(hostname string, probe string, at int64) bool {
+	if at == 0 {
+		return false
+	}
+
+	lastPushedMetric.Lock()
+	defer lastPushedMetric.Unlock()
+
+	key := hostname + "\x00" + probe
+
+	if last, known := lastPushedMetric.at[key]; known && at <= last {
+		return true
+	}
+
+	lastPushedMetric.at[key] = at
+
+	return false
+}
+
+// ForgetPushedMetrics drops what is remembered about a host, so a client that
+// goes away does not hold a key forever.
+func ForgetPushedMetrics(hostname string) {
+	lastPushedMetric.Lock()
+	defer lastPushedMetric.Unlock()
+
+	for key := range lastPushedMetric.at {
+		if strings.HasPrefix(key, hostname+"\x00") {
+			delete(lastPushedMetric.at, key)
+		}
+	}
+}
+
+// RecordPushedMetrics keeps what a pushing client just measured.
+//
+// A client cannot be asked anything -- it sits behind a NAT -- so the only
+// moment its measurements can be written down is the moment they arrive. What
+// it sends is the same probe results a polled remote would answer with, so
+// nothing new travels : this is a place to put them, not a new thing to send.
+func RecordPushedMetrics(remote *Wigo) {
+	if remote == nil || remote.LocalHost == nil {
+		return
+	}
+
+	hostname := remote.GetHostname()
+	if hostname == "" || hostname == GetLocalWigo().GetHostname() {
+		return
+	}
+
+	for item := range remote.LocalHost.Probes.IterBuffered() {
+		probe, ok := item.Val.(*ProbeResult)
+		if !ok {
+			continue
+		}
+
+		// The same result arrives on every push until the probe runs again
+		if alreadyRecorded(hostname, probe.Name, probe.Timestamp) {
+			continue
+		}
+
+		RecordProbeMetricsOf(hostname, probe)
+	}
+}

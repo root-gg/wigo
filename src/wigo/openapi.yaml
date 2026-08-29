@@ -324,9 +324,10 @@ paths:
       tags: [history]
       summary: The same, for any host of the tree
       description: |
-        Each wigo keeps its own history and only its own, so a master answers
-        this by asking the host. A host that pushes rather than being polled
-        cannot be asked, and says so.
+        A wigo keeps its own history, so a master answers this by asking a
+        polled host. A host that pushes cannot be asked -- it sits behind a
+        NAT -- so its measurements are kept here as they arrive, and answered
+        from this database instead.
       parameters:
         - { $ref: "#/components/parameters/Hostname" }
         - { $ref: "#/components/parameters/Probe" }

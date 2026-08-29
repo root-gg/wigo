@@ -219,6 +219,11 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 				if req.ProbesSchedule != nil {
 					SetClientProbesSchedule(req.Uuid, req.ProbesSchedule, req.SkippedProbes, req.DisableRecords)
 				}
+				// Its measurements, kept here because it is the only place
+				// they can be read from : we cannot call a host behind a NAT,
+				// so asking it later is not an option. See history.go.
+				RecordPushedMetrics(wigo)
+
 				// TODO this should return an error
 				LocalWigo.AddOrUpdateRemoteWigo(wigo)
 			}

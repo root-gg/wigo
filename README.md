@@ -586,7 +586,11 @@ It is now written to the SQLite that is already there, bounded by `MetricsRetent
 
 Points are **bucketed**: a week at one point a minute is ten thousand points per series, which no browser should be asked to draw. Each bucket carries its average *and* the range it covers, so the spike that woke somebody up is still visible after being averaged.
 
-**Each wigo keeps its own history, and only its own.** A master reads a remote's through that remote's API, the same way it reads its schedule — storing the fleet's series on the master as well would write everything twice and make its database grow with the size of the fleet, which is the thing that pushes people towards a separate stack. A host that pushes rather than being polled cannot be asked, and says so.
+**A wigo keeps its own history**, and a master reads a *polled* remote's through that remote's API, the same way it reads its schedule. Storing the whole fleet's series on the master would write everything twice and make its database grow with the size of the fleet, which is the thing that pushes people towards a separate stack.
+
+**With one exception**, and it is not a softening of that rule but the only place it cannot hold: a host that **pushes** cannot be asked anything — it sits behind a NAT. Its measurements arrive with every push and used to be dropped, so those hosts had no graphs at all and the screen answered a 501 explaining why. They are kept now, under the name of the host they came from. The growth is bounded by the number of pushing clients rather than by the fleet, and those clients are precisely the ones with no other way of being read.
+
+A client pushes far more often than its probes run — every ten seconds against every minute is a normal pairing — and every push carries the same result again. Only a measurement newer than the last one seen is written, so one probe run is one row rather than six. Without that, the master's database would grow at the push rate for a probe that answered once.
 
 Nothing about the monitoring depends on this table: losing it loses history and nothing else.
 
