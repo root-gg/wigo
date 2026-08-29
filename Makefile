@@ -30,8 +30,8 @@ race:
 	@mkdir -p release
 	@cd release; \
 	export CGO_ENABLED=1; \
-	GORACE="halt_on_error=1" go build -race -o current/wigo $(BASE_DIR)/src/cmd/wigo/main.go; \
-	GORACE="halt_on_error=1" go build -race -o current/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go; \
+	GORACE="halt_on_error=1" go build -race -o current/wigo $(BASE_DIR)/src/cmd/wigo; \
+	GORACE="halt_on_error=1" go build -race -o current/wigocli $(BASE_DIR)/src/cmd/wigocli; \
 	go build -o current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
 deps:
@@ -61,8 +61,8 @@ releases: build-frontend
 	    fi ; \
 		mkdir $$RELEASE_DIR; \
 		echo "Building Wigo release for $$target to $$RELEASE_DIR"; \
-		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/cmd/wigo/main.go; \
-		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go; \
+		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/cmd/wigo; \
+		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/cmd/wigocli; \
 		$(build) -o $$RELEASE_DIR/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go; \
 	done
 
@@ -71,8 +71,8 @@ release: build-frontend
 	@mkdir -p release
 	@cd release; \
 	export CGO_ENABLED=0; \
-	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/cmd/wigo/main.go;	\
-	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go; \
+	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/cmd/wigo;	\
+	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/cmd/wigocli; \
 	$(build) -o current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
 debs: releases
@@ -142,8 +142,8 @@ clean:
 build-dev: deps
 	@echo "Building Wigo for development"
 	@mkdir -p release/current
-	@go build -o release/current/wigo $(BASE_DIR)/src/cmd/wigo/main.go
-	@go build -o release/current/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go
+	@go build -o release/current/wigo $(BASE_DIR)/src/cmd/wigo
+	@go build -o release/current/wigocli $(BASE_DIR)/src/cmd/wigocli
 	@go build -o release/current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
 

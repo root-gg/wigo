@@ -24,6 +24,14 @@ import (
 
 func main() {
 
+	// Before anything else is set up : minting a token has to work when the api
+	// cannot be reached or cannot be authenticated against, which is the
+	// situation a first token exists to get out of. It needs the database and
+	// nothing else.
+	if len(os.Args) > 1 && os.Args[1] == "token" {
+		os.Exit(runTokenCommand(os.Args[1:]))
+	}
+
 	// Init Wigo
 	err := wigo.InitWigo()
 	if err != nil {

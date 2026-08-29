@@ -3,11 +3,13 @@ package wigo
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -243,4 +245,51 @@ func noteTokenUsed(id int64) {
 		`UPDATE api_tokens SET last_used = ? WHERE id = ?;`, time.Now().Unix(), id); err != nil {
 		log.Printf("Unable to record the use of token %d : %s", id, err)
 	}
+}
+
+// Minting the first token.
+//
+// Everything else about tokens goes through the api, which needs a credential,
+// which is the thing a first token is for. That circle has to be broken
+// somewhere, and the only place that owes nobody an authentication is the
+// machine's own filesystem : whoever can read the database can already read
+// every secret wigo holds.
+//
+// So this opens the database and nothing else. Not the probes directory, not
+// the log file, not the push server -- none of which has anything to do with
+// minting a token, and any of which failing would be a reason not to be able
+// to, which is exactly the corner this exists to get out of.
+
+// OpenForTokens prepares just enough of a wigo to read and write its tokens.
+func OpenForTokens(configFile string) error {
+	config := NewConfig(configFile)
+
+	wigo := new(Wigo)
+	wigo.config = config
+	wigo.locker = new(sync.RWMutex)
+	wigo.sqlLiteLock = new(sync.Mutex)
+
+	connection, err := sql.Open("sqlite", config.Global.Database)
+	if err != nil {
+		return fmt.Errorf("cannot open the database %s : %s", config.Global.Database, err)
+	}
+
+	// Created if missing : a wigo that has never run has no tables, and asking
+	// somebody to start it first would be asking them to start the thing they
+	// cannot authenticate against.
+	if _, err := connection.Exec(createApiTokensTable); err != nil {
+		return fmt.Errorf("cannot prepare the tokens table in %s : %s", config.Global.Database, err)
+	}
+
+	wigo.sqlLiteConn = connection
+	LocalWigo = wigo
+
+	return nil
+}
+
+// ParseTokenExpiry reads how long a token is good for. Empty means for ever,
+// which is right for the one a scraper uses and wrong for the one you hand
+// somebody for an afternoon.
+func ParseTokenExpiry(value string) (int64, error) {
+	return parseTokenExpiry(value)
 }

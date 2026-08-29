@@ -445,6 +445,17 @@ A caller now has a **role**. Reading needs the credential; changing anything nee
 
 Present a token as `Authorization: Bearer wigo_…` or `X-Wigo-Token: wigo_…`. Never in a query string: that ends up in access logs.
 
+**The first token is minted on the machine**, not through the API — every other way of minting one goes through the API, which needs a credential, which is what a first token is for. That circle is broken in the only place that owes nobody an authentication: whoever can read wigo's database can already read every secret it holds.
+
+```sh
+wigo token create scraper --role=readonly
+wigo token create oncall  --role=operator --for=720h
+wigo token list
+wigo token revoke 3
+```
+
+It opens the database and nothing else — not the probes directory, not the log file, not the push server, none of which has anything to do with minting a token and any of which failing would be a reason not to be able to. The table is created if missing, so it works on a wigo that has never been started, and on one that is running right now: a token is read from the database on each request, so a new one works immediately.
+
 **The secret is readable exactly once**, in the answer that created it. Only its SHA-256 is stored, so a stolen database cannot be replayed against the API. A token is 32 random bytes rather than a password, which is why a fast hash is the right one — guessing 256 bits is the problem, not how quickly you can try.
 
 **The shared credential stays, and stays an operator.** An upgrade must not lock an administrator out of their own install: it is what you use to mint the first token, and what you remove once you have. A wigo with no `Login` set stays open, as it was.
