@@ -185,7 +185,7 @@ Alerts when probe or host status changes.
 | `HttpEnabled`, `HttpUrl` | HTTP POST callback with notification payload. |
 | `EmailEnabled`, `EmailSmtpServer`, `EmailRecipients`, … | SMTP email alerts. |
 | `AppriseEnabled`, `ApprisePath`, `AppriseUrls` | Alerts via [Apprise](https://github.com/caronc/apprise). `AppriseUrls` receives **all** notifications. |
-| `[[Notifications.AppriseTargets]]` | Apprise urls restricted to some groups and/or hosts (see below). |
+| `[[Notifications.AppriseTargets]]` | Apprise urls restricted to some groups, hosts and/or labels (see below). |
 
 #### Filtering Apprise notifications
 
@@ -211,6 +211,12 @@ Hosts  = ["db-master.domain.tld"]
 Name   = "web team"
 Urls   = ["slack://token/#alerts"]
 Groups = ["frontend", "backend"]
+
+# Every production database, wherever it lives
+[[Notifications.AppriseTargets]]
+Name   = "dba on call"
+Urls   = ["slack://token/#dba"]
+Labels = ["env=prod,role=db"]
 ```
 
 | Field | Description |
@@ -219,12 +225,20 @@ Groups = ["frontend", "backend"]
 | `Urls` | Apprise urls notified when the target matches. |
 | `Groups` | Groups to notify. Matches the `Group` of the host that raised the notification. |
 | `Hosts` | Hostnames to notify. |
+| `Labels` | Label selectors, each `env=prod` or `env=prod,role=db`. See [Labels](#labels). |
 
-`Groups` and `Hosts` are OR'ed: a notification matches if its group is listed
-**or** its host is listed. Matching is case insensitive and `"*"` matches
-everything. A target with neither `Groups` nor `Hosts` never matches — use
-`AppriseUrls` to notify every host. Urls matched by several targets are
-deduplicated, so a notification is never sent twice to the same url.
+`Groups`, `Hosts` and `Labels` are OR'ed: a notification matches if its group is listed, **or** its host is listed, **or** it matches one of the selectors. Matching on groups and hosts is case insensitive and `"*"` matches everything. A target with none of the three never matches — use `AppriseUrls` to notify every host. Urls matched by several targets are deduplicated, so a notification is never sent twice to the same url.
+
+**`Labels` is what `Groups` cannot express.** A host has one group, so a target interested in every database in par1 has to name them one by one and remember to come back when one is added. Within one selector every label must match; across selectors any one is enough — "the prod databases" is one entry, "prod or db" is two.
+
+The host's labels are looked up when the notification is sent, not carried on it: labels follow the host's config, and a copy taken when the problem started would route the recovery by what was true an hour ago.
+
+A selector that cannot be read is **named at startup and routes nothing**, rather than quietly widening the target to everything:
+
+```
+Apprise target "dba on call" has an unusable label selector "nonsense" and will
+not route on it : label selector "nonsense" is not key=value
+```
 
 Because of the TOML syntax, `[[Notifications.AppriseTargets]]` blocks must be
 written **after** the other `[Notifications]` keys.

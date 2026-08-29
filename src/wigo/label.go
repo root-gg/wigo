@@ -131,11 +131,16 @@ func ParseSelector(text string) (Selector, error) {
 // An empty selector matches everything : it asks nothing, so nothing is
 // excluded, and a filter nobody filled in must not empty the screen.
 func (selector Selector) Matches(host *Host) bool {
+	return selector.MatchesLabels(LabelsOf(host))
+}
+
+// MatchesLabels is the same question asked of labels already resolved, for
+// callers that have them without having the host : a notification knows what it
+// is about long after the host it came from was looked up.
+func (selector Selector) MatchesLabels(labels map[string]string) bool {
 	if len(selector) == 0 {
 		return true
 	}
-
-	labels := LabelsOf(host)
 
 	for key, value := range selector {
 		if labels[key] != value {
@@ -144,6 +149,28 @@ func (selector Selector) Matches(host *Host) bool {
 	}
 
 	return true
+}
+
+// LabelsOfHostNamed is what the fleet currently knows about a host, by name.
+//
+// Looked up when it is needed rather than carried around : labels change when
+// the host's config changes, and a copy taken when a problem started would
+// route the recovery by what was true an hour ago.
+func LabelsOfHostNamed(hostname string) map[string]string {
+	local := GetLocalWigo()
+	if local == nil {
+		return map[string]string{}
+	}
+
+	if hostname == local.GetHostname() {
+		return LabelsOf(local.LocalHost)
+	}
+
+	if remote := local.FindRemoteWigoByHostname(hostname); remote != nil {
+		return LabelsOf(remote.LocalHost)
+	}
+
+	return map[string]string{}
 }
 
 // String renders a selector back, in a stable order.

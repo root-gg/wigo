@@ -238,12 +238,12 @@ func TestEscalationTargetsAreOnlyUsedWhenEscalating(t *testing.T) {
 		{Name: "manager", Urls: []string{"mailto://manager"}, Hosts: []string{"*"}, Escalation: true},
 	}
 
-	normal := config.GetAppriseUrls("db1", "databases", false)
+	normal := config.GetAppriseUrls("db1", "databases", nil, false)
 	if len(normal) != 1 || normal[0].Url != "mailto://oncall" {
 		t.Errorf("Got %+v, expected only the first line", normal)
 	}
 
-	escalated := config.GetAppriseUrls("db1", "databases", true)
+	escalated := config.GetAppriseUrls("db1", "databases", nil, true)
 	if len(escalated) != 2 {
 		t.Errorf("Got %+v, expected both", escalated)
 	}

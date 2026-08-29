@@ -495,10 +495,16 @@ func SendApprise(notification INotification) {
 	hostname := notification.GetHostname()
 	group := notification.GetGroup()
 
-	// Keep only the urls matching the host/group of this notification
-	appriseUrls := config.GetAppriseUrls(hostname, group, notificationIsEscalated(notification))
+	// Looked up now rather than carried on the notification : labels follow the
+	// host's config, and a copy taken when the problem started would route the
+	// recovery by what was true an hour ago.
+	labels := LabelsOfHostNamed(hostname)
+
+	// Keep only the urls matching the host, group or labels of this notification
+	appriseUrls := config.GetAppriseUrls(hostname, group, labels, notificationIsEscalated(notification))
 	if len(appriseUrls) == 0 {
-		log.Printf("Apprise : no target matching host \"%s\" (group \"%s\"), notification not sent", hostname, group)
+		log.Printf("Apprise : no target matching host \"%s\" (group \"%s\", labels %s), notification not sent",
+			hostname, group, Selector(labels))
 		return
 	}
 

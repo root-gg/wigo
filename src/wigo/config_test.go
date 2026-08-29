@@ -14,6 +14,7 @@ func TestAppriseTargetMatches(t *testing.T) {
 		target   AppriseTargetConfig
 		hostname string
 		group    string
+		labels   map[string]string
 		expected bool
 	}{
 		{
@@ -97,7 +98,7 @@ func TestAppriseTargetMatches(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := test.target.Matches(test.hostname, test.group); got != test.expected {
+			if got := test.target.Matches(test.hostname, test.group, test.labels); got != test.expected {
 				t.Errorf("Matches(%q, %q) = %v, expected %v", test.hostname, test.group, got, test.expected)
 			}
 		})
@@ -158,6 +159,7 @@ func TestGetAppriseUrls(t *testing.T) {
 		name     string
 		hostname string
 		group    string
+		labels   map[string]string
 		expected []AppriseUrl
 	}{
 		{
@@ -200,7 +202,7 @@ func TestGetAppriseUrls(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := config.GetAppriseUrls(test.hostname, test.group, false)
+			got := config.GetAppriseUrls(test.hostname, test.group, test.labels, false)
 			if !reflect.DeepEqual(got, test.expected) {
 				t.Errorf("GetAppriseUrls(%q, %q) =\n%v\nexpected\n%v", test.hostname, test.group, got, test.expected)
 			}
@@ -226,7 +228,7 @@ func TestGetAppriseUrlsDeduplication(t *testing.T) {
 		{Url: "second://", Target: `"second"`},
 	}
 
-	if got := config.GetAppriseUrls("web-1", "prod", false); !reflect.DeepEqual(got, expected) {
+	if got := config.GetAppriseUrls("web-1", "prod", nil, false); !reflect.DeepEqual(got, expected) {
 		t.Errorf("GetAppriseUrls() =\n%v\nexpected\n%v", got, expected)
 	}
 }
@@ -235,7 +237,7 @@ func TestGetAppriseUrlsWithoutAnyConfiguration(t *testing.T) {
 
 	config := &NotificationConfig{}
 
-	if got := config.GetAppriseUrls("db-1", "databases", false); len(got) != 0 {
+	if got := config.GetAppriseUrls("db-1", "databases", nil, false); len(got) != 0 {
 		t.Errorf("GetAppriseUrls() = %v, expected no url", got)
 	}
 }
@@ -300,7 +302,7 @@ Groups = ["frontend", "backend"]
 		{Url: "catchall://"},
 		{Url: "dba://", Target: `"dba team"`},
 	}
-	if got := notifications.GetAppriseUrls("db-master", "none", false); !reflect.DeepEqual(got, expected) {
+	if got := notifications.GetAppriseUrls("db-master", "none", nil, false); !reflect.DeepEqual(got, expected) {
 		t.Errorf("GetAppriseUrls() =\n%v\nexpected\n%v", got, expected)
 	}
 }

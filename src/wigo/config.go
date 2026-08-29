@@ -199,8 +199,18 @@ func NewConfig(configFile string) (this *Config) {
 	// Warn about apprise targets that would never be notified
 	for i := range this.Notifications.AppriseTargets {
 		target := &this.Notifications.AppriseTargets[i]
-		if len(target.Groups) == 0 && len(target.Hosts) == 0 {
-			log.Printf("Apprise target %s has no Groups nor Hosts filter and will never be notified, use AppriseUrls to notify every host\n", target.GetName(i))
+		if len(target.Groups) == 0 && len(target.Hosts) == 0 && len(target.Labels) == 0 {
+			log.Printf("Apprise target %s has no Groups, Hosts nor Labels filter and will never be notified, use AppriseUrls to notify every host\n", target.GetName(i))
+		}
+
+		// A selector that cannot be read is skipped when routing, so it has to
+		// be said here : otherwise the target quietly stops covering what it
+		// was written to cover, and nothing looks wrong.
+		for _, text := range target.Labels {
+			if _, err := ParseSelector(text); err != nil {
+				log.Printf("Apprise target %s has an unusable label selector %q and will not route on it : %s\n",
+					target.GetName(i), text, err)
+			}
 		}
 	}
 
@@ -356,6 +366,15 @@ type AppriseTargetConfig struct {
 	Groups []string
 	Hosts  []string
 
+	// Label selectors, each "env=prod" or "env=prod,role=db". A host matching
+	// any one of them is notified, and within one selector every label has to
+	// match : "the prod databases" is one entry, "prod or db" is two.
+	//
+	// This is what Groups cannot express. A host has one group, so a target
+	// interested in every database in par1 has to name them one by one and
+	// remember to come back when one is added.
+	Labels []string
+
 	// Only notified once a problem has gone unattended for EscalateAfter
 	// seconds. The people you wake up second.
 	Escalation bool
@@ -373,10 +392,10 @@ func (this *AppriseTargetConfig) GetName(index int) string {
 
 // Matches tells whether a notification coming from the given host/group has to
 // be sent to this target.
-func (this *AppriseTargetConfig) Matches(hostname string, group string) bool {
+func (this *AppriseTargetConfig) Matches(hostname string, group string, labels map[string]string) bool {
 
 	// A target without any filter would never be notified
-	if len(this.Groups) == 0 && len(this.Hosts) == 0 {
+	if len(this.Groups) == 0 && len(this.Hosts) == 0 && len(this.Labels) == 0 {
 		return false
 	}
 
@@ -384,7 +403,32 @@ func (this *AppriseTargetConfig) Matches(hostname string, group string) bool {
 		return true
 	}
 
-	return matchFilterList(this.Hosts, hostname)
+	if matchFilterList(this.Hosts, hostname) {
+		return true
+	}
+
+	return this.matchesAnyLabelSelector(labels)
+}
+
+// Any of the selectors, all of the labels within one : "prod or db" is two
+// entries, "the prod databases" is one.
+func (this *AppriseTargetConfig) matchesAnyLabelSelector(labels map[string]string) bool {
+	for _, text := range this.Labels {
+		selector, err := ParseSelector(text)
+
+		// Refused at startup and said so there. Skipped rather than treated as
+		// matching nothing in particular : a selector that cannot be read must
+		// not quietly widen the target to everything.
+		if err != nil || len(selector) == 0 {
+			continue
+		}
+
+		if selector.MatchesLabels(labels) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func matchFilterList(filters []string, value string) bool {
@@ -419,7 +463,7 @@ func (this *AppriseUrl) Origin() string {
 // GetAppriseUrls returns the deduplicated list of apprise urls to notify for a
 // given host/group. The plain AppriseUrls list is always included as it has no
 // filter.
-func (this *NotificationConfig) GetAppriseUrls(hostname string, group string, escalated bool) (urls []AppriseUrl) {
+func (this *NotificationConfig) GetAppriseUrls(hostname string, group string, labels map[string]string, escalated bool) (urls []AppriseUrl) {
 
 	seen := make(map[string]bool)
 
@@ -441,7 +485,7 @@ func (this *NotificationConfig) GetAppriseUrls(hostname string, group string, es
 		if this.AppriseTargets[i].Escalation && !escalated {
 			continue
 		}
-		if this.AppriseTargets[i].Matches(hostname, group) {
+		if this.AppriseTargets[i].Matches(hostname, group, labels) {
 			appendUrls(this.AppriseTargets[i].Urls, this.AppriseTargets[i].GetName(i))
 		}
 	}

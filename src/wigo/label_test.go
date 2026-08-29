@@ -334,3 +334,101 @@ func TestWhatAHostPublishesIsAlreadyTheEffectiveSet(t *testing.T) {
 		t.Errorf("Got %+v, expected only the usable one", usable)
 	}
 }
+
+// What Groups cannot express : a host has one group, so a target interested in
+// every database in par1 has to name them one by one and remember to come back
+// when one is added.
+func TestATargetRoutesOnLabels(t *testing.T) {
+	target := AppriseTargetConfig{Labels: []string{"env=prod,role=db"}}
+
+	if !target.Matches("db-1", "databases", map[string]string{"env": "prod", "role": "db", "dc": "par1"}) {
+		t.Errorf("Expected the prod database to match")
+	}
+	if target.Matches("db-2", "databases", map[string]string{"env": "test", "role": "db"}) {
+		t.Errorf("Every label of a selector has to match, not just one")
+	}
+	if target.Matches("web-1", "frontend", map[string]string{"env": "prod", "role": "web"}) {
+		t.Errorf("Expected the prod web host not to match a database selector")
+	}
+}
+
+// Any of the selectors, all of the labels within one : "prod or db" is two
+// entries, "the prod databases" is one.
+func TestSeveralSelectorsAreOred(t *testing.T) {
+	target := AppriseTargetConfig{Labels: []string{"env=prod", "role=db"}}
+
+	for _, labels := range []map[string]string{
+		{"env": "prod", "role": "web"},
+		{"env": "test", "role": "db"},
+	} {
+		if !target.Matches("host", "group", labels) {
+			t.Errorf("%+v should have matched one of the two selectors", labels)
+		}
+	}
+
+	if target.Matches("host", "group", map[string]string{"env": "test", "role": "web"}) {
+		t.Errorf("Matching neither selector should not be notified")
+	}
+}
+
+// Every existing target has to route exactly as it did : this is the whole
+// reason labels were added next to Groups rather than in place of them.
+func TestGroupsAndHostsStillRouteOnTheirOwn(t *testing.T) {
+	target := AppriseTargetConfig{Groups: []string{"databases"}, Hosts: []string{"web-1"}}
+
+	if !target.Matches("db-1", "databases", nil) {
+		t.Errorf("A group filter must still work with no labels at all")
+	}
+	if !target.Matches("web-1", "frontend", nil) {
+		t.Errorf("A host filter must still work with no labels at all")
+	}
+	if target.Matches("other", "frontend", nil) {
+		t.Errorf("And still not match what it never matched")
+	}
+}
+
+// A target with nothing at all would be notified about everything, which is
+// what AppriseUrls is for.
+func TestATargetWithNoFilterIsStillNeverNotified(t *testing.T) {
+	target := AppriseTargetConfig{Urls: []string{"somewhere://"}}
+
+	if target.Matches("db-1", "databases", map[string]string{"env": "prod"}) {
+		t.Errorf("Expected a target without any filter never to match")
+	}
+}
+
+// A selector that cannot be read must not quietly widen the target to
+// everything : it is reported at startup and skipped when routing.
+func TestAnUnreadableSelectorRoutesNothing(t *testing.T) {
+	target := AppriseTargetConfig{Labels: []string{"nonsense", "env=prod,env=test"}}
+
+	if target.Matches("db-1", "databases", map[string]string{"env": "prod"}) {
+		t.Errorf("Expected an unusable selector to match nothing rather than everything")
+	}
+
+	// And the one that is readable, next to it, still routes
+	target.Labels = append(target.Labels, "role=db")
+	if !target.Matches("db-1", "databases", map[string]string{"role": "db"}) {
+		t.Errorf("A usable selector next to a broken one has to keep working")
+	}
+}
+
+func TestAppriseUrlsAreCollectedByLabel(t *testing.T) {
+	config := &NotificationConfig{
+		AppriseTargets: []AppriseTargetConfig{
+			{Name: "dba", Urls: []string{"dba://"}, Labels: []string{"role=db"}},
+			{Name: "oncall", Urls: []string{"oncall://"}, Labels: []string{"env=prod"}},
+			{Name: "web", Urls: []string{"web://"}, Groups: []string{"frontend"}},
+		},
+	}
+
+	urls := config.GetAppriseUrls("db-1", "databases", map[string]string{"role": "db", "env": "prod"}, false)
+	if len(urls) != 2 {
+		t.Fatalf("Got %+v, expected both label targets", urls)
+	}
+
+	// And nothing at all for a host matching none of them
+	if urls := config.GetAppriseUrls("other", "none", map[string]string{"env": "test"}, false); len(urls) != 0 {
+		t.Errorf("Got %+v, expected nothing", urls)
+	}
+}
