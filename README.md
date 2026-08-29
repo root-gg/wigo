@@ -89,7 +89,9 @@ Every probe returns a numeric **Status**. Wigo uses it for aggregation and notif
 
 ## Installation
 
-Packages for Debian 12 (Bookworm) are available from the project repository:
+Packages for **Debian 12 (Bookworm)** and **Debian 13 (Trixie)** are available
+from the project repository. The line below picks the suite matching the
+machine it runs on, so it only works on one of those two:
 
 ```sh
 apt-get install lsb-release

@@ -115,7 +115,7 @@ debs: releases
 publish-debs:
 	@echo "Publishing Wigo Debian packages to repo"
 	@for arch in $(DEB_ARCHS) ; do \
-		for release in stretch buster bullseye bookworm trixie; do \
+		for release in bookworm trixie; do \
 		  	echo "Adding package with arch $$arch and release $$release to repo $(REPOROOT)" ; \
 			reprepro --ask-passphrase -b $(REPOROOT) includedeb $$release $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 		done \
