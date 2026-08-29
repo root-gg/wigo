@@ -466,6 +466,69 @@ function gotoAnchor(anchor) {
   }
 }
 
+/**
+ * L'ancre est une intention de navigation, pas une propriété des données.
+ *
+ * Elle était replacée à la fin de chaque chargement, et un chargement arrive
+ * une fois par minute et à chaque événement du flux. La page se dérobait donc
+ * sous quelqu'un en train de lire une autre sonde, sans qu'il ait rien
+ * demandé. On n'y va qu'en arrivant sur cette ancre-là.
+ */
+let honouredHash = null;
+
+function honourAnchorOnce() {
+  if (!route.hash || route.hash === honouredHash) return;
+
+  honouredHash = route.hash;
+  settleOnAnchor(route.hash.substring(1));
+}
+
+/**
+ * Viser une ancre pendant que la page grandit encore sous elle.
+ *
+ * Les graphes et les détails se dessinent après la réponse, et chacun pousse
+ * vers le bas ce qui le suit : viser une seule fois atterrit deux mille pixels
+ * trop haut. L'ancienne boucle masquait ça en rejouant à chaque chargement,
+ * pour toujours -- ce qui corrigeait la visée et volait la page à quelqu'un en
+ * train de lire.
+ *
+ * Ici on rejoue tant que la cible bouge, et on s'arrête : au repos, au bout de
+ * deux secondes, ou dès que le lecteur fait défiler lui-même. Son geste gagne.
+ */
+const ANCHOR_SETTLE_MS = 2000;
+
+function settleOnAnchor(anchor) {
+  const deadline = Date.now() + ANCHOR_SETTLE_MS;
+  let lastTop = null;
+  let placedAt = null;
+
+  const aim = () => {
+    // Le lecteur a repris la main : on ne la lui dispute pas. Mesurable
+    // seulement parce que la visée ci-dessous est instantanée -- avec le
+    // défilement doux de Bootstrap, l'animation en cours passerait pour lui.
+    if (placedAt !== null && Math.abs(window.scrollY - placedAt) > 2) return;
+
+    const element = document.getElementById(anchor);
+    if (!element) {
+      if (Date.now() < deadline) setTimeout(aim, 100);
+      return;
+    }
+
+    const top = Math.round(
+      element.getBoundingClientRect().top + window.scrollY,
+    );
+    if (top === lastTop) return;
+
+    lastTop = top;
+    element.scrollIntoView({ behavior: "instant", block: "start" });
+    placedAt = window.scrollY;
+
+    if (Date.now() < deadline) setTimeout(aim, 100);
+  };
+
+  aim();
+}
+
 function onScheduleChanged(updated) {
   schedule.value = updated;
   // Le résultat d'une probe qu'on vient de réactiver n'arrivera qu'au prochain
@@ -518,12 +581,7 @@ async function load() {
     counts.value = nextCounts;
     loaded.value = true;
 
-    // Scroll to anchor if hash is present
-    if (route.hash) {
-      setTimeout(() => {
-        gotoAnchor(route.hash.substring(1));
-      }, 100);
-    }
+    honourAnchorOnce();
   } catch (error) {
     console.error("Error loading host:", error);
   }
