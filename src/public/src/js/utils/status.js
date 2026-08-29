@@ -15,6 +15,13 @@ export const LOG_LEVELS = [
 export const STATUS_LEVELS = ["OK", "INFO", "WARNING", "CRITICAL", "ERROR"];
 
 /**
+ * Niveau des probes désactivées. Elles ne sont pas exécutées, n'ont donc aucun
+ * statut, et ne font pas partie de STATUS_LEVELS : elles ne sont ni comptées
+ * ni filtrables par niveau.
+ */
+export const DISABLED_LEVEL = "DISABLED";
+
+/**
  * Convertit un code de statut numérique en niveau de statut
  * @param {number} status - Code de statut
  * @returns {string} Niveau de statut
@@ -42,6 +49,7 @@ export function getLevel(status) {
  */
 export function getTextLevelClass(level) {
   const classes = {
+    DISABLED: "text-secondary",
     OK: "text-success",
     INFO: "text-primary",
     WARNING: "text-warning",
@@ -58,6 +66,7 @@ export function getTextLevelClass(level) {
  */
 export function getBgLevelClass(level) {
   const classes = {
+    DISABLED: "bg-secondary",
     OK: "bg-success",
     INFO: "bg-primary",
     WARNING: "bg-warning",
@@ -73,14 +82,20 @@ export function getBgLevelClass(level) {
  * @returns {string} Classe CSS
  */
 export function getBadgeLevelClass(level) {
+  // text-bg-* et non bg-* : .badge fixe la couleur du texte en blanc, et
+  // bg-* ne pose que le fond. Le badge WARNING était donc du blanc sur le
+  // jaune Bootstrap, à 1.63:1 là où il en faut 4.5. text-bg-* laisse Bootstrap
+  // choisir la couleur de texte qu'il a lui-même calculée pour chaque fond,
+  // comme il le fait déjà pour les boutons.
   const classes = {
-    OK: "badge bg-success",
-    INFO: "badge bg-primary",
-    WARNING: "badge bg-warning",
-    CRITICAL: "badge bg-danger",
-    ERROR: "badge bg-dark",
+    DISABLED: "badge text-bg-secondary",
+    OK: "badge text-bg-success",
+    INFO: "badge text-bg-info",
+    WARNING: "badge text-bg-warning",
+    CRITICAL: "badge text-bg-danger",
+    ERROR: "badge text-bg-dark",
   };
-  return classes[level] || "badge bg-secondary";
+  return classes[level] || "badge text-bg-secondary";
 }
 
 /**
@@ -97,6 +112,23 @@ export function getBtnLevelClass(level) {
     ERROR: "btn-dark",
   };
   return classes[level] || "btn-secondary";
+}
+
+/**
+ * Retourne la classe CSS Bootstrap pour un bouton en contour selon le niveau,
+ * utilisée pour les niveaux désactivés dans les filtres
+ * @param {string} level - Niveau de statut
+ * @returns {string} Classe CSS
+ */
+export function getBtnOutlineLevelClass(level) {
+  const classes = {
+    OK: "btn-outline-success",
+    INFO: "btn-outline-info",
+    WARNING: "btn-outline-warning",
+    CRITICAL: "btn-outline-danger",
+    ERROR: "btn-outline-dark",
+  };
+  return classes[level] || "btn-outline-secondary";
 }
 
 /**

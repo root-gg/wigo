@@ -1,0 +1,180 @@
+#!/usr/bin/perl
+
+# A backup that stopped running leaves yesterday's file sitting there, and
+# everything looks exactly as it did when it worked. Nobody finds out until the
+# day the backup is needed, which is the worst possible day to find out.
+#
+# Two silent failures, not one : the job that no longer runs, and the job that
+# still runs and writes nothing. A dump to a full disk, or with an expired
+# credential, ends up as a zero byte file with today's date on it.
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    # Each entry is a path, "path:hours", or "path:hours:minbytes".
+    #
+    # The path is a directory -- the newest file directly inside it is the one
+    # looked at, which is the shape a rotating backup takes -- or a single file,
+    # for a job that always writes the same name.
+    'paths'    => [],
+
+    # Hours, when an entry does not carry its own. A daily backup needs more
+    # than 24 : the job takes time to run, and a threshold at exactly the period
+    # goes red every night for as long as the backup takes.
+    'warning'  => 26,
+    'critical' => 50,
+
+    # Bytes. A backup smaller than this ran and produced nothing worth keeping.
+    # Zero turns the check off, since a legitimately tiny backup exists.
+    'minsize'  => 0,
+};
+
+init( config => $conf );
+
+my @paths = @{ config->{'paths'} || [] };
+
+if ( !@paths )
+{
+    status  100;
+    message "No paths configured, nothing to check";
+    output 0;
+}
+
+my $now     = time;
+my @stale   = ();
+my @empty   = ();
+my @missing = ();
+my $worst   = 100;
+
+foreach my $entry (@paths)
+{
+    my ( $path, $hours, $minsize ) = split( /:/, $entry, 3 );
+
+    my $warning  = defined $hours && length $hours ? $hours : config->{'warning'};
+    my $critical = defined $hours && length $hours ? $hours * 2 : config->{'critical'};
+    $minsize = defined $minsize && length $minsize ? $minsize : config->{'minsize'};
+
+    my ( $newest, $error ) = newest_file($path);
+
+    if ( defined $error )
+    {
+        push @missing, "$path ($error)";
+        detail->{$path} = { 'error' => $error };
+
+        # A backup directory that is not there is not an old backup, it is no
+        # backup, and usually a mount point that did not come back.
+        $worst = 300 if $worst < 300;
+        next;
+    }
+
+    my $ageHours = ( $now - $newest->{'mtime'} ) / 3600;
+
+    detail->{$path} = {
+        'newest'   => $newest->{'name'},
+        'age'      => sprintf( "%.1f hours", $ageHours ),
+        'size'     => $newest->{'size'},
+        'modified' => scalar( localtime( $newest->{'mtime'} ) ),
+    };
+
+    add_metric { "Tags" => { 'path' => $path, 'metric' => 'age_hours' },  "Value" => sprintf( "%.2f", $ageHours ) + 0 };
+    add_metric { "Tags" => { 'path' => $path, 'metric' => 'size_bytes' }, "Value" => $newest->{'size'} };
+
+    if ( $minsize && $newest->{'size'} < $minsize )
+    {
+        push @empty, sprintf( "%s is %d bytes, expected at least %d", $path, $newest->{'size'}, $minsize );
+
+        # It ran. That is the trap : the age looks fine and the content is not
+        # there, so this is reported whatever the age says.
+        $worst = 300 if $worst < 300;
+        next;
+    }
+
+    if ( $ageHours >= $critical )
+    {
+        push @stale, sprintf( "%s is %.0f hours old", $path, $ageHours );
+        $worst = 300 if $worst < 300;
+    }
+    elsif ( $ageHours >= $warning )
+    {
+        push @stale, sprintf( "%s is %.0f hours old", $path, $ageHours );
+        $worst = 200 if $worst < 200;
+    }
+}
+
+status $worst;
+
+my @said = ();
+push @said, sprintf( "no backup at %s", join( ", ", @missing ) ) if @missing;
+push @said, sprintf( "too small : %s",  join( ", ", @empty ) )   if @empty;
+push @said, sprintf( "stale : %s",      join( ", ", @stale ) )   if @stale;
+
+if (@said)
+{
+    message join( " ; ", @said );
+}
+else
+{
+    message sprintf( "All %d backups are recent", scalar(@paths) );
+}
+
+output 0;
+
+###
+# The most recently modified regular file at a path, which may itself be one.
+###
+sub newest_file
+{
+    my ($path) = @_;
+
+    return ( undef, "does not exist" ) unless -e $path;
+
+    if ( -f $path )
+    {
+        my @stat = stat($path);
+        return ( undef, "cannot read it" ) unless @stat;
+
+        return ( { 'name' => $path, 'mtime' => $stat[9], 'size' => $stat[7] }, undef );
+    }
+
+    return ( undef, "not a file or a directory" ) unless -d $path;
+
+    my $handle;
+    opendir( $handle, $path ) or return ( undef, "cannot read the directory" );
+
+    my $newest;
+
+    while ( my $name = readdir($handle) )
+    {
+        next if $name eq "." || $name eq "..";
+
+        my $full = "$path/$name";
+
+        # Regular files only. A subdirectory's own mtime changes when anything
+        # inside it is touched, so counting it would report a backup as fresh
+        # because something else was written next to it.
+        next unless -f $full;
+
+        my @stat = stat($full);
+        next unless @stat;
+
+        if ( !$newest || $stat[9] > $newest->{'mtime'} )
+        {
+            $newest = { 'name' => $name, 'mtime' => $stat[9], 'size' => $stat[7] };
+        }
+    }
+
+    closedir($handle);
+
+    return ( undef, "the directory is empty" ) unless $newest;
+
+    return ( $newest, undef );
+}

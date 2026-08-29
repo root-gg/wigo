@@ -14,6 +14,7 @@ func TestAppriseTargetMatches(t *testing.T) {
 		target   AppriseTargetConfig
 		hostname string
 		group    string
+		labels   map[string]string
 		expected bool
 	}{
 		{
@@ -97,7 +98,7 @@ func TestAppriseTargetMatches(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := test.target.Matches(test.hostname, test.group); got != test.expected {
+			if got := test.target.Matches(test.hostname, test.group, test.labels); got != test.expected {
 				t.Errorf("Matches(%q, %q) = %v, expected %v", test.hostname, test.group, got, test.expected)
 			}
 		})
@@ -158,6 +159,7 @@ func TestGetAppriseUrls(t *testing.T) {
 		name     string
 		hostname string
 		group    string
+		labels   map[string]string
 		expected []AppriseUrl
 	}{
 		{
@@ -200,7 +202,7 @@ func TestGetAppriseUrls(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := config.GetAppriseUrls(test.hostname, test.group)
+			got := config.GetAppriseUrls(test.hostname, test.group, test.labels, false)
 			if !reflect.DeepEqual(got, test.expected) {
 				t.Errorf("GetAppriseUrls(%q, %q) =\n%v\nexpected\n%v", test.hostname, test.group, got, test.expected)
 			}
@@ -226,7 +228,7 @@ func TestGetAppriseUrlsDeduplication(t *testing.T) {
 		{Url: "second://", Target: `"second"`},
 	}
 
-	if got := config.GetAppriseUrls("web-1", "prod"); !reflect.DeepEqual(got, expected) {
+	if got := config.GetAppriseUrls("web-1", "prod", nil, false); !reflect.DeepEqual(got, expected) {
 		t.Errorf("GetAppriseUrls() =\n%v\nexpected\n%v", got, expected)
 	}
 }
@@ -235,7 +237,7 @@ func TestGetAppriseUrlsWithoutAnyConfiguration(t *testing.T) {
 
 	config := &NotificationConfig{}
 
-	if got := config.GetAppriseUrls("db-1", "databases"); len(got) != 0 {
+	if got := config.GetAppriseUrls("db-1", "databases", nil, false); len(got) != 0 {
 		t.Errorf("GetAppriseUrls() = %v, expected no url", got)
 	}
 }
@@ -300,7 +302,7 @@ Groups = ["frontend", "backend"]
 		{Url: "catchall://"},
 		{Url: "dba://", Target: `"dba team"`},
 	}
-	if got := notifications.GetAppriseUrls("db-master", "none"); !reflect.DeepEqual(got, expected) {
+	if got := notifications.GetAppriseUrls("db-master", "none", nil, false); !reflect.DeepEqual(got, expected) {
 		t.Errorf("GetAppriseUrls() =\n%v\nexpected\n%v", got, expected)
 	}
 }
@@ -402,6 +404,57 @@ func TestNewConfigDefaults(t *testing.T) {
 	// The probes configuration directory is exported for the probes to read
 	if os.Getenv("WIGO_PROBE_CONFIG_ROOT") != config.Global.ProbesConfigDirectory {
 		t.Errorf("WIGO_PROBE_CONFIG_ROOT = %s, expected %s", os.Getenv("WIGO_PROBE_CONFIG_ROOT"), config.Global.ProbesConfigDirectory)
+	}
+}
+
+// Both gates that let something change a host must stay closed until an
+// administrator opens them, so upgrading an existing install never widens what
+// it exposes.
+func TestNewConfigWriteActionsAreClosedByDefault(t *testing.T) {
+
+	config := NewConfig(filepath.Join(t.TempDir(), "does-not-exist.conf"))
+
+	if config.Http.AllowWriteActions {
+		t.Errorf("Http.AllowWriteActions must be off by default")
+	}
+	if config.PushClient.AllowRemoteControl {
+		t.Errorf("PushClient.AllowRemoteControl must be off by default")
+	}
+}
+
+// A configuration file that predates these options must keep them closed.
+func TestNewConfigWriteActionsStayClosedOnAnOldConfigFile(t *testing.T) {
+
+	path := filepath.Join(t.TempDir(), "wigo.conf")
+	old := `
+[Global]
+Hostname = "legacy"
+
+[Http]
+Enabled = true
+Port = 4000
+Login = "admin"
+Password = "secret"
+
+[PushClient]
+Enabled = true
+Address = "master.domain.tld"
+PushInterval = 10
+`
+	if err := os.WriteFile(path, []byte(old), 0644); err != nil {
+		t.Fatalf("Fail to write the configuration file : %s", err)
+	}
+
+	config := NewConfig(path)
+
+	if config.Global.Hostname != "legacy" {
+		t.Fatalf("Hostname = %s, the file has not been read", config.Global.Hostname)
+	}
+	if config.Http.AllowWriteActions {
+		t.Errorf("An old configuration file must not enable Http.AllowWriteActions")
+	}
+	if config.PushClient.AllowRemoteControl {
+		t.Errorf("An old configuration file must not enable PushClient.AllowRemoteControl")
 	}
 }
 

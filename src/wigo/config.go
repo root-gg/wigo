@@ -32,6 +32,19 @@ type Config struct {
 
 	// OpenTSDB params
 	OpenTSDB *OpenTSDBConfig
+
+	// What sits behind what. A router going down should be one message, not
+	// forty. See dependency.go.
+	Dependencies []DependencyConfig
+
+	// How long individual probes get to answer, by name. Anything not named
+	// here keeps the interval minus a second it has always had. See
+	// probe_timeout.go.
+	ProbeTimeouts map[string]int
+
+	// What this host is, beyond its one Group : env = "prod", role = "db".
+	// Group is unchanged and still published, as a label too. See label.go.
+	Labels map[string]string
 }
 
 func NewConfig(configFile string) (this *Config) {
@@ -54,6 +67,8 @@ func NewConfig(configFile string) (this *Config) {
 	this.Global.UuidFile = "/var/lib/wigo/uuid"
 	this.Global.Database = "/var/lib/wigo/wigo.db"
 	this.Global.AliveTimeout = 60
+	this.Global.MetricsRetentionDays = defaultMetricsRetentionDays
+	this.Global.StatusHistoryDays = defaultStatusHistoryDays
 	this.Global.ConfigFile = configFile
 	this.Global.Debug = false
 	this.Global.Trace = false
@@ -68,6 +83,14 @@ func NewConfig(configFile string) (this *Config) {
 	this.Http.Login = ""
 	this.Http.Password = ""
 	this.Http.Gzip = true
+
+	// Off by default : until it is turned on the API stays read only, so an
+	// upgrade never opens anything that was closed before.
+	this.Http.AllowWriteActions = false
+
+	// Left empty so it can mean "whatever this install already did", which is
+	// resolved from Login. See ResolvedAnonymousRole.
+	this.Http.AnonymousRole = ""
 
 	// Push server
 	this.PushServer.Enabled = false
@@ -89,6 +112,10 @@ func NewConfig(configFile string) (this *Config) {
 	this.PushClient.UuidSig = "/etc/wigo/ssl/uuid.sig"
 	this.PushClient.PushInterval = 15
 
+	// Off by default : a client never lets its master act on it unless its own
+	// administrator opted in on that machine.
+	this.PushClient.AllowRemoteControl = false
+
 	// Remote Wigos
 	this.RemoteWigos.List = nil
 	this.RemoteWigos.CheckInterval = 10
@@ -99,6 +126,14 @@ func NewConfig(configFile string) (this *Config) {
 
 	this.Notifications.OnHostChange = false
 	this.Notifications.OnProbeChange = false
+	this.Notifications.FlapDetection = true
+	this.Notifications.FlapWindow = defaultFlapWindow
+	this.Notifications.FlapThreshold = defaultFlapThreshold
+	this.Notifications.RenotifyInterval = 0
+	this.Notifications.EscalateAfter = 0
+	this.Notifications.QuietHoursFrom = ""
+	this.Notifications.QuietHoursTo = ""
+	this.Notifications.QuietHoursMinLevelToSend = 0
 
 	this.Notifications.HttpEnabled = 0
 	this.Notifications.HttpUrl = ""
@@ -164,8 +199,18 @@ func NewConfig(configFile string) (this *Config) {
 	// Warn about apprise targets that would never be notified
 	for i := range this.Notifications.AppriseTargets {
 		target := &this.Notifications.AppriseTargets[i]
-		if len(target.Groups) == 0 && len(target.Hosts) == 0 {
-			log.Printf("Apprise target %s has no Groups nor Hosts filter and will never be notified, use AppriseUrls to notify every host\n", target.GetName(i))
+		if len(target.Groups) == 0 && len(target.Hosts) == 0 && len(target.Labels) == 0 {
+			log.Printf("Apprise target %s has no Groups, Hosts nor Labels filter and will never be notified, use AppriseUrls to notify every host\n", target.GetName(i))
+		}
+
+		// A selector that cannot be read is skipped when routing, so it has to
+		// be said here : otherwise the target quietly stops covering what it
+		// was written to cover, and nothing looks wrong.
+		for _, text := range target.Labels {
+			if _, err := ParseSelector(text); err != nil {
+				log.Printf("Apprise target %s has an unusable label selector %q and will not route on it : %s\n",
+					target.GetName(i), text, err)
+			}
 		}
 	}
 
@@ -190,6 +235,15 @@ type GeneralConfig struct {
 	Group                 string
 	Database              string
 	AliveTimeout          int
+
+	// How many days of what the probes measure to keep, in the sqlite that is
+	// already there. Zero keeps none. Nothing about the monitoring depends on
+	// it : losing this loses history and nothing else.
+	MetricsRetentionDays int
+
+	// How many days of status changes to keep, which is what the timeline is
+	// drawn from. A change is not a sample : a handful a day, not one a minute.
+	StatusHistoryDays int
 }
 
 type HttpConfig struct {
@@ -202,6 +256,18 @@ type HttpConfig struct {
 	Login      string
 	Password   string
 	Gzip       bool
+
+	// Lets the API change this host : enable, disable and repitch its probes.
+	// Anyone able to reach the dashboard can then switch monitoring off, so it
+	// stays closed until an administrator opens it.
+	AllowWriteActions bool
+
+	// What somebody who presents no credential at all is allowed to do :
+	// "operator", "readonly", or "none" to refuse them. Empty keeps whatever
+	// this install already did, which is the whole point of it being empty :
+	// no Login means everything was open, a Login meant everything was shut,
+	// and neither may change on an upgrade.
+	AnonymousRole string
 }
 
 type PushServerConfig struct {
@@ -224,6 +290,11 @@ type PushClientConfig struct {
 	SslCert      string
 	UuidSig      string
 	PushInterval int
+
+	// Lets the push server this client connects to act on it : enable, disable
+	// and repitch its probes. Separate from Http.AllowWriteActions on purpose,
+	// so opening the local API never opens the machine to its master as well.
+	AllowRemoteControl bool
 }
 
 type RemoteWigoConfig struct {
@@ -243,6 +314,33 @@ type NotificationConfig struct {
 
 	OnHostChange  bool
 	OnProbeChange bool
+
+	// A probe that keeps changing status buries the real incident of the
+	// evening under fifty messages. Once it has changed FlapThreshold times
+	// inside FlapWindow seconds it is called out once and then goes quiet
+	// until it settles. On by default : a monitoring tool that spams on flap
+	// is not doing its job, and the first transitions are notified anyway.
+	FlapDetection bool
+	FlapWindow    int
+	FlapThreshold int
+
+	// A problem that is still there is said again this often, in seconds. Zero
+	// keeps the old behaviour : one message when it breaks, one when it is
+	// fixed, and silence in between that looks exactly like everything being
+	// fine.
+	RenotifyInterval int
+
+	// After this many seconds unattended, a problem also goes to the apprise
+	// targets marked Escalation. Zero never escalates.
+	EscalateAfter int
+
+	// The window nobody wants to be woken in, as "22:00" and "08:00". Nothing
+	// is dropped : a notification held here is not recorded as sent, so the
+	// repeat loop says it as soon as the window closes. Anything at or above
+	// QuietHoursMinLevelToSend gets through anyway.
+	QuietHoursFrom           string
+	QuietHoursTo             string
+	QuietHoursMinLevelToSend int
 
 	HttpEnabled int
 	HttpUrl     string
@@ -267,6 +365,19 @@ type AppriseTargetConfig struct {
 	Urls   []string
 	Groups []string
 	Hosts  []string
+
+	// Label selectors, each "env=prod" or "env=prod,role=db". A host matching
+	// any one of them is notified, and within one selector every label has to
+	// match : "the prod databases" is one entry, "prod or db" is two.
+	//
+	// This is what Groups cannot express. A host has one group, so a target
+	// interested in every database in par1 has to name them one by one and
+	// remember to come back when one is added.
+	Labels []string
+
+	// Only notified once a problem has gone unattended for EscalateAfter
+	// seconds. The people you wake up second.
+	Escalation bool
 }
 
 // GetName returns a printable name for this target, falling back on its
@@ -281,10 +392,10 @@ func (this *AppriseTargetConfig) GetName(index int) string {
 
 // Matches tells whether a notification coming from the given host/group has to
 // be sent to this target.
-func (this *AppriseTargetConfig) Matches(hostname string, group string) bool {
+func (this *AppriseTargetConfig) Matches(hostname string, group string, labels map[string]string) bool {
 
 	// A target without any filter would never be notified
-	if len(this.Groups) == 0 && len(this.Hosts) == 0 {
+	if len(this.Groups) == 0 && len(this.Hosts) == 0 && len(this.Labels) == 0 {
 		return false
 	}
 
@@ -292,7 +403,32 @@ func (this *AppriseTargetConfig) Matches(hostname string, group string) bool {
 		return true
 	}
 
-	return matchFilterList(this.Hosts, hostname)
+	if matchFilterList(this.Hosts, hostname) {
+		return true
+	}
+
+	return this.matchesAnyLabelSelector(labels)
+}
+
+// Any of the selectors, all of the labels within one : "prod or db" is two
+// entries, "the prod databases" is one.
+func (this *AppriseTargetConfig) matchesAnyLabelSelector(labels map[string]string) bool {
+	for _, text := range this.Labels {
+		selector, err := ParseSelector(text)
+
+		// Refused at startup and said so there. Skipped rather than treated as
+		// matching nothing in particular : a selector that cannot be read must
+		// not quietly widen the target to everything.
+		if err != nil || len(selector) == 0 {
+			continue
+		}
+
+		if selector.MatchesLabels(labels) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func matchFilterList(filters []string, value string) bool {
@@ -327,7 +463,7 @@ func (this *AppriseUrl) Origin() string {
 // GetAppriseUrls returns the deduplicated list of apprise urls to notify for a
 // given host/group. The plain AppriseUrls list is always included as it has no
 // filter.
-func (this *NotificationConfig) GetAppriseUrls(hostname string, group string) (urls []AppriseUrl) {
+func (this *NotificationConfig) GetAppriseUrls(hostname string, group string, labels map[string]string, escalated bool) (urls []AppriseUrl) {
 
 	seen := make(map[string]bool)
 
@@ -344,7 +480,12 @@ func (this *NotificationConfig) GetAppriseUrls(hostname string, group string) (u
 	appendUrls(this.AppriseUrls, "")
 
 	for i := range this.AppriseTargets {
-		if this.AppriseTargets[i].Matches(hostname, group) {
+		// An escalation target is deliberately left out of the normal path :
+		// the whole point of being second in line is not to be woken first.
+		if this.AppriseTargets[i].Escalation && !escalated {
+			continue
+		}
+		if this.AppriseTargets[i].Matches(hostname, group, labels) {
 			appendUrls(this.AppriseTargets[i].Urls, this.AppriseTargets[i].GetName(i))
 		}
 	}

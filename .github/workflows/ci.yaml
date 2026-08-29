@@ -3,10 +3,29 @@ name: "CI"
 on:
   workflow_dispatch:
   pull_request:
+  # Every branch, so a branch is known green while it is being worked on rather
+  # than after it lands. "**" rather than no filter at all : an unfiltered push
+  # also fires on tags, and the release creates one -- rebuilding the commit the
+  # CI just built, under another ref, tells nobody anything.
   push:
-    branches:
-      - "main"
-      - "master"
+    branches: ["**"]
+
+# A branch pushed again has superseded its own run.
+#
+# The event is part of the group on purpose, so a push and the pull request on
+# the same branch never cancel each other. Sharing a group looks tempting -- it
+# would build the head once instead of twice -- but the cancelled run keeps the
+# name of the required check, "Build", and lands on the very commit being
+# merged. Branch protection then sees a cancelled Build next to the successful
+# one and refuses the merge. A wasted build is cheaper than a gate that blocks
+# on a run nobody asked to be cancelled.
+#
+# A cancelled run has no "success" conclusion, so it cannot trigger a release ;
+# that is the wanted behaviour, since the commit it was building is not the head
+# any more.
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}"
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -33,6 +52,41 @@ jobs:
         run: make releases
       - name: "Creating debian packages"
         run: make debs
+      # Built on every run so a broken Dockerfile is caught by the PR that
+      # breaks it, not by the release three weeks later. Only pushed on master.
+      - name: "Setting up buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Building the container image"
+        uses: docker/build-push-action@v6
+        with:
+          context: "."
+          file: "build/docker/Dockerfile"
+          platforms: "linux/amd64"
+          push: false
+          load: true
+          tags: "wigo:ci"
+
+      # Starting is not the same as working : a distroless image would start
+      # and monitor nothing at all.
+      - name: "Checking the image actually monitors something"
+        run: |
+          set -euo pipefail
+          docker run -d --name wigo-ci -p 4000:4000 wigo:ci
+          for i in $(seq 30) ; do
+            if curl -sf localhost:4000/api/ > /dev/null ; then break ; fi
+            sleep 1
+          done
+
+          curl -sf localhost:4000/ > /dev/null
+          curl -sf localhost:4000/metrics > /dev/null
+
+          # Every default probe has to have produced a result
+          curl -sf localhost:4000/api/ \
+            | python3 -c 'import json,sys; p=json.load(sys.stdin)["LocalHost"]["Probes"]; assert len(p) >= 5, p; print(sorted(p))'
+
+          docker rm -f wigo-ci
+
       - name: Archive artifacts
         uses: actions/upload-artifact@v7
         with:

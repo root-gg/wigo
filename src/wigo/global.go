@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"container/list"
 	"errors"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -38,15 +38,16 @@ type Wigo struct {
 	LocalHost   *Host
 	RemoteWigos *concurrentMapWigos
 
-	Hostname       string
-	config         *Config
-	locker         *sync.RWMutex
-	logfilehandle  *os.File
-	gopentsdb      *gopentsdb.OpenTsdb
-	disabledProbes *list.List
-	uuidObj        *uuid.UUID
-	sqlLiteConn    *sql.DB
-	sqlLiteLock    *sync.Mutex
+	Hostname           string
+	config             *Config
+	locker             *sync.RWMutex
+	logfilehandle      *os.File
+	gopentsdb          *gopentsdb.OpenTsdb
+	disabledProbes     map[string]bool
+	disabledProbesLock *sync.RWMutex
+	uuidObj            *uuid.UUID
+	sqlLiteConn        *sql.DB
+	sqlLiteLock        *sync.Mutex
 
 	push       *PushServer
 	LastUpdate int64
@@ -114,6 +115,7 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 	this.LocalHost = NewHost()
 	this.LocalHost.Name = this.config.Global.Hostname
 	this.LocalHost.Group = this.config.Global.Group
+	this.LocalHost.Labels = UsableLabels(this.config.Labels)
 	this.LocalHost.parentWigo = this
 
 	// Init RemoteWigos list
@@ -121,7 +123,8 @@ func NewWigo(config *Config) (this *Wigo, err error) {
 
 	// Private vars
 	this.locker = new(sync.RWMutex)
-	this.disabledProbes = new(list.List)
+	this.disabledProbes = make(map[string]bool)
+	this.disabledProbesLock = new(sync.RWMutex)
 
 	return
 }
@@ -207,6 +210,31 @@ Options:
     CREATE TABLE IF NOT EXISTS logs (id integer not null primary key, date timestamp, level int, grp text, host text, probe text, message text) ;
     `
 	_, err = LocalWigo.sqlLiteConn.Exec(sqlStmt)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
+	_, err = LocalWigo.sqlLiteConn.Exec(createDisabledProbesTable)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
+	_, err = LocalWigo.sqlLiteConn.Exec(createSuppressionsTable)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
+	_, err = LocalWigo.sqlLiteConn.Exec(createApiTokensTable)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
+	_, err = LocalWigo.sqlLiteConn.Exec(createMetricsTable)
+	if err != nil {
+		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
+	}
+
+	_, err = LocalWigo.sqlLiteConn.Exec(createStatusChangesTable)
 	if err != nil {
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
 	}
@@ -319,7 +347,16 @@ func (this *Wigo) Down() {
 	this.IsAlive = false
 
 	// Send notification
-	SendNotification(NewNotificationFromMessageForHost(fmt.Sprintf("Host %s DOWN", this.Hostname), this.Hostname, this.GetGroup()))
+	PublishEvent(LiveEvent{Type: EventHost, Host: this.Hostname, Status: 500})
+	RecordStatusTransition(StatusChange{
+		Host: this.Hostname, Group: this.GetGroup(),
+		Was: 100, Now: 500, Message: "the host stopped answering",
+	})
+
+	// A host that is gone is as bad as it gets : an ack taken while it was
+	// merely critical does not cover it going away entirely.
+	SendNotification(NewNotificationFromMessageForHost(
+		fmt.Sprintf("Host %s DOWN", this.Hostname), this.Hostname, this.GetGroup()).SetStatus(500))
 
 	// Add a log
 	LocalWigo.AddLog(this, CRITICAL, fmt.Sprintf("Wigo %s DOWN", this.Hostname))
@@ -330,7 +367,15 @@ func (this *Wigo) Up() {
 	this.IsAlive = true
 
 	// Send notification
-	SendNotification(NewNotificationFromMessageForHost(fmt.Sprintf("Host %s UP", this.Hostname), this.Hostname, this.GetGroup()))
+	PublishEvent(LiveEvent{Type: EventHost, Host: this.Hostname, Status: 100})
+	RecordStatusTransition(StatusChange{
+		Host: this.Hostname, Group: this.GetGroup(),
+		Was: 500, Now: 100, Message: "the host is answering again",
+	})
+
+	// Back up, which clears whatever was acknowledged about it being down
+	SendNotification(NewNotificationFromMessageForHost(
+		fmt.Sprintf("Host %s UP", this.Hostname), this.Hostname, this.GetGroup()).SetStatus(100))
 
 	// Add a log
 	LocalWigo.AddLog(this, INFO, fmt.Sprintf("Wigo %s UP", this.Hostname))
@@ -340,14 +385,23 @@ func (this *Wigo) Up() {
 func (this *Wigo) RecomputeGlobalStatus() {
 
 	this.GlobalStatus = 0
+	hasProbe := false
 
 	// Local probes
 	for item := range this.LocalHost.Probes.IterBuffered() {
 		probe := item.Val.(*ProbeResult)
+		hasProbe = true
 
 		if probe.Status > this.GlobalStatus {
 			this.GlobalStatus = probe.Status
 		}
+	}
+
+	// Same as Host.RecomputeStatus : no probe is not an error. A master that
+	// only aggregates remotes and runs none of its own is a normal setup, and
+	// it used to report itself as being in error.
+	if !hasProbe {
+		this.GlobalStatus = 100
 	}
 
 	return
@@ -660,42 +714,59 @@ func (this *Wigo) ToJsonString() (string, error) {
 }
 
 // Disabled probes
-func (this *Wigo) GetDisabledProbes() *list.List {
-	return this.disabledProbes
-}
-func (this *Wigo) DisableProbe(probeName string) {
-	alreadyDisabled := false
+//
+// Probes that asked to be skipped by exiting with the special code 13. This is
+// transient state, cleared by a restart, and has nothing to do with a probe an
+// operator disabled: that one is expressed in the probes directory itself.
+//
+// DisableProbe is called from the probe execution goroutines while
+// IsProbeDisabled is read by the scheduling loops, hence the lock.
 
+func (this *Wigo) GetDisabledProbes() []string {
+	this.disabledProbesLock.RLock()
+	defer this.disabledProbesLock.RUnlock()
+
+	probes := make([]string, 0, len(this.disabledProbes))
+	for probeName := range this.disabledProbes {
+		probes = append(probes, probeName)
+	}
+	sort.Strings(probes)
+
+	return probes
+}
+
+func (this *Wigo) DisableProbe(probeName string) {
 	if probeName == "" {
 		return
 	}
 
-	// Check if not already disabled
-	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
-		if p, ok := e.Value.(string); ok {
-			if p == probeName {
-				alreadyDisabled = true
-			}
-		}
-	}
+	this.disabledProbesLock.Lock()
+	defer this.disabledProbesLock.Unlock()
 
-	if !alreadyDisabled {
-		this.disabledProbes.PushBack(probeName)
-	}
-
-	return
+	this.disabledProbes[probeName] = true
 }
-func (this *Wigo) IsProbeDisabled(probeName string) bool {
 
-	for e := this.disabledProbes.Front(); e != nil; e = e.Next() {
-		if p, ok := e.Value.(string); ok {
-			if p == probeName {
-				return true
-			}
-		}
+// ClearSkippedProbe puts a probe that asked to be skipped back in the rotation.
+//
+// Until now the only way out was a restart, which the log line said in as many
+// words. Rechecking a probe on demand is that way out : whatever made it bow
+// out may well be fixed, and if it is not it exits 13 again on the spot.
+func (this *Wigo) ClearSkippedProbe(probeName string) {
+	if probeName == "" {
+		return
 	}
 
-	return false
+	this.disabledProbesLock.Lock()
+	defer this.disabledProbesLock.Unlock()
+
+	delete(this.disabledProbes, probeName)
+}
+
+func (this *Wigo) IsProbeDisabled(probeName string) bool {
+	this.disabledProbesLock.RLock()
+	defer this.disabledProbesLock.RUnlock()
+
+	return this.disabledProbes[probeName]
 }
 
 // Summaries

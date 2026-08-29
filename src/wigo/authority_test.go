@@ -7,6 +7,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -391,5 +393,60 @@ func TestAuthoritySaveAllowedListFormat(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0600 {
 		t.Errorf("Mode = %v, expected 0600", info.Mode().Perm())
+	}
+}
+
+// Admitting a client lets an unknown machine push into this master. It was the
+// one write in this api with no check at all, which stopped being harmless the
+// moment anonymous callers were let in to read.
+func TestAdmittingAClientNeedsAnOperator(t *testing.T) {
+	setupTestWigo(t, "databases")
+
+	for _, handler := range []func(http.ResponseWriter, *http.Request) (int, string){
+		HttpAuthorityAllowHandler,
+		HttpAuthorityRevokeHandler,
+	} {
+		request := httptest.NewRequest("POST", "/api/authority/hosts/abc/allow", nil)
+		request = withCaller(request, Caller{Role: RoleReadOnly, Name: "anonymous"})
+
+		status, message := handler(httptest.NewRecorder(), request)
+		if status != 403 {
+			t.Errorf("Got %d, expected a read only caller to be refused", status)
+		}
+		if !strings.Contains(message, "Sign in") {
+			t.Errorf("Got %q, expected it to say what to do about it", message)
+		}
+	}
+}
+
+// The role only. AllowWriteActions is about changing this host's own probes,
+// and requiring it would stop every push master that has it off -- which is all
+// of them by default -- from doing what it has always done.
+func TestAdmittingAClientDoesNotNeedWriteActions(t *testing.T) {
+	setupTestWigo(t, "databases")
+	LocalWigo.config.Http.AllowWriteActions = false
+
+	request := httptest.NewRequest("POST", "/api/authority/hosts/abc/allow", nil)
+	request = withCaller(request, Caller{Role: RoleOperator, Name: "germain"})
+
+	if _, _, allowed := httpAuthorityAllowed(request); !allowed {
+		t.Errorf("An operator was refused on a host where write actions are off")
+	}
+}
+
+// A read only token is not an anonymous caller, and telling them to sign in
+// would send them looking in the wrong place.
+func TestAReadOnlyTokenIsToldToSwapIt(t *testing.T) {
+	setupTestWigo(t, "databases")
+
+	request := httptest.NewRequest("POST", "/api/authority/hosts/abc/allow", nil)
+	request = withCaller(request, Caller{Role: RoleReadOnly, Name: `token "grafana"`})
+
+	_, message, allowed := httpAuthorityAllowed(request)
+	if allowed {
+		t.Fatalf("A read only token was allowed to admit a client")
+	}
+	if !strings.Contains(message, "operator token") {
+		t.Errorf("Got %q", message)
 	}
 }

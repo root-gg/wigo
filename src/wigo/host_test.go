@@ -29,12 +29,31 @@ func TestHostRecomputeStatus(t *testing.T) {
 		t.Errorf("Status = %d, expected 200", host.Status)
 	}
 
-	// Without any probe the status falls back to zero
+	// Without any probe there is nothing to report, which is not an error
 	host.Probes.Remove("ok")
 	host.Probes.Remove("warn")
 	host.RecomputeStatus()
-	if host.Status != 0 {
-		t.Errorf("Status = %d, expected 0", host.Status)
+	if host.Status != 100 {
+		t.Errorf("Status = %d, expected 100", host.Status)
+	}
+}
+
+func TestHostRecomputeStatusWithoutProbeIsNotAnError(t *testing.T) {
+
+	host := NewHost()
+
+	// A host that never ran a probe must not be reported as being in error :
+	// every status below 100 is an error level.
+	host.RecomputeStatus()
+	if host.Status != 100 {
+		t.Errorf("Status = %d, expected 100 for a host without any probe", host.Status)
+	}
+
+	// A probe below 100 is still an error and must not be masked
+	host.Probes.Set("broken", newTestProbe(host, "broken", 50))
+	host.RecomputeStatus()
+	if host.Status != 50 {
+		t.Errorf("Status = %d, expected 50 : a sub-100 probe status must win", host.Status)
 	}
 }
 

@@ -1,0 +1,1070 @@
+openapi: 3.1.0
+
+info:
+  title: wigo
+  version: "1"
+  summary: What a wigo answers.
+  description: |
+    Every path below is answered by the wigo you are asking. A master answers
+    for its remotes too, under /api/hosts/{hostname}, by forwarding to them --
+    except the ones that are deliberately local, which say so.
+
+    Authentication is a shared credential in HTTP Basic, or a token in
+    `Authorization: Bearer wigo_...` or `X-Wigo-Token: wigo_...`. What an
+    unauthenticated caller may do is a setting, `AnonymousRole`, so a 401 and a
+    200 on the same path from two wigos is a configuration difference and not
+    an inconsistency.
+
+    Reads need whatever `AnonymousRole` grants. Writes need the operator role
+    and, when they change this host's own probes, `AllowWriteActions`.
+
+servers:
+  - url: /
+
+tags:
+  - name: state
+    description: What is happening now.
+  - name: history
+    description: What happened before.
+  - name: probes
+    description: What runs, and how often.
+  - name: notifications
+    description: What is held back, and why.
+  - name: authentication
+  - name: push
+    description: Clients that push rather than being polled.
+
+paths:
+  /api:
+    get:
+      tags: [state]
+      summary: The whole tree, this wigo and everything under it
+      responses:
+        "200":
+          description: The tree
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wigo"
+
+  /api/status:
+    get:
+      tags: [state]
+      summary: The global status as a bare number
+      description: |
+        A number, which is valid json and is the shape this endpoint has always
+        had. Kept as it is : it is what a shell one liner reads.
+      responses:
+        "200":
+          description: The status on the probe scale
+          content:
+            application/json:
+              schema: { type: integer, examples: [100, 300] }
+
+  /api/hosts:
+    get:
+      tags: [state]
+      summary: The names of every host this wigo watches
+      parameters:
+        - name: labels
+          in: query
+          required: false
+          description: >
+            Narrow to the hosts carrying all of these labels, as
+            "env=prod,role=db". A host's group is published as the label
+            "group", so hosts that predate labels are reachable this way too.
+            Without the parameter every host is returned, unchanged.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Host names
+          content:
+            application/json:
+              schema: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/labels:
+    get:
+      tags: [state]
+      summary: Every label in use, with how many hosts carry each value
+      responses:
+        "200":
+          description: Label keys, each holding its values and their counts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties: { type: integer }
+                example: { env: { prod: 12, test: 3 }, group: { databases: 4 } }
+
+  /api/hosts/{hostname}:
+    get:
+      tags: [state]
+      summary: One host, with everything under it
+      parameters: [{ $ref: "#/components/parameters/Hostname" }]
+      responses:
+        "200":
+          description: The host
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wigo" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/status:
+    get:
+      tags: [state]
+      summary: The global status of one host
+      parameters: [{ $ref: "#/components/parameters/Hostname" }]
+      responses:
+        "200":
+          description: The status
+          content:
+            application/json:
+              schema: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/groups:
+    get:
+      tags: [state]
+      summary: The names of every group
+      responses:
+        "200":
+          description: Group names
+          content:
+            application/json:
+              schema: { type: array, items: { type: string } }
+
+  /api/groups/{group}:
+    get:
+      tags: [state]
+      summary: One group and its hosts
+      parameters: [{ $ref: "#/components/parameters/Group" }]
+      responses:
+        "200":
+          description: The group
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupSummary" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/probes:
+    get:
+      tags: [state]
+      summary: Every probe result of one host
+      parameters: [{ $ref: "#/components/parameters/Hostname" }]
+      responses:
+        "200":
+          description: Probe results
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProbeResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/probes/{probe}:
+    get:
+      tags: [state]
+      summary: One probe result
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Probe" }
+      responses:
+        "200":
+          description: The result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProbeResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/probes/{probe}/status:
+    get:
+      tags: [state]
+      summary: The status of one probe
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Probe" }
+      responses:
+        "200":
+          description: The status
+          content:
+            application/json:
+              schema: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/logs:
+    get:
+      tags: [history]
+      summary: The log lines this wigo kept
+      parameters:
+        - { $ref: "#/components/parameters/LogGroup" }
+        - { $ref: "#/components/parameters/LogHostname" }
+        - { $ref: "#/components/parameters/LogProbe" }
+        - { $ref: "#/components/parameters/Offset" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Log lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Logs" }
+
+  /api/logs/indexes:
+    get:
+      tags: [history]
+      summary: The groups, hosts and probes that appear in the logs
+      responses:
+        "200":
+          description: What can be filtered on
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/groups/{group}/logs:
+    get:
+      tags: [history]
+      summary: Log lines of one group
+      parameters:
+        - { $ref: "#/components/parameters/Group" }
+        - { $ref: "#/components/parameters/Offset" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Log lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Logs" }
+
+  /api/groups/{group}/probes/{probe}/logs:
+    get:
+      tags: [history]
+      summary: Log lines of one probe across a group
+      parameters:
+        - { $ref: "#/components/parameters/Group" }
+        - { $ref: "#/components/parameters/Probe" }
+        - { $ref: "#/components/parameters/Offset" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Log lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Logs" }
+
+  /api/hosts/{hostname}/logs:
+    get:
+      tags: [history]
+      summary: Log lines of one host
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Offset" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Log lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Logs" }
+
+  /api/hosts/{hostname}/probes/{probe}/logs:
+    get:
+      tags: [history]
+      summary: Log lines of one probe on one host
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Probe" }
+        - { $ref: "#/components/parameters/Offset" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Log lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Logs" }
+
+  /api/probes/{probe}/logs:
+    get:
+      tags: [history]
+      summary: Log lines of one probe on this host
+      parameters:
+        - { $ref: "#/components/parameters/Probe" }
+        - { $ref: "#/components/parameters/Offset" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Log lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Logs" }
+
+  /api/probes/{probe}/metrics:
+    get:
+      tags: [history]
+      summary: What one probe of this host measured over time
+      description: |
+        Bucketed : each point carries the average of its bucket and the range it
+        covers, so a spike that was averaged away is still visible.
+      parameters:
+        - { $ref: "#/components/parameters/Probe" }
+        - { $ref: "#/components/parameters/Since" }
+        - { $ref: "#/components/parameters/Until" }
+        - { $ref: "#/components/parameters/Points" }
+      responses:
+        "200":
+          description: The series
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProbeMetrics" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/hosts/{hostname}/probes/{probe}/metrics:
+    get:
+      tags: [history]
+      summary: The same, for any host of the tree
+      description: |
+        Each wigo keeps its own history and only its own, so a master answers
+        this by asking the host. A host that pushes rather than being polled
+        cannot be asked, and says so.
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Probe" }
+        - { $ref: "#/components/parameters/Since" }
+        - { $ref: "#/components/parameters/Until" }
+        - { $ref: "#/components/parameters/Points" }
+      responses:
+        "200":
+          description: The series
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProbeMetrics" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/timeline:
+    get:
+      tags: [history]
+      summary: When the status of a host, or one of its probes, changed
+      description: |
+        Answered from what this wigo observed and never forwarded : a master saw
+        a remote go down, which that remote cannot have recorded about itself.
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - name: probe
+          in: query
+          description: A probe, or absent for the host itself
+          schema: { type: string }
+        - { $ref: "#/components/parameters/Since" }
+        - { $ref: "#/components/parameters/Until" }
+      responses:
+        "200":
+          description: The timeline
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatusTimeline" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/probes:
+    get:
+      tags: [probes]
+      summary: What is installed on this host, and what schedules it
+      responses:
+        "200":
+          description: The schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProbesSchedule" }
+
+  /api/hosts/{hostname}/schedule:
+    get:
+      tags: [probes]
+      summary: The same, for any host of the tree
+      parameters: [{ $ref: "#/components/parameters/Hostname" }]
+      responses:
+        "200":
+          description: The schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProbesSchedule" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/probes/{probe}/disable:
+    post:
+      tags: [probes]
+      summary: Stop scheduling a probe on this host
+      parameters:
+        - { $ref: "#/components/parameters/Probe" }
+        - { $ref: "#/components/parameters/Reason" }
+        - { $ref: "#/components/parameters/For" }
+      responses:
+        "200": { $ref: "#/components/responses/Schedule" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/probes/{probe}/interval:
+    post:
+      tags: [probes]
+      summary: Schedule a probe, or move it to another interval
+      parameters:
+        - { $ref: "#/components/parameters/Probe" }
+        - name: seconds
+          in: query
+          required: true
+          schema: { type: integer, minimum: 2, maximum: 86400 }
+      responses:
+        "200": { $ref: "#/components/responses/Schedule" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/probes/{probe}/run:
+    post:
+      tags: [probes]
+      summary: Run a probe now, without waiting for its next cycle
+      parameters: [{ $ref: "#/components/parameters/Probe" }]
+      responses:
+        "200":
+          description: The result it just produced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProbeResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/probes/{probe}/disable:
+    post:
+      tags: [probes]
+      summary: The same, for any host of the tree
+      description: |
+        Forwarded to the host, which applies its own rights. A remote decides
+        whether it accepts being changed at all, with `AllowRemoteControl` for
+        push clients and `AllowWriteActions` for polled ones.
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Probe" }
+        - { $ref: "#/components/parameters/Reason" }
+        - { $ref: "#/components/parameters/For" }
+      responses:
+        "200": { $ref: "#/components/responses/Schedule" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/probes/{probe}/interval:
+    post:
+      tags: [probes]
+      summary: The same, for any host of the tree
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Probe" }
+        - name: seconds
+          in: query
+          required: true
+          schema: { type: integer, minimum: 2, maximum: 86400 }
+      responses:
+        "200": { $ref: "#/components/responses/Schedule" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/hosts/{hostname}/probes/{probe}/run:
+    post:
+      tags: [probes]
+      summary: The same, for any host of the tree
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/Probe" }
+      responses:
+        "200":
+          description: The result it just produced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProbeResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/suppressions:
+    get:
+      tags: [notifications]
+      summary: Everything whose notifications are currently held back
+      description: |
+        Acknowledgements and silences, which somebody decided ; flapping
+        probes and hosts behind something that is down, which nobody did. The
+        effect is the same, so they are listed together.
+      responses:
+        "200":
+          description: What is held back
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SuppressionList" }
+
+  /api/hosts/{hostname}/ack:
+    post:
+      tags: [notifications]
+      summary: Say somebody is on it
+      description: |
+        An acknowledgement covers the situation as it stands. It is cleared on
+        its own the moment the status changes, since a situation that changed is
+        not the one anybody acknowledged.
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/SuppressionProbe" }
+        - { $ref: "#/components/parameters/Reason" }
+        - { $ref: "#/components/parameters/For" }
+      responses:
+        "200": { $ref: "#/components/responses/Suppressions" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/hosts/{hostname}/silence:
+    post:
+      tags: [notifications]
+      summary: Stop the messages for a while
+      description: |
+        A silence is a window and has to have one. `for` is required, between a
+        minute and a year : a silence with no end is an unmonitored host with
+        extra steps.
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/SuppressionProbe" }
+        - { $ref: "#/components/parameters/Reason" }
+        - name: for
+          in: query
+          required: true
+          description: A duration, like 4h or 720h
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Suppressions" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/hosts/{hostname}/unsuppress:
+    post:
+      tags: [notifications]
+      summary: Lift an acknowledgement or a silence
+      parameters:
+        - { $ref: "#/components/parameters/Hostname" }
+        - { $ref: "#/components/parameters/SuppressionProbe" }
+      responses:
+        "200": { $ref: "#/components/responses/Suppressions" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/groups/{group}/silence:
+    post:
+      tags: [notifications]
+      summary: Stop the messages for a whole group
+      description: |
+        A group cannot be acknowledged -- forty hosts have no single status to
+        say "I am on it" about. It targets the label, so a host that joins the
+        group during the window is covered too.
+      parameters:
+        - { $ref: "#/components/parameters/Group" }
+        - { $ref: "#/components/parameters/Reason" }
+        - name: for
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Suppressions" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/groups/{group}/unsuppress:
+    post:
+      tags: [notifications]
+      summary: Lift a group silence
+      parameters: [{ $ref: "#/components/parameters/Group" }]
+      responses:
+        "200": { $ref: "#/components/responses/Suppressions" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/whoami:
+    get:
+      tags: [authentication]
+      summary: Who is asking, and what they may do
+      responses:
+        "200":
+          description: The caller
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Caller" }
+
+  /api/login:
+    get:
+      tags: [authentication]
+      summary: Ask the browser for the credential
+      description: |
+        A wigo that lets anonymous callers read never sends a 401 on its own, so
+        a browser is never challenged and the credential is unreachable. This is
+        the only thing that provokes that challenge on purpose. Navigated to,
+        not fetched.
+      parameters:
+        - name: next
+          in: query
+          description: Where to go afterwards. A path on this host ; anything else lands on /
+          schema: { type: string }
+      responses:
+        "302": { description: Already an operator, sent back to `next` }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/logout:
+    get:
+      tags: [authentication]
+      summary: Refuse, so the browser forgets
+      description: |
+        There is no way to tell a browser to drop a basic auth credential.
+        Answering 401 makes it ask again, and cancelling that prompt is what
+        clears it.
+      responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/tokens:
+    get:
+      tags: [authentication]
+      summary: The tokens, never their secrets
+      responses:
+        "200":
+          description: The tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenList" }
+    post:
+      tags: [authentication]
+      summary: Mint one
+      description: |
+        The secret is in the answer and nowhere else : only its sha256 is
+        stored. The first token cannot be minted here, since minting needs a
+        credential -- `wigo token create` does it from the machine.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema: { type: string }
+        - name: role
+          in: query
+          schema: { type: string, enum: [readonly, operator], default: operator }
+        - name: for
+          in: query
+          description: A duration. Absent never expires
+          schema: { type: string }
+      responses:
+        "200":
+          description: The token, with its secret
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MintedToken" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/tokens/{id}/revoke:
+    post:
+      tags: [authentication]
+      summary: Turn one off
+      description: |
+        The row is kept : what a token was called and when it was turned off is
+        a question somebody asks later.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Revoked }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/authority/hosts:
+    get:
+      tags: [push]
+      summary: Push clients waiting to be let in, and those already allowed
+      responses:
+        "200":
+          description: Waiting and allowed, by uuid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorityList" }
+        "500": { description: The push server is not enabled on this wigo }
+
+  /api/authority/hosts/{uuid}/allow:
+    post:
+      tags: [push]
+      summary: Let a client in
+      description: |
+        Needs the operator role and nothing else -- deliberately not
+        `AllowWriteActions`, which is about changing this host's own probes.
+      parameters: [{ $ref: "#/components/parameters/Uuid" }]
+      responses:
+        "200": { description: Allowed }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { description: Unknown uuid, or the push server is not enabled }
+
+  /api/authority/hosts/{uuid}/revoke:
+    post:
+      tags: [push]
+      summary: Throw one out
+      parameters: [{ $ref: "#/components/parameters/Uuid" }]
+      responses:
+        "200": { description: Revoked }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { description: Unknown uuid, or the push server is not enabled }
+
+  /api/openapi.yaml:
+    get:
+      tags: [state]
+      summary: This document
+      responses:
+        "200":
+          description: The specification
+          content:
+            application/yaml:
+              schema: { type: string }
+
+  /metrics:
+    get:
+      tags: [state]
+      summary: Everything wigo knows, in the prometheus text format
+      description: |
+        Outside /api on purpose : /metrics is where every scraper looks. A
+        master exposes its whole tree, so one scrape covers the fleet.
+      responses:
+        "200":
+          description: The exposition
+          content:
+            text/plain:
+              schema: { type: string }
+
+components:
+  parameters:
+    Hostname:
+      name: hostname
+      in: path
+      required: true
+      schema: { type: string }
+    Group:
+      name: group
+      in: path
+      required: true
+      schema: { type: string }
+    Probe:
+      name: probe
+      in: path
+      required: true
+      schema: { type: string }
+    Uuid:
+      name: uuid
+      in: path
+      required: true
+      schema: { type: string }
+    LogGroup:
+      name: group
+      in: query
+      schema: { type: string }
+    LogHostname:
+      name: hostname
+      in: query
+      schema: { type: string }
+    LogProbe:
+      name: probe
+      in: query
+      schema: { type: string }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1 }
+    Since:
+      name: since
+      in: query
+      description: Unix timestamp
+      schema: { type: integer }
+    Until:
+      name: until
+      in: query
+      description: Unix timestamp. Absent means now
+      schema: { type: integer }
+    Points:
+      name: points
+      in: query
+      description: How many buckets to return
+      schema: { type: integer, minimum: 1 }
+    Reason:
+      name: reason
+      in: query
+      description: Why. Recorded and shown, so somebody reading it later knows
+      schema: { type: string }
+    For:
+      name: for
+      in: query
+      description: A duration, like 4h or 720h
+      schema: { type: string }
+    SuppressionProbe:
+      name: probe
+      in: query
+      description: A probe, or absent for the whole host
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: The request could not be understood. The body says why, in a sentence
+      content:
+        application/json:
+          schema: { type: string }
+    Unauthorized:
+      description: A credential is needed, or the one presented was refused
+    Forbidden:
+      description: |
+        Understood and refused. The body says which of the two gates said no :
+        the host not accepting changes, or the caller not being an operator
+      content:
+        application/json:
+          schema: { type: string }
+    NotFound:
+      description: No such host, probe, group or token
+      content:
+        application/json:
+          schema: { type: string }
+    Schedule:
+      description: The schedule as it now stands
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ProbesSchedule" }
+    Suppressions:
+      description: What is held back as it now stands
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/SuppressionList" }
+
+  schemas:
+    Wigo:
+      type: object
+      description: |
+        One wigo and everything under it. Deliberately not written out field by
+        field : it is the internal state serialised, it is large, and a
+        specification that copies a struct is a specification that disagrees
+        with it. Read `src/wigo/global.go` for the shape that matters.
+      properties:
+        Uuid: { type: string }
+        Version: { type: string }
+        IsAlive: { type: boolean }
+        GlobalStatus: { type: integer }
+        GlobalMessage: { type: string }
+        Hostname: { type: string }
+        LastUpdate: { type: integer }
+        LocalHost: { type: object }
+        RemoteWigos: { type: object }
+
+    Logs:
+      type: array
+      items:
+        type: object
+        properties:
+          Date: { type: string, description: Formatted for reading, with the timezone }
+          Timestamp: { type: integer }
+          Level: { type: integer, description: The log scale, not the probe one }
+          Message: { type: string }
+          Host: { type: string }
+          Probe: { type: string }
+          Group: { type: string }
+
+    GroupSummary:
+      type: object
+      properties:
+        Name: { type: string }
+        Status: { type: integer }
+        Hosts:
+          type: array
+          items:
+            type: object
+            properties:
+              Name: { type: string }
+              Message: { type: string }
+              Status: { type: integer }
+              IsAlive: { type: boolean }
+              Probes:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    Name: { type: string }
+                    Message: { type: string }
+                    Status: { type: integer }
+
+    ProbeResult:
+      type: object
+      properties:
+        Name: { type: string }
+        Version: { type: string }
+        Value: { type: string }
+        Message: { type: string }
+        ProbeDate: { type: string }
+        Timestamp: { type: integer }
+        Interval: { type: integer }
+        Status: { type: integer }
+        ExitCode: { type: integer }
+        Metrics:
+          type: array
+          items:
+            type: object
+            properties:
+              Value: { type: number }
+              Tags: { type: object, additionalProperties: { type: string } }
+        Detail:
+          description: Whatever the probe returned. Any shape
+
+    ProbesSchedule:
+      type: object
+      properties:
+        Hostname: { type: string }
+        WriteActionsAllowed:
+          type: boolean
+          description: Whether this caller could change it, so a client need not try
+        Probes:
+          type: array
+          items:
+            type: object
+            properties:
+              Name: { type: string }
+              Directory: { type: string, description: An interval, or "examples" when nothing schedules it }
+              Interval: { type: integer, description: Zero when nothing schedules it }
+              Enabled: { type: boolean }
+        SkippedProbes:
+          type: array
+          items: { type: string }
+          description: Probes that ran and asked not to be run again, until a restart
+        DisableRecords:
+          type: array
+          items:
+            type: object
+            properties:
+              Probe: { type: string }
+              Reason: { type: string }
+              Author: { type: string }
+              Interval: { type: integer }
+              CreatedAt: { type: integer }
+              Until: { type: integer }
+
+    ProbeMetrics:
+      type: object
+      properties:
+        Host: { type: string }
+        Probe: { type: string }
+        Since: { type: integer }
+        Until: { type: integer }
+        Series:
+          type: array
+          items:
+            type: object
+            properties:
+              Tags: { type: object, additionalProperties: { type: string } }
+              Points:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    At: { type: integer }
+                    Value: { type: number, description: The average of the bucket }
+                    Min: { type: number }
+                    Max: { type: number }
+
+    StatusTimeline:
+      type: object
+      properties:
+        Host: { type: string }
+        Probe: { type: string }
+        Since: { type: integer }
+        Until: { type: integer }
+        StatusAtStart:
+          type: integer
+          description: What it was when the window opened. -1 for never seen
+        HistoryDays:
+          type: integer
+          description: How many days this host keeps. Zero means it keeps none
+        Changes:
+          type: array
+          items:
+            type: object
+            properties:
+              Host: { type: string }
+              Probe: { type: string }
+              Group: { type: string }
+              Was: { type: integer, description: -1 when it appeared }
+              Now: { type: integer, description: -1 when it went away }
+              Message: { type: string }
+              At: { type: integer }
+
+    SuppressionList:
+      type: object
+      properties:
+        WriteActionsAllowed: { type: boolean }
+        Suppressions:
+          type: array
+          items:
+            type: object
+            properties:
+              Kind: { type: string, enum: [ack, silence] }
+              Scope: { type: string, enum: [host, group] }
+              Target: { type: string }
+              Probe: { type: string }
+              Reason: { type: string }
+              Author: { type: string }
+              Status: { type: integer }
+              CreatedAt: { type: integer }
+              Until: { type: integer }
+        Flapping:
+          type: array
+          items: { type: string }
+          description: As "host/probe"
+        BehindSomethingDown:
+          type: array
+          items:
+            type: object
+            properties:
+              Host: { type: string }
+              Behind: { type: string }
+
+    Caller:
+      type: object
+      properties:
+        Name: { type: string, description: '"anonymous", a login, or token "name"' }
+        Role: { type: string, enum: [readonly, operator] }
+        WriteActionsAllowed: { type: boolean }
+        CanSignIn:
+          type: boolean
+          description: Whether a credential is configured at all
+
+    TokenList:
+      type: array
+      items:
+        type: object
+        properties:
+          Id: { type: integer }
+          Name: { type: string }
+          Role: { type: string }
+          CreatedAt: { type: integer }
+          ExpiresAt: { type: integer, description: Zero never expires }
+          RevokedAt: { type: integer, description: Zero while still good }
+          LastUsed: { type: integer, description: Zero until first used }
+
+    MintedToken:
+      type: object
+      properties:
+        Token: { $ref: "#/components/schemas/TokenList/items" }
+        Secret:
+          type: string
+          description: Readable exactly once. Only its sha256 is kept
+
+    AuthorityList:
+      type: object
+      properties:
+        waiting:
+          type: object
+          additionalProperties: { type: string }
+          description: Hostname by uuid
+        allowed:
+          type: object
+          additionalProperties: { type: string }

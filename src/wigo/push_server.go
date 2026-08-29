@@ -215,6 +215,10 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 			} else {
 				log.Printf("Push server : Update from %s with uuid %s", req.WigoHostname, req.Uuid)
 				wigo.SetParentHostsInProbes()
+				SetClientAcceptsRemoteControl(req.Uuid, req.AllowRemoteControl)
+				if req.ProbesSchedule != nil {
+					SetClientProbesSchedule(req.Uuid, req.ProbesSchedule, req.SkippedProbes, req.DisableRecords)
+				}
 				// TODO this should return an error
 				LocalWigo.AddOrUpdateRemoteWigo(wigo)
 			}
@@ -224,6 +228,30 @@ func (this *PushServer) Update(req UpdateRequest, reply *bool) (err error) {
 		err = errors.New("NOT ALLOWED")
 	}
 	return
+}
+
+// Hand a client the orders waiting for it.
+//
+// Added as a new method on purpose. Changing the reply of an existing one would
+// break both directions at once, while an unknown method is a plain error the
+// caller can shrug off, and a client too old to call this simply never receives
+// an order -- which is right, since it could not carry one out either.
+func (this *PushServer) PollCommands(req Request, reply *CommandBatch) (err error) {
+	if LocalWigo.GetConfig().Global.Debug && LocalWigo.GetConfig().Global.Trace {
+		log.Printf("Push server Debug : PollCommands \n%s", ToJson(req))
+	}
+
+	if err = this.auth(&req); err != nil {
+		log.Printf("Push server : PollCommands for uuid %s refused, you're not allowed", req.Uuid)
+		return errors.New("NOT ALLOWED")
+	}
+
+	reply.Commands = takeProbeCommands(req.Uuid)
+	if len(reply.Commands) > 0 {
+		log.Printf("Push server : handing %d order(s) to client %s", len(reply.Commands), req.Uuid)
+	}
+
+	return nil
 }
 
 // Disconnect the client gracefully
@@ -289,6 +317,28 @@ type UpdateRequest struct {
 	*Request
 	WigoJson     string
 	WigoHostname string
+
+	// Whether this client lets its server enable, disable and repitch its
+	// probes. Reported on every update so a change on the client is picked up
+	// without anything to do on the server. A client too old to know about this
+	// leaves it false, which is a refusal, so an upgrade of the server alone
+	// never opens a single client.
+	AllowRemoteControl bool
+
+	// Every probe of this client with its interval, the disabled ones included.
+	// A disabled probe produces no result, and results are all that used to
+	// travel, so without this one is simply invisible from the server.
+	ProbesSchedule []ProbeLocation
+
+	// Probes this client ran that asked not to be run again, cf. ProbesSchedule
+	// on the same reasoning : they are scheduled and produce no result, so from
+	// the server they look like probes that have never run.
+	SkippedProbes []string
+
+	// Why somebody turned a probe off here. Same reasoning again : the server
+	// cannot ask, and without this a client's disabled probes all look like
+	// probes nobody ever enabled.
+	DisableRecords []ProbeDisableRecord
 }
 
 func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
@@ -300,5 +350,18 @@ func NewUpdateRequest(wigo *Wigo, token string) (this *UpdateRequest) {
 	}
 	this.WigoJson = json
 	this.WigoHostname = wigo.GetHostname()
+	// Our own configuration, not that of the wigo being serialised : a wigo
+	// rebuilt from json carries none, and what we are reporting here is whether
+	// this machine accepts being driven.
+	this.AllowRemoteControl = GetLocalWigo().GetConfig().PushClient.AllowRemoteControl
+
+	if locations, err := ProbeLocations(); err == nil {
+		this.ProbesSchedule = locations
+	} else {
+		log.Printf("Push client : unable to read the probes directory : %s", err)
+	}
+	this.SkippedProbes = GetLocalWigo().GetDisabledProbes()
+	this.DisableRecords = ProbeDisableRecords()
+
 	return
 }

@@ -1,0 +1,56 @@
+# A master watching two clients, which is the smallest thing that shows what
+# wigo is for : one interface, one /metrics, several machines.
+#
+#   docker compose -f build/docker/docker-compose.yml up
+#
+# Then http://localhost:4000 for the interface, and /metrics for Prometheus --
+# scraping the master alone gets all three hosts.
+#
+# PULL mode, because it works with nothing else configured. PUSH is what you
+# want when the clients sit somewhere the master cannot reach, and it needs
+# certificates and the authority handshake on top.
+
+services:
+  master:
+    image: "ghcr.io/root-gg/wigo:latest"
+    container_name: "wigo-master"
+    ports:
+      - "4000:4000"
+    volumes:
+      - "./master.conf:/etc/wigo/wigo.conf:ro"
+      # The probes directory decides what runs and how often, so it outlives the
+      # container : without this, every probe an operator enabled, disabled or
+      # repitched would come back to the defaults on the next `up`.
+      - "master-probes:/usr/local/wigo/probes"
+      # The logs, the disable records and the acks. Losing it does not stop the
+      # monitoring, but it does lose why somebody turned a probe off.
+      - "master-data:/var/lib/wigo"
+    restart: "unless-stopped"
+
+  client-one:
+    image: "ghcr.io/root-gg/wigo:latest"
+    container_name: "wigo-client-one"
+    hostname: "client-one"
+    volumes:
+      - "./client.conf:/etc/wigo/wigo.conf:ro"
+      - "client-one-probes:/usr/local/wigo/probes"
+      - "client-one-data:/var/lib/wigo"
+    restart: "unless-stopped"
+
+  client-two:
+    image: "ghcr.io/root-gg/wigo:latest"
+    container_name: "wigo-client-two"
+    hostname: "client-two"
+    volumes:
+      - "./client.conf:/etc/wigo/wigo.conf:ro"
+      - "client-two-probes:/usr/local/wigo/probes"
+      - "client-two-data:/var/lib/wigo"
+    restart: "unless-stopped"
+
+volumes:
+  master-probes:
+  master-data:
+  client-one-probes:
+  client-one-data:
+  client-two-probes:
+  client-two-data:

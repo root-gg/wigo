@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
-
-	"github.com/codegangsta/martini"
 )
 
 func TestHttpRemotesHandler(t *testing.T) {
@@ -14,7 +12,7 @@ func TestHttpRemotesHandler(t *testing.T) {
 	wigo.RemoteWigos.Set("db-2", newTestRemoteWigo("uuid-2", "db-2", "databases"))
 
 	// Without a hostname the handler lists the known wigos
-	code, body := HttpRemotesHandler(martini.Params{})
+	code, body := HttpRemotesHandler(nil, testRequest(t))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -28,7 +26,7 @@ func TestHttpRemotesHandler(t *testing.T) {
 	}
 
 	// With a hostname it returns the whole wigo
-	code, body = HttpRemotesHandler(martini.Params{"hostname": "db-2"})
+	code, body = HttpRemotesHandler(nil, testRequest(t, "hostname", "db-2"))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -40,7 +38,7 @@ func TestHttpRemotesHandler(t *testing.T) {
 		t.Errorf("Hostname = %s, expected db-2", decoded.GetHostname())
 	}
 
-	if code, _ := HttpRemotesHandler(martini.Params{"hostname": "unknown"}); code != 404 {
+	if code, _ := HttpRemotesHandler(nil, testRequest(t, "hostname", "unknown")); code != 404 {
 		t.Errorf("Code = %d, expected 404 for an unknown host", code)
 	}
 }
@@ -53,7 +51,7 @@ func TestHttpRemotesProbesHandler(t *testing.T) {
 	wigo.RemoteWigos.Set("db-2", remote)
 
 	// Probes list
-	code, body := HttpRemotesProbesHandler(martini.Params{"hostname": "db-2"})
+	code, body := HttpRemotesProbesHandler(nil, testRequest(t, "hostname", "db-2"))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -66,7 +64,7 @@ func TestHttpRemotesProbesHandler(t *testing.T) {
 	}
 
 	// A single probe
-	code, body = HttpRemotesProbesHandler(martini.Params{"hostname": "db-2", "probe": "load"})
+	code, body = HttpRemotesProbesHandler(nil, testRequest(t, "hostname", "db-2", "probe", "load"))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -78,10 +76,10 @@ func TestHttpRemotesProbesHandler(t *testing.T) {
 		t.Errorf("Status = %d, expected 300", probe.Status)
 	}
 
-	if code, _ := HttpRemotesProbesHandler(martini.Params{}); code != 404 {
+	if code, _ := HttpRemotesProbesHandler(nil, testRequest(t)); code != 404 {
 		t.Errorf("Code = %d, expected 404 without a hostname", code)
 	}
-	if code, _ := HttpRemotesProbesHandler(martini.Params{"hostname": "unknown"}); code != 404 {
+	if code, _ := HttpRemotesProbesHandler(nil, testRequest(t, "hostname", "unknown")); code != 404 {
 		t.Errorf("Code = %d, expected 404 for an unknown host", code)
 	}
 }
@@ -93,15 +91,15 @@ func TestHttpRemotesStatusHandler(t *testing.T) {
 	remote.GlobalStatus = 300
 	wigo.RemoteWigos.Set("db-2", remote)
 
-	code, body := HttpRemotesStatusHandler(martini.Params{"hostname": "db-2"})
+	code, body := HttpRemotesStatusHandler(nil, testRequest(t, "hostname", "db-2"))
 	if code != 200 || body != "300" {
 		t.Errorf("Got code %d and body %q, expected 200 and 300", code, body)
 	}
 
-	if code, _ := HttpRemotesStatusHandler(martini.Params{}); code != 404 {
+	if code, _ := HttpRemotesStatusHandler(nil, testRequest(t)); code != 404 {
 		t.Errorf("Code = %d, expected 404 without a hostname", code)
 	}
-	if code, _ := HttpRemotesStatusHandler(martini.Params{"hostname": "unknown"}); code != 404 {
+	if code, _ := HttpRemotesStatusHandler(nil, testRequest(t, "hostname", "unknown")); code != 404 {
 		t.Errorf("Code = %d, expected 404 for an unknown host", code)
 	}
 }
@@ -113,15 +111,15 @@ func TestHttpRemotesProbesStatusHandler(t *testing.T) {
 	remote.LocalHost.Probes.Set("load", newTestProbe(remote.LocalHost, "load", 250))
 	wigo.RemoteWigos.Set("db-2", remote)
 
-	code, body := HttpRemotesProbesStatusHandler(martini.Params{"hostname": "db-2", "probe": "load"})
+	code, body := HttpRemotesProbesStatusHandler(nil, testRequest(t, "hostname", "db-2", "probe", "load"))
 	if code != 200 || body != "250" {
 		t.Errorf("Got code %d and body %q, expected 200 and 250", code, body)
 	}
 
-	if code, _ := HttpRemotesProbesStatusHandler(martini.Params{"hostname": "db-2"}); code != 404 {
+	if code, _ := HttpRemotesProbesStatusHandler(nil, testRequest(t, "hostname", "db-2")); code != 404 {
 		t.Errorf("Code = %d, expected 404 without a probe name", code)
 	}
-	if code, _ := HttpRemotesProbesStatusHandler(martini.Params{"hostname": "db-2", "probe": "unknown"}); code != 404 {
+	if code, _ := HttpRemotesProbesStatusHandler(nil, testRequest(t, "hostname", "db-2", "probe", "unknown")); code != 404 {
 		t.Errorf("Code = %d, expected 404 for an unknown probe", code)
 	}
 }
@@ -134,7 +132,7 @@ func TestHttpGroupsHandler(t *testing.T) {
 	wigo.RemoteWigos.Set("uuid-2", remote)
 
 	// Groups list
-	code, body := HttpGroupsHandler(martini.Params{})
+	code, body := HttpGroupsHandler(nil, testRequest(t))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -147,7 +145,7 @@ func TestHttpGroupsHandler(t *testing.T) {
 	}
 
 	// Group summary
-	code, body = HttpGroupsHandler(martini.Params{"group": "frontend"})
+	code, body = HttpGroupsHandler(nil, testRequest(t, "group", "frontend"))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -182,7 +180,7 @@ func TestHttpLogsHandler(t *testing.T) {
 		t.Fatalf("Fail to build the request : %s", err)
 	}
 
-	code, body := HttpLogsHandler(martini.Params{}, request)
+	code, body := HttpLogsHandler(nil, request)
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -205,7 +203,7 @@ func TestHttpLogsHandlerWithUnknownHost(t *testing.T) {
 		t.Fatalf("Fail to build the request : %s", err)
 	}
 
-	if code, _ := HttpLogsHandler(martini.Params{}, request); code != 404 {
+	if code, _ := HttpLogsHandler(nil, request); code != 404 {
 		t.Errorf("Code = %d, expected 404 for an unknown host", code)
 	}
 }
@@ -220,7 +218,7 @@ func TestHttpLogsIndexesHandler(t *testing.T) {
 	}
 	waitForLog(t, "indexes test")
 
-	code, body := HttpLogsIndexesHandler(martini.Params{})
+	code, body := HttpLogsIndexesHandler(nil, testRequest(t))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -245,13 +243,13 @@ func TestHttpAuthorityHandlersWithoutPushServer(t *testing.T) {
 
 	setupTestWigo(t, "databases")
 
-	if code, _ := HttpAuthorityListHandler(martini.Params{}); code != 500 {
+	if code, _ := HttpAuthorityListHandler(nil, testRequest(t)); code != 500 {
 		t.Errorf("Code = %d, expected 500", code)
 	}
-	if code, _ := HttpAuthorityAllowHandler(martini.Params{"uuid": testClientUuid}); code != 500 {
+	if code, _ := HttpAuthorityAllowHandler(nil, testRequest(t, "uuid", testClientUuid)); code != 500 {
 		t.Errorf("Code = %d, expected 500", code)
 	}
-	if code, _ := HttpAuthorityRevokeHandler(martini.Params{"uuid": testClientUuid}); code != 500 {
+	if code, _ := HttpAuthorityRevokeHandler(nil, testRequest(t, "uuid", testClientUuid)); code != 500 {
 		t.Errorf("Code = %d, expected 500", code)
 	}
 }
@@ -263,7 +261,7 @@ func TestHttpAuthorityHandlers(t *testing.T) {
 
 	wigo.push.authority.AddClientToWaitingList(testClientUuid, "db-1")
 
-	code, body := HttpAuthorityListHandler(martini.Params{})
+	code, body := HttpAuthorityListHandler(nil, testRequest(t))
 	if code != 200 {
 		t.Fatalf("Code = %d, expected 200", code)
 	}
@@ -277,7 +275,7 @@ func TestHttpAuthorityHandlers(t *testing.T) {
 	}
 
 	// Allow it
-	if code, _ := HttpAuthorityAllowHandler(martini.Params{"uuid": testClientUuid}); code != 200 {
+	if code, _ := HttpAuthorityAllowHandler(nil, testRequest(t, "uuid", testClientUuid)); code != 200 {
 		t.Errorf("Code = %d, expected 200", code)
 	}
 	if !wigo.push.authority.IsAllowed(testClientUuid) {
@@ -285,7 +283,7 @@ func TestHttpAuthorityHandlers(t *testing.T) {
 	}
 
 	// Then revoke it
-	if code, _ := HttpAuthorityRevokeHandler(martini.Params{"uuid": testClientUuid}); code != 200 {
+	if code, _ := HttpAuthorityRevokeHandler(nil, testRequest(t, "uuid", testClientUuid)); code != 200 {
 		t.Errorf("Code = %d, expected 200", code)
 	}
 	if wigo.push.authority.IsAllowed(testClientUuid) {
@@ -293,7 +291,35 @@ func TestHttpAuthorityHandlers(t *testing.T) {
 	}
 
 	// Allowing an unknown client fails
-	if code, _ := HttpAuthorityAllowHandler(martini.Params{"uuid": "unknown"}); code != 500 {
+	if code, _ := HttpAuthorityAllowHandler(nil, testRequest(t, "uuid", "unknown")); code != 500 {
 		t.Errorf("Code = %d, expected 500 for an unknown client", code)
 	}
+}
+
+// testRequest builds a request carrying the route values a handler reads, which
+// is what the router gives it in production.
+func testRequest(t *testing.T, keyValues ...string) *http.Request {
+	t.Helper()
+
+	request, err := http.NewRequest("GET", "http://localhost/", nil)
+	if err != nil {
+		t.Fatalf("Fail to build the request : %s", err)
+	}
+
+	for i := 0; i+1 < len(keyValues); i += 2 {
+		request.SetPathValue(keyValues[i], keyValues[i+1])
+	}
+
+	return request
+}
+
+func testRequestWithQuery(t *testing.T, query string) *http.Request {
+	t.Helper()
+
+	request, err := http.NewRequest("GET", "http://localhost/?"+query, nil)
+	if err != nil {
+		t.Fatalf("Fail to build the request : %s", err)
+	}
+
+	return request
 }

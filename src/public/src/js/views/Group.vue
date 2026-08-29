@@ -2,6 +2,7 @@
   <AppLayout
     :counts="counts"
     :current-interval="interval"
+    :title-context="groupName"
     @refresh-settings="handleRefreshSettings"
   >
     <template #sidebar>
@@ -29,11 +30,15 @@
         </a>
       </li>
 
-      <li v-for="host in sortedHosts" :key="host.Name" class="nav-item">
+      <li v-for="host in visibleHosts" :key="host.Name" class="nav-item">
         <a
           class="nav-link px-3 py-1 cursor-pointer"
+          role="button"
+          tabindex="0"
           :title="hostTitle(host)"
           @click="gotoAnchor(host.Name)"
+          @keydown.enter.prevent="gotoAnchor(host.Name)"
+          @keydown.space.prevent="gotoAnchor(host.Name)"
         >
           <i class="fas fa-fw fa-server"></i
           ><span
@@ -56,8 +61,31 @@
       </li>
     </template>
 
+    <!-- Faire taire tout un groupe : « on migre toutes les bases cet
+         après-midi ». Ça vaut aussi pour les machines qui rejoindront le
+         groupe pendant la fenêtre, puisque c'est l'étiquette qui est visée et
+         pas une liste de hosts. Acquitter n'est pas proposé : quarante
+         machines n'ont pas un statut unique dont on dise qu'on s'en occupe. -->
+    <div class="d-flex align-items-center justify-content-between gap-2 mt-4">
+      <div v-if="groupSuppression" class="small text-body-secondary">
+        <i class="fas fa-fw fa-bell-slash"></i>
+        {{ describeSuppression(groupSuppression) }}
+      </div>
+      <div v-else class="small text-body-secondary">
+        Notifications about this group are on.
+      </div>
+
+      <SuppressionControl
+        scope="group"
+        :target="groupName"
+        :suppression="groupSuppression"
+        :editable="canSuppress"
+        @changed="onSuppressionsChanged"
+      />
+    </div>
+
     <div
-      v-for="host in sortedHosts"
+      v-for="host in visibleHosts"
       :key="host.Name"
       :id="host.Name"
       class="jump"
@@ -92,7 +120,7 @@
               </thead>
               <tbody>
                 <tr
-                  v-for="probe in sortedProbes(host.Probes)"
+                  v-for="probe in host.visibleProbes"
                   :key="probe.Name"
                   :class="getStatusRowClass(probe.Status)"
                   class="cursor-pointer"
@@ -107,11 +135,15 @@
         </template>
       </StatusCard>
     </div>
+
+    <p v-if="loaded && !visibleHosts.length" class="text-body-secondary my-4">
+      <i class="fas fa-filter me-2"></i>No probe matches the current filter.
+    </p>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "../api/client.js";
 import { getLevel, getStatusRowClass } from "../utils/status.js";
@@ -119,33 +151,87 @@ import AppLayout from "../components/layout/AppLayout.vue";
 import StatusCard from "../components/StatusCard.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useRefresh } from "../composables/useRefresh.js";
+import { useLiveEvents } from "../composables/useLiveEvents.js";
+import { useDashboardFilter } from "../composables/useDashboardFilter.js";
+import SuppressionControl from "../components/SuppressionControl.vue";
+import {
+  suppressionIndex,
+  suppressionFor,
+  describeSuppression,
+} from "../utils/suppression.js";
 
 const route = useRoute();
 const router = useRouter();
 const groupName = ref(route.query.name || "");
 const group = ref(null);
 const hosts = ref([]);
-const counts = ref({
-  OK: 0,
-  INFO: 0,
-  WARNING: 0,
-  CRITICAL: 0,
-  ERROR: 0,
-});
+const loaded = ref(false);
+const counts = ref(emptyCounts());
 
-const sortedHosts = computed(() => {
-  return [...hosts.value].sort((a, b) => {
-    if (b.Status !== a.Status) return b.Status - a.Status;
-    return a.Name.localeCompare(b.Name);
-  });
-});
+const { matches } = useDashboardFilter();
 
-function sortedProbes(probes) {
-  return [...probes].sort((a, b) => {
-    if (b.Status !== a.Status) return b.Status - a.Status;
-    return a.Name.localeCompare(b.Name);
-  });
+const suppressions = ref({ WriteActionsAllowed: false, Suppressions: [] });
+
+// Décidé là où partent les notifications, donc sur ce wigo-ci
+const canSuppress = computed(() => !!suppressions.value.WriteActionsAllowed);
+
+const groupSuppression = computed(() =>
+  suppressionFor(
+    suppressionIndex(suppressions.value.Suppressions),
+    "group",
+    groupName.value,
+    "",
+  ),
+);
+
+function onSuppressionsChanged(updated) {
+  if (updated && Array.isArray(updated.Suppressions)) {
+    suppressions.value = updated;
+  }
 }
+
+async function loadSuppressions() {
+  try {
+    suppressions.value = await api.getSuppressions();
+  } catch (error) {
+    // Un wigo trop ancien n'a pas cet endpoint : le reste de la page marche
+    console.warn("Suppressions unavailable:", error.message);
+  }
+}
+
+function emptyCounts() {
+  return {
+    OK: 0,
+    INFO: 0,
+    WARNING: 0,
+    CRITICAL: 0,
+    ERROR: 0,
+  };
+}
+
+function byStatusThenName(a, b) {
+  if (b.Status !== a.Status) return b.Status - a.Status;
+  return a.Name.localeCompare(b.Name);
+}
+
+const sortedHosts = computed(() => [...hosts.value].sort(byStatusThenName));
+
+/**
+ * Les compteurs de la vue groupe comptent des probes : le filtre porte donc
+ * sur les probes, et un host sans probe visible disparaît.
+ */
+const visibleHosts = computed(() =>
+  sortedHosts.value
+    .map((host) => ({
+      ...host,
+      visibleProbes: [...host.Probes]
+        .sort(byStatusThenName)
+        .filter((probe) =>
+          matches(probe.Level, probe.Name, probe.Message, host.Name),
+        ),
+    }))
+    .filter((host) => host.visibleProbes.length > 0),
+);
 
 function gotoHost(hostName) {
   router.push({ path: "/host", query: { name: hostName } });
@@ -180,47 +266,43 @@ function hostTitle(host) {
 }
 
 async function load() {
-  hosts.value = [];
-  counts.value = {
-    OK: 0,
-    INFO: 0,
-    WARNING: 0,
-    CRITICAL: 0,
-    ERROR: 0,
-  };
-
   if (!groupName.value) return;
 
   try {
     const groupData = await api.getGroup(groupName.value);
-    group.value = groupData;
-    group.value.Level = getLevel(group.value.Status);
+    groupData.Level = getLevel(groupData.Status);
+
+    const nextCounts = emptyCounts();
+    const nextHosts = [];
 
     for (const host of groupData.Hosts) {
-      host.counts = {
-        OK: 0,
-        INFO: 0,
-        WARNING: 0,
-        CRITICAL: 0,
-        ERROR: 0,
-      };
+      host.counts = emptyCounts();
       host.Level = getLevel(host.Status);
 
       for (const probe of host.Probes) {
         probe.Level = getLevel(probe.Status);
-        counts.value[probe.Level]++;
+        nextCounts[probe.Level]++;
         host.counts[probe.Level]++;
       }
 
-      hosts.value.push(host);
+      nextHosts.push(host);
     }
+
+    group.value = groupData;
+    hosts.value = nextHosts;
+    counts.value = nextCounts;
+    loaded.value = true;
   } catch (error) {
     console.error("Error loading group:", error);
   }
 }
 
+async function loadAll() {
+  await Promise.all([load(), loadSuppressions()]);
+}
+
 const { startRefresh, stopRefresh, setRefreshInterval, interval } = useRefresh(
-  load,
+  loadAll,
   60,
 );
 
@@ -228,9 +310,26 @@ function handleRefreshSettings(seconds) {
   setRefreshInterval(seconds);
 }
 
+// Le composant n'est pas remonté quand seul le paramètre change
+// (/group?name=a -> /group?name=b) : il faut recharger explicitement.
+watch(
+  () => route.query.name,
+  (name) => {
+    groupName.value = name || "";
+    hosts.value = [];
+    group.value = null;
+    loaded.value = false;
+    counts.value = emptyCounts();
+    load();
+  },
+);
+
+// Le flux donne l'immédiateté, le rafraîchissement périodique reste le filet
+useLiveEvents(loadAll);
+
 onMounted(() => {
   groupName.value = route.query.name || "";
-  load();
+  loadAll();
   startRefresh();
 });
 

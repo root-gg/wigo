@@ -1,7 +1,6 @@
 package wigo
 
 import (
-	"container/list"
 	"database/sql"
 	"log"
 	"os"
@@ -32,7 +31,8 @@ func TestMain(m *testing.M) {
 	LocalWigo.LocalHost.Name = "test-host"
 	LocalWigo.LocalHost.SetParentWigo(LocalWigo)
 	LocalWigo.RemoteWigos = NewConcurrentMapWigos()
-	LocalWigo.disabledProbes = list.New()
+	LocalWigo.disabledProbes = make(map[string]bool)
+	LocalWigo.disabledProbesLock = new(sync.RWMutex)
 
 	// Give the asynchronous log writes a real database to work on
 	conn, err := sql.Open("sqlite", ":memory:")
@@ -41,6 +41,21 @@ func TestMain(m *testing.M) {
 	}
 	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS logs (id integer not null primary key, date timestamp, level int, grp text, host text, probe text, message text)`); err != nil {
 		log.Fatalf("Fail to create the logs table : %s", err)
+	}
+	if _, err := conn.Exec(createDisabledProbesTable); err != nil {
+		log.Fatalf("Fail to create the disabled probes table : %s", err)
+	}
+	if _, err := conn.Exec(createSuppressionsTable); err != nil {
+		log.Fatalf("Fail to create the suppressions table : %s", err)
+	}
+	if _, err := conn.Exec(createApiTokensTable); err != nil {
+		log.Fatalf("Fail to create the api tokens table : %s", err)
+	}
+	if _, err := conn.Exec(createMetricsTable); err != nil {
+		log.Fatalf("Fail to create the metrics table : %s", err)
+	}
+	if _, err := conn.Exec(createStatusChangesTable); err != nil {
+		log.Fatalf("Fail to create the status changes table : %s", err)
 	}
 	LocalWigo.sqlLiteLock = new(sync.Mutex)
 	LocalWigo.sqlLiteConn = conn
@@ -54,8 +69,15 @@ func TestMain(m *testing.M) {
 func setupTestWigo(t *testing.T, group string) *Wigo {
 	t.Helper()
 
+	// Every section a real configuration has : anything reading one that was
+	// left nil here would panic in a test while working perfectly in
+	// production, which says nothing useful.
 	config := new(Config)
 	config.Global = new(GeneralConfig)
+	config.Http = new(HttpConfig)
+	config.PushServer = new(PushServerConfig)
+	config.PushClient = new(PushClientConfig)
+	config.RemoteWigos = new(RemoteWigoConfig)
 	config.Notifications = new(NotificationConfig)
 	config.Notifications.MinLevelToSend = 250
 	config.OpenTSDB = new(OpenTSDBConfig)
@@ -70,7 +92,8 @@ func setupTestWigo(t *testing.T, group string) *Wigo {
 	LocalWigo.LocalHost.Group = group
 	LocalWigo.LocalHost.SetParentWigo(LocalWigo)
 	LocalWigo.RemoteWigos = NewConcurrentMapWigos()
-	LocalWigo.disabledProbes = list.New()
+	LocalWigo.disabledProbes = make(map[string]bool)
+	LocalWigo.disabledProbesLock = new(sync.RWMutex)
 	LocalWigo.push = nil
 
 	Channels = new(Chans)
@@ -80,6 +103,21 @@ func setupTestWigo(t *testing.T, group string) *Wigo {
 	LocalWigo.sqlLiteLock.Lock()
 	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM logs`); err != nil {
 		t.Fatalf("Fail to clean the logs table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM disabled_probes`); err != nil {
+		t.Fatalf("Fail to clean the disabled probes table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM suppressions`); err != nil {
+		t.Fatalf("Fail to clean the suppressions table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM api_tokens`); err != nil {
+		t.Fatalf("Fail to clean the api tokens table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM metrics`); err != nil {
+		t.Fatalf("Fail to clean the metrics table : %s", err)
+	}
+	if _, err := LocalWigo.sqlLiteConn.Exec(`DELETE FROM status_changes`); err != nil {
+		t.Fatalf("Fail to clean the status changes table : %s", err)
 	}
 	LocalWigo.sqlLiteLock.Unlock()
 
@@ -100,7 +138,8 @@ func newTestRemoteWigo(uuid string, hostname string, group string) *Wigo {
 	this.LocalHost.Group = group
 	this.LocalHost.SetParentWigo(this)
 	this.RemoteWigos = NewConcurrentMapWigos()
-	this.disabledProbes = list.New()
+	this.disabledProbes = make(map[string]bool)
+	this.disabledProbesLock = new(sync.RWMutex)
 
 	return this
 }

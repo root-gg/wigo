@@ -11,6 +11,26 @@
 
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="stylesheet" href="scss/styles.scss" />
+
+    <script>
+      // Le thème est appliqué avant le premier rendu, sinon la page apparaît
+      // en clair le temps que le bundle se charge. Doit rester synchrone et
+      // aligné avec composables/useTheme.js.
+      (function () {
+        try {
+          var stored = localStorage.getItem("wigo.theme");
+          document.documentElement.dataset.bsTheme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+        } catch (e) {
+          document.documentElement.dataset.bsTheme = "light";
+        }
+      })();
+    </script>
+
     <script type="module" src="./js/main.js"></script>
   </head>
   <body>

@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# $1 is the action, $2 the previously configured version when there is one.
+# Anything other than "configure" (abort-upgrade, abort-remove, ...) must not
+# run the body of this script.
+if [ "$1" != "configure" ] ; then
+    exit 0
+fi
+
 echo "Installing WiGO on your system"
 
 WIGOPATH="/usr/local/wigo"
@@ -26,28 +33,42 @@ for configFile in $CONFIGFILES; do
     fi
 done
 
-# Enabling default probes on 60 directory
-echo "Enabling default probes.."
+# Enabling default probes, on a fresh install only.
+#
+# Which probes are enabled and how often they run is expressed by the probes
+# directory itself : a symlink under probes/<interval>/ pointing into
+# probes/examples/, and no symlink at all when the probe is disabled. That state
+# belongs to the administrator, and re-seeding it on every upgrade would undo
+# their choices -- a disabled probe would come back, and one moved to another
+# interval would end up running at both.
+#
+# Half of the probes shipped in probes/examples/ are deliberately left disabled
+# here : they are for services most machines do not run.
+if [ -z "$2" ] ; then
+    echo "Enabling default probes.."
 
-cd $WIGOPATH/probes/60
-for probeName in ${EXAMPLEPROBES60[@]}; do 
-    if [ ! -e $probeName ] ; then
-        echo " - Enabling $probeName every 60 seconds"
-        ln -s ../examples/$probeName .
-    else
-        echo " - Probe $probeName already exists. Doing nothing.."
-    fi
-done
+    cd $WIGOPATH/probes/60
+    for probeName in ${EXAMPLEPROBES60[@]}; do
+        if [ ! -e $probeName ] ; then
+            echo " - Enabling $probeName every 60 seconds"
+            ln -s ../examples/$probeName .
+        else
+            echo " - Probe $probeName already exists. Doing nothing.."
+        fi
+    done
 
-cd $WIGOPATH/probes/300
-for probeName in ${EXAMPLEPROBES300[@]}; do
-    if [ ! -e $probeName ] ; then
-        echo " - Enabling $probeName every 300 seconds"
-        ln -s ../examples/$probeName .
-    else
-        echo " - Probe $probeName already exists. Doing nothing.."
-    fi
-done
+    cd $WIGOPATH/probes/300
+    for probeName in ${EXAMPLEPROBES300[@]}; do
+        if [ ! -e $probeName ] ; then
+            echo " - Enabling $probeName every 300 seconds"
+            ln -s ../examples/$probeName .
+        else
+            echo " - Probe $probeName already exists. Doing nothing.."
+        fi
+    done
+else
+    echo "Upgrade from $2 : leaving the probes directory untouched"
+fi
 
 if [ -f /etc/init.d/wigo ] ; then
     /etc/init.d/wigo stop

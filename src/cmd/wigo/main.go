@@ -13,20 +13,24 @@ import (
 	"os/signal"
 	"path"
 	"strconv"
-	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/codegangsta/martini"
-	"github.com/codegangsta/martini-contrib/auth"
-	"github.com/codegangsta/martini-contrib/gzip"
-	"github.com/codegangsta/martini-contrib/secure"
 	"github.com/root-gg/wigo/src/wigo"
 
 	"github.com/howeyc/fsnotify"
 )
 
 func main() {
+
+	// Before anything else is set up : minting a token has to work when the api
+	// cannot be reached or cannot be authenticated against, which is the
+	// situation a first token exists to get out of. It needs the database and
+	// nothing else.
+	if len(os.Args) > 1 && os.Args[1] == "token" {
+		os.Exit(runTokenCommand(os.Args[1:]))
+	}
 
 	// Init Wigo
 	err := wigo.InitWigo()
@@ -49,6 +53,35 @@ func main() {
 	go threadLocalChecks()
 	go threadCallbacks(wigo.Channels.ChanCallbacks)
 	go threadRemoteChecks(config.RemoteWigos.AdvancedList)
+
+	// The binary owns probe execution, so it hands the package a way to run one
+	// on demand. Synchronous : the caller is an http request waiting for the
+	// result it just asked for.
+	wigo.SetProbeRunner(execProbe)
+
+	// A probe linked in two interval directories runs from the smaller one only.
+	// The other links do nothing, and a link doing nothing is worth one line at
+	// boot rather than an interval somebody spends an afternoon disbelieving.
+	wigo.LogDuplicateSchedules()
+
+	// A dependency rule naming a host this wigo does not watch does nothing at
+	// all, and doing nothing at all is what a working dependency looks like.
+	wigo.LogDependencyProblems()
+	wigo.LogProbeTimeoutProblems()
+	wigo.LogLabelProblems()
+
+	// Brings back the probes whose disable was meant to be temporary. It is the
+	// only thing that reads that table to act, and it can only ever start a
+	// probe, never stop one.
+	wigo.StartDisabledProbesExpiry()
+
+	// Says again what is still wrong. A problem that broke at 3am and is still
+	// broken at 9am produced exactly one message without this.
+	wigo.StartRenotify()
+
+	// Drops what has aged out of the metrics history
+	wigo.StartMetricsRetention()
+	wigo.StartStatusHistoryRetention()
 
 	if config.Http.Enabled {
 		go threadHttp(config.Http)
@@ -138,8 +171,12 @@ func threadWatch(ci chan wigo.Event) {
 
 func threadLocalChecks() {
 
-	// Directory list
-	var checksDirectories list.List
+	// Directories currently scheduled, each with the channel that stops it.
+	// Written here by the event loop and read by the goroutines it spawns, so
+	// it needs a lock : the previous version scanned a shared container/list
+	// from every directory goroutine without one.
+	activeDirectories := make(map[string]chan struct{})
+	var activeDirectoriesLock sync.Mutex
 
 	// Listen events
 	go func() {
@@ -151,121 +188,155 @@ func threadLocalChecks() {
 
 				var directory string = ev.Value.(string)
 
-				log.Println("Adding directory", directory)
-				checksDirectories.PushBack(directory)
-
-				// Create local list of probes to detect removes
-				currentProbesList, err := wigo.ListProbesInDirectory(directory)
-				if err != nil {
-					log.Printf("Fail to read directory %s : %s", directory, err)
+				// A probes directory is named after its check interval in
+				// seconds. Anything else (examples, disabled, ...) is not a
+				// schedule and is skipped on purpose.
+				interval, isSchedule := wigo.ProbeDirectoryInterval(path.Base(directory))
+				if !isSchedule {
+					log.Printf("Skipping directory %s : its name is not a check interval\n", directory)
+					continue
 				}
 
-				go func() {
-					for {
+				activeDirectoriesLock.Lock()
+				if _, alreadyScheduled := activeDirectories[directory]; alreadyScheduled {
+					activeDirectoriesLock.Unlock()
+					continue
+				}
+				stop := make(chan struct{})
+				activeDirectories[directory] = stop
+				activeDirectoriesLock.Unlock()
 
-						// Am I still a valid directory ?
-						stillValid := false
-						for e := checksDirectories.Front(); e != nil; e = e.Next() {
-							if e.Value == directory {
-								stillValid = true
-							}
-						}
-						if !stillValid {
-
-							// Delete probes results of this directory
-							for c := currentProbesList.Front(); c != nil; c = c.Next() {
-								probeName := c.Value.(string)
-								if _, ok := wigo.GetLocalWigo().GetLocalHost().Probes.Get(probeName); ok {
-									wigo.GetLocalWigo().GetLocalHost().Probes.Remove(probeName)
-								}
-							}
-
-							return
-						}
-
-						// Guess sleep time from dir
-						sleepTime := path.Base(directory)
-						sleepTImeInt, err := strconv.Atoi(sleepTime)
-						if err != nil {
-							log.Printf(" - Weird folder name %s. Doing nothing...\n", directory)
-							return
-						}
-
-						// Update probes list
-						newProbesList, err := wigo.ListProbesInDirectory(directory)
-						if err != nil {
-							break
-						}
-
-						// Check new probes
-						for n := newProbesList.Front(); n != nil; n = n.Next() {
-							newProbeName := n.Value.(string)
-							probeIsNew := true
-
-							// Add probe if new
-							for j := currentProbesList.Front(); j != nil; j = j.Next() {
-								probeName := j.Value.(string)
-
-								if probeName == newProbeName {
-									probeIsNew = false
-								}
-							}
-
-							if probeIsNew {
-								currentProbesList.PushBack(newProbeName)
-								log.Printf("Probe %s has been added in directory %s\n", newProbeName, directory)
-							}
-						}
-
-						// Check deleted probes
-						for c := currentProbesList.Front(); c != nil; c = c.Next() {
-							probeName := c.Value.(string)
-							probeIsDeleted := true
-
-							for n := newProbesList.Front(); n != nil; n = n.Next() {
-								newProbeName := n.Value.(string)
-
-								if probeName == newProbeName {
-									probeIsDeleted = false
-								}
-							}
-
-							if probeIsDeleted {
-								log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName)
-								currentProbesList.Remove(c)
-								wigo.GetLocalWigo().LocalHost.DeleteProbeByName(probeName)
-								continue
-							}
-						}
-
-						// Launching probes
-						log.Printf("Launching probes of directory %s", directory)
-
-						for c := currentProbesList.Front(); c != nil; c = c.Next() {
-							probeName := c.Value.(string)
-
-							if wigo.GetLocalWigo().IsProbeDisabled(probeName) {
-								log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName)
-							} else {
-								go execProbe(directory+"/"+probeName, sleepTImeInt-1)
-							}
-						}
-
-						time.Sleep(time.Second * time.Duration(sleepTImeInt))
-					}
-				}()
+				log.Println("Adding directory", directory)
+				go scheduleProbesDirectory(directory, interval, stop)
 
 			case wigo.REMOVEDIRECTORY:
-				for el := checksDirectories.Front(); el != nil; el = el.Next() {
-					if el.Value == ev.Value {
-						log.Println("Removing directory ", ev.Value)
-						checksDirectories.Remove(el)
-						break
-					}
+
+				var directory string = ev.Value.(string)
+
+				activeDirectoriesLock.Lock()
+				if stop, scheduled := activeDirectories[directory]; scheduled {
+					log.Println("Removing directory ", directory)
+					close(stop)
+					delete(activeDirectories, directory)
 				}
+				activeDirectoriesLock.Unlock()
 			}
 		}
 	}()
+}
+
+// scheduleProbesDirectory runs every probe of a directory, every interval
+// seconds, until stop is closed.
+func scheduleProbesDirectory(directory string, interval int, stop chan struct{}) {
+
+	// Local view of the directory, to detect the probes that appear and go away.
+	// Only what this directory owns : a probe also linked in a smaller interval
+	// runs from there, and running it here as well would have two schedulers
+	// overwrite each other's result at two different rates.
+	currentProbesList, err := wigo.ProbesOwnedBy(directory)
+	if err != nil {
+		log.Printf("Fail to read directory %s : %s", directory, err)
+		currentProbesList = list.New()
+	}
+
+	for {
+		if newProbesList, err := wigo.ProbesOwnedBy(directory); err == nil {
+			for _, probeName := range reconcileProbesList(directory, currentProbesList, newProbesList) {
+				// Leaving this directory does not mean the probe is gone : it
+				// may have been repitched to another interval, and that
+				// directory owns its result now. Dropping it here would delete
+				// a result the other one just produced.
+				if wigo.IsProbeScheduled(probeName) {
+					log.Printf("Probe %s has been moved to another interval, keeping its result\n", probeName)
+					continue
+				}
+
+				wigo.GetLocalWigo().LocalHost.DeleteProbeByName(probeName)
+			}
+		}
+
+		// Launching probes
+		log.Printf("Launching probes of directory %s", directory)
+
+		for c := currentProbesList.Front(); c != nil; c = c.Next() {
+			probeName := c.Value.(string)
+
+			if wigo.GetLocalWigo().IsProbeDisabled(probeName) {
+				log.Printf(" - Probe %s has been disabled earlier. Restart wigo to enable it again!", probeName)
+			} else {
+				go execProbe(directory+"/"+probeName, interval, wigo.ProbeTimeout(probeName, interval))
+			}
+		}
+
+		select {
+		case <-stop:
+			// Drop the results of a directory that is gone
+			for c := currentProbesList.Front(); c != nil; c = c.Next() {
+				probeName := c.Value.(string)
+				if _, ok := wigo.GetLocalWigo().GetLocalHost().Probes.Get(probeName); ok {
+					wigo.GetLocalWigo().GetLocalHost().Probes.Remove(probeName)
+				}
+			}
+			return
+
+		case <-time.After(time.Second * time.Duration(interval)):
+		}
+	}
+}
+
+// reconcileProbesList updates the known probes of a directory in place with
+// what is on disk, and returns the names of the ones that disappeared so the
+// caller can forget their results.
+func reconcileProbesList(directory string, current *list.List, found *list.List) (removed []string) {
+
+	// Check new probes
+	for n := found.Front(); n != nil; n = n.Next() {
+		newProbeName := n.Value.(string)
+		probeIsNew := true
+
+		for c := current.Front(); c != nil; c = c.Next() {
+			if c.Value.(string) == newProbeName {
+				probeIsNew = false
+				break
+			}
+		}
+
+		if probeIsNew {
+			current.PushBack(newProbeName)
+			log.Printf("Probe %s has been added in directory %s\n", newProbeName, directory)
+		}
+	}
+
+	// Check deleted probes. The elements are collected before being removed :
+	// removing one while ranging clears its next pointer, which silently ended
+	// the loop and left every other deleted probe behind until the next cycle.
+	deleted := make([]*list.Element, 0)
+
+	for c := current.Front(); c != nil; c = c.Next() {
+		probeName := c.Value.(string)
+		probeIsDeleted := true
+
+		for n := found.Front(); n != nil; n = n.Next() {
+			if n.Value.(string) == probeName {
+				probeIsDeleted = false
+				break
+			}
+		}
+
+		if probeIsDeleted {
+			deleted = append(deleted, c)
+		}
+	}
+
+	removed = make([]string, 0, len(deleted))
+	for _, c := range deleted {
+		probeName := c.Value.(string)
+		log.Printf("Probe %s has been deleted from filesystem.. Removing it from directory.\n", probeName)
+		current.Remove(c)
+		removed = append(removed, probeName)
+	}
+
+	return removed
 }
 
 func threadRemoteChecks(remoteWigos []wigo.AdvancedRemoteWigoConfig) {
@@ -312,13 +383,25 @@ func threadCallbacks(chanCallbacks chan wigo.INotification) {
 	}
 }
 
-func execProbe(probePath string, timeOut int) {
+// execProbe runs a probe once and publishes its result.
+//
+// The timeout is passed in rather than derived from the interval : a scheduled
+// run gets the whole interval minus a second, while one an operator asked for
+// is capped, since an http request waits on it.
+func execProbe(probePath string, interval int, timeOut int) {
 
 	// Get probe name
 	probeDirectory, probeName := path.Split(probePath)
 
 	// Create ProbeResult
 	var probeResult *wigo.ProbeResult
+
+	// Every result carries the interval it was produced at, so the API can tell
+	// how often a probe runs without reading the probes directory again.
+	publish := func(result *wigo.ProbeResult) {
+		result.Interval = interval
+		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(result)
+	}
 
 	// Stat prob
 	fileInfo, err := os.Stat(probePath)
@@ -342,14 +425,14 @@ func execProbe(probePath string, timeOut int) {
 	outputPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error getting stdout pipe: %s", err), "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 		return
 	}
 
 	errPipe, err := cmd.StderrPipe()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error getting stderr pipe: %s", err), "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 		return
 	}
 
@@ -359,7 +442,7 @@ func execProbe(probePath string, timeOut int) {
 	err = cmd.Start()
 	if err != nil {
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error starting command: %s", err), "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 		return
 	}
 
@@ -369,7 +452,7 @@ func execProbe(probePath string, timeOut int) {
 		commandOutput, err = io.ReadAll(combinedOutput)
 		if err != nil {
 			probeResult = wigo.NewProbeResult(probeName, 500, -1, fmt.Sprintf("error reading pipe: %s", err), "")
-			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+			publish(probeResult)
 			return
 		}
 
@@ -415,13 +498,13 @@ func execProbe(probePath string, timeOut int) {
 
 			// Create error probe
 			probeResult = wigo.NewProbeResult(probeName, 500, exitCode, fmt.Sprintf("error: %s", err), string(commandOutput))
-			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+			publish(probeResult)
 			log.Printf(" - Probe %s in directory %s failed to exec : %s - %s\n", probeResult.Name, probeDirectory, err, probeResult.Detail)
 			return
 
 		} else {
 			probeResult = wigo.NewProbeResultFromJson(probeName, commandOutput)
-			wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+			publish(probeResult)
 
 			log.Printf(" - Probe %s in directory %s responded with status : %d\n", probeResult.Name, probeDirectory, probeResult.Status)
 
@@ -433,7 +516,7 @@ func execProbe(probePath string, timeOut int) {
 
 	case <-time.After(time.Second * time.Duration(timeOut)):
 		probeResult = wigo.NewProbeResult(probeName, 500, -1, "Probe timeout", "")
-		wigo.GetLocalWigo().GetLocalHost().AddOrUpdateProbe(probeResult)
+		publish(probeResult)
 
 		log.Printf(" - Probe %s in directory %s timeouted..\n", probeResult.Name, probeDirectory)
 
@@ -534,6 +617,12 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 			continue
 		}
 
+		// Remember where this remote answered, so a call can later be
+		// forwarded to it. Only known once it has replied : the configuration
+		// holds a network address, while the rest of the API works with the
+		// hostname the remote reports for itself, and the two often differ.
+		wigo.RegisterRemoteEndpoint(wigoObj.Uuid, protocol+host, login, password)
+
 		// Send it to main
 		wigo.GetLocalWigo().AddOrUpdateRemoteWigo(wigoObj)
 
@@ -543,42 +632,108 @@ func launchRemoteHostCheckRoutine(Hostname wigo.AdvancedRemoteWigoConfig) {
 }
 
 func threadHttp(config *wigo.HttpConfig) {
-	apiAddress := config.Address
-	apiPort := config.Port
+	address := config.Address + ":" + strconv.Itoa(config.Port)
 
-	m := martini.New()
+	mux := http.NewServeMux()
+	registerRoutes(mux)
+
+	// Read outermost first : a panic is caught before anything else, and the
+	// credential is checked before a request reaches a handler or a file.
+	middlewares := []wigo.Middleware{wigo.Recovering()}
 
 	if wigo.GetLocalWigo().GetConfig().Global.Debug {
-		// Log requests
-		m.Use(martini.Logger())
+		middlewares = append(middlewares, wigo.Logging())
 	}
 
-	// Compress http responses with gzip
+	middlewares = append(middlewares, wigo.SecurityHeaders())
+
+	// Inside the logging, so the log keeps the url the client actually asked
+	// for : the point of the line is to show what was requested, and a path
+	// silently rewritten before being logged hides the very thing somebody is
+	// reading the log to find.
+	middlewares = append(middlewares, wigo.AcceptingTrailingSlashes())
+
 	if config.Gzip {
 		log.Println("Http server : gzip compression enabled")
-		m.Use(gzip.All())
+		middlewares = append(middlewares, wigo.Gzip())
 	}
 
-	// Add some basic security checks
-	m.Use(secure.Secure(secure.Options{}))
-
-	// Http basic auth
+	// Always installed, even with no Login : it is what reads a token, and what
+	// decides what somebody presenting nothing is allowed to do.
+	anonymousRole := wigo.ResolvedAnonymousRole(config)
 	if config.Login != "" && config.Password != "" {
 		log.Println("Http server : basic auth enabled")
-		m.Use(auth.Basic(config.Login, config.Password))
+	}
+	switch anonymousRole {
+	case wigo.RoleNone:
+		log.Println("Http server : credentials required")
+	case wigo.RoleOperator:
+		log.Println("Http server : open to anyone, as an operator")
+	default:
+		log.Printf("Http server : open to anyone, %s", anonymousRole)
+	}
+	middlewares = append(middlewares, wigo.Authenticating(config.Login, config.Password, anonymousRole))
+
+	handler := wigo.Chain(mux, middlewares...)
+
+	// Timeouts, which martini did not set : without them a client that opens a
+	// connection and says nothing holds a goroutine for ever. The write one is
+	// generous because rechecking a probe on demand waits for it to run.
+	server := &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
-	// Serve static files from dist directory (built frontend)
-	m.Use(martini.Static("public"))
+	if config.SslEnabled {
+		log.Println("Http server : starting tls server @ " + address)
+		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		if err := server.ListenAndServeTLS(config.SslCert, config.SslKey); err != nil {
+			log.Fatalf("Failed to start http server : %s", err)
+		}
+		return
+	}
 
-	// Handle errors // TODO is this even working ?
-	m.Use(martini.Recovery())
+	log.Println("Http server : starting plain http server @ " + address)
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalf("Failed to start http server : %s", err)
+	}
+}
 
-	// Define the routes.
+// registerRoutes is the whole api in one place.
+//
+// The patterns are the standard library's since Go 1.22 : a method, a path, and
+// {name} for the parts a handler reads with r.PathValue. The most specific
+// pattern wins, so /api/hosts and /api/hosts/{hostname} can both be registered
+// without ordering them by hand.
+// Every route this binary answers, in the order it was registered.
+//
+// Kept so the openapi document can be checked against it rather than trusted :
+// a specification nobody compares to the code is a specification that lies
+// within a month, and quietly, which is the only way a specification hurts.
+var registeredRoutes []wigo.Route
 
-	r := martini.NewRouter()
+func registerRoutes(mux *http.ServeMux) {
 
-	r.Get("/api", func() (int, string) {
+	registeredRoutes = nil
+
+	record := func(method string, pattern string) {
+		registeredRoutes = append(registeredRoutes, wigo.Route{Method: method, Pattern: pattern})
+	}
+
+	get := func(pattern string, handler wigo.Handler) {
+		record("get", pattern)
+		mux.Handle("GET "+pattern, handler)
+	}
+	post := func(pattern string, handler wigo.Handler) {
+		record("post", pattern)
+		mux.Handle("POST "+pattern, handler)
+	}
+
+	get("/api", func(w http.ResponseWriter, r *http.Request) (int, string) {
 		json, err := wigo.GetLocalWigo().ToJsonString()
 		if err != nil {
 			return 500, fmt.Sprintf("%s", err)
@@ -586,51 +741,75 @@ func threadHttp(config *wigo.HttpConfig) {
 		return 200, json
 	})
 
-	r.Get("/api/status", func() string { return strconv.Itoa((wigo.GetLocalWigo().GlobalStatus)) })
-	r.Get("/api/logs", wigo.HttpLogsHandler)
-	r.Get("/api/logs/indexes", wigo.HttpLogsIndexesHandler)
-	r.Get("/api/groups", wigo.HttpGroupsHandler)
-	r.Get("/api/groups/:group", wigo.HttpGroupsHandler)
-	r.Get("/api/groups/:group/logs", wigo.HttpLogsHandler)
-	r.Get("/api/groups/:group/probes/:probe/logs", wigo.HttpLogsHandler)
-	r.Get("/api/hosts", wigo.HttpRemotesHandler)
-	r.Get("/api/hosts/:hostname", wigo.HttpRemotesHandler)
-	r.Get("/api/hosts/:hostname/status", wigo.HttpRemotesStatusHandler)
-	r.Get("/api/hosts/:hostname/logs", wigo.HttpLogsHandler)
-	r.Get("/api/hosts/:hostname/probes", wigo.HttpRemotesProbesHandler)
-	r.Get("/api/hosts/:hostname/probes/:probe", wigo.HttpRemotesProbesHandler)
-	r.Get("/api/hosts/:hostname/probes/:probe/status", wigo.HttpRemotesProbesStatusHandler)
-	r.Get("/api/hosts/:hostname/probes/:probe/logs", wigo.HttpLogsHandler)
-	r.Get("/api/probes/:probe/logs", wigo.HttpLogsHandler)
-	r.Get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
-	r.Post("/api/authority/hosts/:uuid/allow", wigo.HttpAuthorityAllowHandler)
-	r.Post("/api/authority/hosts/:uuid/revoke", wigo.HttpAuthorityRevokeHandler)
-
-	m.Use(func(c martini.Context, w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api") {
-			w.Header().Set("Content-Type", "application/json")
-		}
+	get("/api/status", func(w http.ResponseWriter, r *http.Request) (int, string) {
+		return 200, strconv.Itoa(wigo.GetLocalWigo().GlobalStatus)
 	})
 
-	m.Action(r.Handle)
+	get("/api/logs", wigo.HttpLogsHandler)
+	get("/api/logs/indexes", wigo.HttpLogsIndexesHandler)
+	get("/api/groups", wigo.HttpGroupsHandler)
+	get("/api/groups/{group}", wigo.HttpGroupsHandler)
+	get("/api/groups/{group}/logs", wigo.HttpLogsHandler)
+	get("/api/groups/{group}/probes/{probe}/logs", wigo.HttpLogsHandler)
+	get("/api/labels", wigo.HttpLabelsHandler)
+	get("/api/hosts", wigo.HttpRemotesHandler)
+	get("/api/hosts/{hostname}", wigo.HttpRemotesHandler)
+	get("/api/hosts/{hostname}/status", wigo.HttpRemotesStatusHandler)
+	get("/api/hosts/{hostname}/logs", wigo.HttpLogsHandler)
+	get("/api/hosts/{hostname}/probes", wigo.HttpRemotesProbesHandler)
+	get("/api/hosts/{hostname}/probes/{probe}", wigo.HttpRemotesProbesHandler)
+	get("/api/hosts/{hostname}/probes/{probe}/status", wigo.HttpRemotesProbesStatusHandler)
+	get("/api/hosts/{hostname}/probes/{probe}/logs", wigo.HttpLogsHandler)
+	get("/api/probes/{probe}/logs", wigo.HttpLogsHandler)
+	get("/api/probes/{probe}/metrics", wigo.HttpProbeMetricsHandler)
+	get("/api/hosts/{hostname}/probes/{probe}/metrics", wigo.HttpHostProbeMetricsHandler)
+	get("/api/hosts/{hostname}/timeline", wigo.HttpHostTimelineHandler)
 
-	// Create a listner and serv connections forever.
-	if config.SslEnabled {
-		address := apiAddress + ":" + strconv.Itoa(apiPort)
-		log.Println("Http server : starting tls server @ " + address)
-		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS10}
-		server := &http.Server{Addr: address, Handler: m, TLSConfig: tlsConfig}
-		err := server.ListenAndServeTLS(config.SslCert, config.SslKey)
-		if err != nil {
-			log.Fatalf("Failed to start http server : %s", err)
-		}
-	} else {
-		address := apiAddress + ":" + strconv.Itoa(apiPort)
-		log.Println("Http server : starting plain http server @ " + address)
-		if err := http.ListenAndServe(address, m); err != nil {
-			log.Fatalf("Failed to start http server : %s", err)
-		}
-	}
+	get("/api/probes", wigo.HttpProbesHandler)
+	post("/api/probes/{probe}/disable", wigo.HttpProbeDisableHandler)
+	post("/api/probes/{probe}/interval", wigo.HttpProbeIntervalHandler)
+	post("/api/probes/{probe}/run", wigo.HttpProbeRunHandler)
+
+	get("/api/hosts/{hostname}/schedule", wigo.HttpHostScheduleHandler)
+	post("/api/hosts/{hostname}/probes/{probe}/disable", wigo.HttpHostProbeDisableHandler)
+	post("/api/hosts/{hostname}/probes/{probe}/interval", wigo.HttpHostProbeIntervalHandler)
+	post("/api/hosts/{hostname}/probes/{probe}/run", wigo.HttpHostProbeRunHandler)
+
+	get("/api/suppressions", wigo.HttpSuppressionsHandler)
+	post("/api/hosts/{hostname}/ack", wigo.HttpHostAckHandler)
+	post("/api/hosts/{hostname}/silence", wigo.HttpHostSilenceHandler)
+	post("/api/hosts/{hostname}/unsuppress", wigo.HttpHostUnsuppressHandler)
+	post("/api/groups/{group}/silence", wigo.HttpGroupSilenceHandler)
+	post("/api/groups/{group}/unsuppress", wigo.HttpGroupUnsuppressHandler)
+
+	get("/api/whoami", wigo.HttpWhoamiHandler)
+
+	// Navigated to rather than fetched : provoking the browser credential
+	// prompt is the whole point, and only a top level navigation does it
+	// reliably.
+	get("/api/login", wigo.HttpLoginHandler)
+	get("/api/logout", wigo.HttpLogoutHandler)
+	get("/api/tokens", wigo.HttpTokensHandler)
+	post("/api/tokens", wigo.HttpTokenCreateHandler)
+	post("/api/tokens/{id}/revoke", wigo.HttpTokenRevokeHandler)
+
+	get("/api/authority/hosts", wigo.HttpAuthorityListHandler)
+	post("/api/authority/hosts/{uuid}/allow", wigo.HttpAuthorityAllowHandler)
+	post("/api/authority/hosts/{uuid}/revoke", wigo.HttpAuthorityRevokeHandler)
+
+	// Not a wigo.Handler : a stream has no status and body to return
+	mux.Handle("GET /api/events", http.HandlerFunc(wigo.HttpEventsHandler))
+
+	// Outside /api on purpose : /metrics is where every scraper looks
+	get("/metrics", wigo.HttpMetricsHandler)
+
+	// What this wigo answers, written down. Served as well as kept in the tree
+	// so a client can ask rather than guess from a version number.
+	get("/api/openapi.yaml", wigo.HttpOpenApiHandler)
+
+	// Everything else is the built interface. Registered last and on the bare
+	// root, so it only ever sees what no route above claimed.
+	mux.Handle("/", wigo.StaticFiles("public"))
 }
 
 func threadPush(config *wigo.PushClientConfig) {
@@ -664,6 +843,15 @@ func threadPush(config *wigo.PushClientConfig) {
 			time.Sleep(time.Duration(config.PushInterval) * time.Second)
 			err = pushClient.Update()
 			if err != nil {
+				pushClient.Close()
+				pushClient = nil
+				continue
+			}
+
+			// Ask for our orders on the connection we already hold : the server
+			// cannot reach us, so nothing is ever pushed at us. Does nothing
+			// unless this client was configured to accept being driven.
+			if err = pushClient.PollCommands(); err != nil {
 				pushClient.Close()
 				pushClient = nil
 			}

@@ -14,6 +14,7 @@ on:
 permissions:
   contents: "write"
   actions: "read"
+  packages: "write"
 
 jobs:
   release:
@@ -59,9 +60,40 @@ jobs:
           ls -l debs
 
           # One package per architecture, named after the version being released
-          for arch in amd64 armhf ; do
+          for arch in amd64 armhf arm64 ; do
             test -f "debs/wigo-${{ steps.version.outputs.version }}-$arch.deb"
           done
+
+      # Multi-arch, built from the tag being released. armhf is left out : the
+      # 32 bit arm runners are slow enough to double the release time, and the
+      # debian package covers that case.
+      - name: "Setting up qemu"
+        if: steps.version.outputs.release == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: "Setting up buildx"
+        if: steps.version.outputs.release == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Logging in to the registry"
+        if: steps.version.outputs.release == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: "ghcr.io"
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: "Publishing the container image"
+        if: steps.version.outputs.release == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: "."
+          file: "build/docker/Dockerfile"
+          platforms: "linux/amd64,linux/arm64"
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
 
       - name: "Creating the release"
         if: steps.version.outputs.release == 'true'

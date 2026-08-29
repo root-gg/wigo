@@ -9,19 +9,38 @@ import { ref, onUnmounted } from "vue";
 export function useRefresh(callback, defaultInterval = 60) {
   const interval = ref(defaultInterval);
   const timeoutId = ref(null);
+  const running = ref(false);
+
+  // Incrémenté à chaque start/stop : un cycle démarré avant un changement
+  // d'intervalle se reconnaît périmé et ne réarme pas de tick.
+  let generation = 0;
 
   function startRefresh() {
     stopRefresh();
-    if (interval.value > 0) {
-      const callbackWrapper = () => {
-        callback();
-        timeoutId.value = setTimeout(callbackWrapper, interval.value * 1000);
-      };
-      timeoutId.value = setTimeout(callbackWrapper, interval.value * 1000);
-    }
+    if (interval.value <= 0) return;
+
+    running.value = true;
+    const cycle = ++generation;
+
+    // Le prochain tick n'est armé qu'une fois le rafraîchissement terminé,
+    // sinon un chargement plus lent que l'intervalle empile les requêtes.
+    const tick = async () => {
+      if (cycle !== generation) return;
+      try {
+        await callback();
+      } finally {
+        if (cycle === generation) {
+          timeoutId.value = setTimeout(tick, interval.value * 1000);
+        }
+      }
+    };
+
+    timeoutId.value = setTimeout(tick, interval.value * 1000);
   }
 
   function stopRefresh() {
+    generation++;
+    running.value = false;
     if (timeoutId.value) {
       clearTimeout(timeoutId.value);
       timeoutId.value = null;
@@ -29,8 +48,9 @@ export function useRefresh(callback, defaultInterval = 60) {
   }
 
   function setRefreshInterval(newInterval) {
+    const wasRunning = running.value;
     interval.value = newInterval;
-    if (timeoutId.value) {
+    if (wasRunning) {
       startRefresh();
     }
   }

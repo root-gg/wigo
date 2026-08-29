@@ -1,0 +1,187 @@
+#!/usr/bin/perl
+
+# A certificate expires on a date known months in advance, and takes the site
+# down anyway. There is nothing to detect here and nothing to react to : the
+# only useful thing a monitoring tool can do about it is count the days out
+# loud, early enough that renewing is boring.
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+use IO::Socket::SSL;
+use Net::SSLeay;
+use Time::Local qw/timegm/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    # Each entry is "host", "host:port", or "host:port:servername" when the
+    # certificate to check is not the one served for the connected name.
+    'hosts'    => [],
+
+    # Days left. Renewal is the fix, so the thresholds are the time it takes to
+    # renew, not the time it takes to notice.
+    'warning'  => 30,
+    'critical' => 7,
+
+    # A handshake that never finishes is a failure like any other, and one that
+    # hangs holds up every other host in this probe.
+    'timeout'  => 5,
+};
+
+init( config => $conf );
+
+my @hosts = @{ config->{'hosts'} || [] };
+
+if ( !@hosts )
+{
+    # Not an error : a machine that serves no tls has nothing to say here, and
+    # saying it in red would be one more red thing nobody can act on.
+    status  100;
+    message "No hosts configured, nothing to check";
+    output 0;
+}
+
+my $now      = time;
+my @expiring = ();
+my @failed   = ();
+my $worst    = 100;
+
+foreach my $entry ( @hosts )
+{
+    my ( $host, $port, $servername ) = split( /:/, $entry );
+    $port       ||= 443;
+    $servername ||= $host;
+
+    my ( $notAfter, $error ) = certificate_expiry( $host, $port, $servername );
+
+    if ( defined $error )
+    {
+        push @failed, "$host:$port ($error)";
+        detail->{$entry} = { 'error' => $error };
+
+        # Not being able to look is not the same as having looked and found the
+        # certificate fine. It is also not the same as an expiry : it says
+        # nothing about the date, so it is reported as the probe failing.
+        $worst = 500 if $worst < 500;
+        next;
+    }
+
+    my $daysLeft = int( ( $notAfter - $now ) / 86400 );
+
+    detail->{$entry} = {
+        'expires_in_days' => $daysLeft,
+        'expires_on'      => scalar( gmtime($notAfter) ) . " UTC",
+    };
+
+    add_metric { "Tags" => { 'host' => $entry, 'metric' => 'days_left' }, 'Value' => $daysLeft };
+
+    if ( $daysLeft <= config->{'critical'} )
+    {
+        push @expiring, "$host:$port in $daysLeft days";
+        $worst = 300 if $worst < 300;
+    }
+    elsif ( $daysLeft <= config->{'warning'} )
+    {
+        push @expiring, "$host:$port in $daysLeft days";
+        $worst = 200 if $worst < 200;
+    }
+}
+
+status $worst;
+
+if ( @failed && @expiring )
+{
+    message sprintf( "Could not check %s ; expiring soon : %s",
+        join( ", ", @failed ), join( ", ", @expiring ) );
+}
+elsif ( @failed )
+{
+    message sprintf( "Could not check %s", join( ", ", @failed ) );
+}
+elsif ( @expiring )
+{
+    message sprintf( "Expiring soon : %s", join( ", ", @expiring ) );
+}
+else
+{
+    message sprintf( "All %d certificates are good for more than %d days",
+        scalar(@hosts), config->{'warning'} );
+}
+
+output 0;
+
+###
+# The expiry of the certificate actually served, in epoch seconds.
+###
+sub certificate_expiry
+{
+    my ( $host, $port, $servername ) = @_;
+
+    my $socket;
+
+    eval {
+        local $SIG{"ALRM"} = sub { die "timeout\n" };
+        alarm config->{'timeout'};
+
+        $socket = IO::Socket::SSL->new(
+            PeerHost        => $host,
+            PeerPort        => $port,
+            SSL_hostname    => $servername,
+            Timeout         => config->{'timeout'},
+
+            # The point is the date, and an expired or self signed certificate
+            # is exactly what has to be reported rather than refused.
+            SSL_verify_mode => SSL_VERIFY_NONE,
+        );
+
+        alarm 0;
+    };
+
+    if ( $@ )
+    {
+        my $error = $@;
+        chomp $error;
+        return ( undef, $error );
+    }
+
+    if ( !$socket )
+    {
+        # $SSL_ERROR first : when the handshake is what failed it says so, where
+        # errno holds whatever the last unrelated syscall left behind.
+        my $error = $SSL_ERROR || $! || "connection failed";
+        $error =~ s/\s+$//;
+        return ( undef, "cannot connect : $error" );
+    }
+
+    my $certificate = $socket->peer_certificate();
+    my $notAfter    = $certificate ? Net::SSLeay::X509_get_notAfter($certificate) : undef;
+    my $printed     = $notAfter ? Net::SSLeay::P_ASN1_TIME_get_isotime($notAfter) : undef;
+
+    $socket->close( SSL_no_shutdown => 1 );
+
+    return ( undef, "no certificate presented" ) unless $printed;
+
+    my $epoch = isotime_to_epoch($printed);
+    return ( undef, "unreadable expiry date $printed" ) unless defined $epoch;
+
+    return ( $epoch, undef );
+}
+
+###
+# 2026-08-29T14:00:00Z, which is what P_ASN1_TIME_get_isotime returns.
+###
+sub isotime_to_epoch
+{
+    my ($isotime) = @_;
+
+    return undef unless $isotime =~ /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/;
+
+    return timegm( $6, $5, $4, $3, $2 - 1, $1 );
+}

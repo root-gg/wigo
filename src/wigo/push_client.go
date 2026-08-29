@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/rpc"
 	"strconv"
+	"strings"
 
 	"crypto/x509"
 	"encoding/pem"
@@ -30,6 +31,10 @@ type PushClient struct {
 	token         string
 	client        *rpc.Client
 	tlsConfig     *tls.Config
+
+	// Set once a server has told us it does not know how to hand out orders,
+	// so we stop asking it every push interval
+	commandsUnsupported bool
 }
 
 func NewPushClient(config *PushClientConfig) (this *PushClient, err error) {
@@ -243,6 +248,50 @@ func (this *PushClient) Update() (err error) {
 	}
 
 	return
+}
+
+// Ask the server for the orders it holds for us, and carry them out.
+//
+// Only ever called when this client was configured to accept being driven :
+// staying silent is how a client says no, and a server that never hears from it
+// refuses to queue anything in the first place.
+func (this *PushClient) PollCommands() (err error) {
+	if this.client == nil {
+		return errors.New("Push client : Not connected")
+	}
+
+	if !this.config.AllowRemoteControl {
+		return nil
+	}
+
+	// A server too old to know this method answers with an error and keeps the
+	// connection perfectly usable. Say so once and stop asking, rather than
+	// logging the same line every push interval.
+	if this.commandsUnsupported {
+		return nil
+	}
+
+	batch := new(CommandBatch)
+	err = this.CallWithTimeout("PushServer.PollCommands", *NewRequest(LocalWigo.Uuid, this.token), batch, time.Duration(5)*time.Second)
+	if err != nil {
+		if strings.Contains(err.Error(), "can't find method") {
+			log.Println("Push client : the server does not support remote control, not asking again")
+			this.commandsUnsupported = true
+			return nil
+		}
+		log.Println("Push client : poll commands error : " + err.Error())
+		return err
+	}
+
+	for _, command := range batch.Commands {
+		if err := ApplyProbeCommand(command); err != nil {
+			log.Printf("Push client : refusing order %s on probe %s : %s", command.Action, command.Probe, err)
+			continue
+		}
+		log.Printf("Push client : applied order %s on probe %s", command.Action, command.Probe)
+	}
+
+	return nil
 }
 
 // Disconnect the client gracefully

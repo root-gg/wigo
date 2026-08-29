@@ -1,0 +1,197 @@
+#!/usr/bin/perl
+
+# When name resolution stops, everything on the machine breaks at once and
+# nothing says why : connections do not fail, they hang, and the failure shows
+# up as every other service being slow. That is worth checking on its own.
+#
+# The default resolver is the machine's own, which is the one that matters. A
+# probe pointed at a public resolver tells you that resolver is up, not that
+# this host can resolve anything.
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Wigo::Probe qw/:all/;
+
+use Net::DNS::Resolver;
+use Time::HiRes qw/time/;
+
+###
+# DEFAULT CONFIG
+###
+
+my $conf = {
+    # Which resolvers to ask. Empty means the ones in resolv.conf, which is what
+    # everything else on this machine uses.
+    'nameservers' => [],
+
+    # What to ask for. Each entry is a name, or "name:type", or
+    # "name:type:expected,expected" when the answer itself matters.
+    #
+    # Without an expected value the check is that an answer comes back at all,
+    # which is deliberately the common case : an A record that legitimately
+    # changes should not turn a monitoring screen red.
+    'queries'     => [],
+
+    # Milliseconds. A resolver that answers in a second is not down, but
+    # everything on the machine is waiting on it.
+    'warning'     => 500,
+    'critical'    => 2000,
+
+    # Seconds, per query. Net::DNS retries on its own, so this is multiplied by
+    # the number of tries before the query gives up.
+    'timeout'     => 3,
+    'retry'       => 1,
+};
+
+init( config => $conf );
+
+my @queries = @{ config->{'queries'} || [] };
+
+if ( !@queries )
+{
+    # Nothing configured is not a failure. Saying it in red would be one more
+    # red thing nobody can act on.
+    status  100;
+    message "No queries configured, nothing to check";
+    output 0;
+}
+
+my $resolver = Net::DNS::Resolver->new(
+    udp_timeout => config->{'timeout'},
+    tcp_timeout => config->{'timeout'},
+    retry       => config->{'retry'},
+);
+
+my @nameservers = @{ config->{'nameservers'} || [] };
+$resolver->nameservers(@nameservers) if @nameservers;
+
+my $asked = join( ", ", $resolver->nameservers ) || "the system resolver";
+
+my @failed = ();
+my @wrong  = ();
+my @slow   = ();
+my $worst  = 100;
+
+foreach my $entry ( @queries )
+{
+    my ( $name, $type, $expected ) = split( /:/, $entry, 3 );
+    $type ||= "A";
+
+    my @expected = $expected ? split( /,/, $expected ) : ();
+
+    my ( $answers, $elapsed, $error ) = resolve( $name, $type );
+
+    detail->{$entry} = { 'resolver' => $asked };
+
+    if ( defined $error )
+    {
+        push @failed, "$name $type ($error)";
+        detail->{$entry}->{'error'} = $error;
+
+        # Not an observation that failed : a resolver that does not answer is
+        # the finding, and it is the one this probe exists to make.
+        $worst = 300 if $worst < 300;
+        next;
+    }
+
+    detail->{$entry}->{'answer'}        = join( ", ", @$answers );
+    detail->{$entry}->{'response_time'} = sprintf( "%.1f ms", $elapsed );
+
+    add_metric {
+        "Tags"  => { 'query' => $entry, 'metric' => 'response_time' },
+        "Value" => sprintf( "%.1f", $elapsed ) + 0,
+    };
+
+    if (@expected)
+    {
+        my %got = map { $_ => 1 } @$answers;
+        my @missing = grep { !$got{$_} } @expected;
+
+        if (@missing)
+        {
+            push @wrong, sprintf( "%s %s gave %s, expected %s",
+                $name, $type,
+                join( ", ", @$answers ) || "nothing",
+                join( ", ", @expected ) );
+
+            detail->{$entry}->{'missing'} = join( ", ", @missing );
+
+            # A wrong answer is worse than a slow one and worse than none : the
+            # machine is resolving, confidently, to the wrong place.
+            $worst = 300 if $worst < 300;
+            next;
+        }
+    }
+
+    if ( $elapsed >= config->{'critical'} )
+    {
+        push @slow, sprintf( "%s %s in %.0f ms", $name, $type, $elapsed );
+        $worst = 300 if $worst < 300;
+    }
+    elsif ( $elapsed >= config->{'warning'} )
+    {
+        push @slow, sprintf( "%s %s in %.0f ms", $name, $type, $elapsed );
+        $worst = 200 if $worst < 200;
+    }
+}
+
+status $worst;
+
+my @said = ();
+push @said, sprintf( "no answer for %s",  join( ", ", @failed ) ) if @failed;
+push @said, sprintf( "wrong answer : %s", join( ", ", @wrong ) )  if @wrong;
+push @said, sprintf( "slow : %s",         join( ", ", @slow ) )   if @slow;
+
+if (@said)
+{
+    message sprintf( "%s (asked %s)", join( " ; ", @said ), $asked );
+}
+else
+{
+    message sprintf( "All %d queries answered by %s", scalar(@queries), $asked );
+}
+
+output 0;
+
+###
+# The rdata of every answer of the asked type, and how long it took in ms.
+###
+sub resolve
+{
+    my ( $name, $type ) = @_;
+
+    my $started = time;
+
+    # send rather than query : no search list is applied, so what is asked is
+    # exactly what is written in the config, and NXDOMAIN comes back as an
+    # answer to report rather than as nothing at all.
+    my $reply   = $resolver->send( $name, $type );
+    my $elapsed = ( time - $started ) * 1000;
+
+    if ( !$reply )
+    {
+        my $error = $resolver->errorstring || "no reply";
+        return ( undef, $elapsed, $error );
+    }
+
+    my $rcode = $reply->header->rcode;
+    if ( $rcode ne "NOERROR" )
+    {
+        return ( undef, $elapsed, $rcode );
+    }
+
+    # Only the records actually asked for : a reply routinely carries the CNAME
+    # chain that led to them, and counting those as answers would let a name
+    # that resolves to nothing look answered.
+    my @answers = map { $_->rdstring } grep { $_->type eq $type } $reply->answer;
+
+    if ( !@answers )
+    {
+        return ( undef, $elapsed, "no $type record" );
+    }
+
+    return ( \@answers, $elapsed, undef );
+}

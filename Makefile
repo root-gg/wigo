@@ -3,12 +3,16 @@ SHELL = /bin/bash
 BASE_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 RELEASE_VERSION:=$(shell cat $(BASE_DIR)/VERSION)
 RELEASE_DIR="release/plik-$(RELEASE_VERSION)"
-RELEASE_TARGETS=linux-amd64 linux-arm
+RELEASE_TARGETS=linux-amd64 linux-arm linux-arm64
 GOHOSTOS=$(shell go env GOHOSTOS)
 GOHOSTARCH=$(shell go env GOHOSTARCH)
 
 DEBROOT=debs
 DEBSRC=$(DEBROOT)/src
+
+# The debian architecture names, which are not the Go ones : armhf is linux-arm
+# with GOARM=7, everything else matches.
+DEB_ARCHS=amd64 armhf arm64
 
 ifdef REPOROOT
 else
@@ -26,8 +30,8 @@ race:
 	@mkdir -p release
 	@cd release; \
 	export CGO_ENABLED=1; \
-	GORACE="halt_on_error=1" go build -race -o current/wigo $(BASE_DIR)/src/cmd/wigo/main.go; \
-	GORACE="halt_on_error=1" go build -race -o current/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go; \
+	GORACE="halt_on_error=1" go build -race -o current/wigo $(BASE_DIR)/src/cmd/wigo; \
+	GORACE="halt_on_error=1" go build -race -o current/wigocli $(BASE_DIR)/src/cmd/wigocli; \
 	go build -o current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
 deps:
@@ -57,8 +61,8 @@ releases: build-frontend
 	    fi ; \
 		mkdir $$RELEASE_DIR; \
 		echo "Building Wigo release for $$target to $$RELEASE_DIR"; \
-		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/cmd/wigo/main.go; \
-		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go; \
+		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigo $(BASE_DIR)/src/cmd/wigo; \
+		$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o $$RELEASE_DIR/wigocli $(BASE_DIR)/src/cmd/wigocli; \
 		$(build) -o $$RELEASE_DIR/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go; \
 	done
 
@@ -67,12 +71,16 @@ release: build-frontend
 	@mkdir -p release
 	@cd release; \
 	export CGO_ENABLED=0; \
-	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/cmd/wigo/main.go;	\
-	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go; \
+	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigo $(BASE_DIR)/src/cmd/wigo;	\
+	$(build) -tags "netgo osusergo" -ldflags "-s -w -X github.com/root-gg/wigo/src/wigo.Version=$(RELEASE_VERSION)" -o current/wigocli $(BASE_DIR)/src/cmd/wigocli; \
 	$(build) -o current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
+# The package tree is built from scratch : it is only ever copied into, so
+# anything dropped from the sources -- a probe, a vendored module -- would go on
+# being shipped from here forever, and a stale module shadows the real one.
 debs: releases
 	@echo "Building Wigo Debian packages"
+	@rm -rf $(DEBSRC)
 	@mkdir -p $(DEBSRC)
 	@mkdir -p $(DEBSRC)/etc/wigo/conf.d
 	@mkdir -p $(DEBSRC)/etc/logrotate.d
@@ -95,23 +103,19 @@ debs: releases
 	@cp etc/wigo.logrotate $(DEBSRC)/etc/logrotate.d/wigo
 	@cp -R public $(DEBSRC)/usr/local/wigo
 	@sed -i "s/##VERSION##/Wigo v$(RELEASE_VERSION)/" $(DEBSRC)/usr/local/wigo/public/index.html
-	@for arch in amd64 armhf ; do \
+	@for arch in $(DEB_ARCHS) ; do \
 		echo "Building Wigo Debian package for $$arch to $(DEBSRC)"; \
 		cp -R build/deb/DEBIAN/control $(DEBSRC)/DEBIAN/control ; \
 		sed -i "s/^Version:.*/Version: $(RELEASE_VERSION)/" $(DEBSRC)/DEBIAN/control ; \
 		sed -i "s/^Architecture:.*/Architecture: $$arch/" $(DEBSRC)/DEBIAN/control ; \
-		if [ $$arch = 'armhf' ]; then  \
-			cp release/linux-arm/* $(DEBSRC)/usr/local/wigo/bin/ ; \
-		else \
-			cp release/linux-$$arch/* $(DEBSRC)/usr/local/wigo/bin/ ; \
-		fi ; \
+		cp release/linux-`echo $$arch | sed 's/^armhf$$/arm/'`/* $(DEBSRC)/usr/local/wigo/bin/ ; \
 		fakeroot dpkg-deb -Z xz --build $(DEBSRC) $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 	done
 
 publish-debs:
 	@echo "Publishing Wigo Debian packages to repo"
-	@for arch in amd64 armhf ; do \
-		for release in stretch buster bullseye bookworm trixie; do \
+	@for arch in $(DEB_ARCHS) ; do \
+		for release in bookworm trixie; do \
 		  	echo "Adding package with arch $$arch and release $$release to repo $(REPOROOT)" ; \
 			reprepro --ask-passphrase -b $(REPOROOT) includedeb $$release $(DEBROOT)/wigo-$(RELEASE_VERSION)-$$arch.deb ; \
 		done \
@@ -142,8 +146,8 @@ clean:
 build-dev: deps
 	@echo "Building Wigo for development"
 	@mkdir -p release/current
-	@go build -o release/current/wigo $(BASE_DIR)/src/cmd/wigo/main.go
-	@go build -o release/current/wigocli $(BASE_DIR)/src/cmd/wigocli/main.go
+	@go build -o release/current/wigo $(BASE_DIR)/src/cmd/wigo
+	@go build -o release/current/wigocli $(BASE_DIR)/src/cmd/wigocli
 	@go build -o release/current/generate_cert $(BASE_DIR)/src/cmd/generate_cert/main.go
 
 
@@ -151,8 +155,9 @@ run-dev: build-dev
 	@echo "Starting Wigo development server"
 	mkdir -p $(BASE_DIR)/dev; \
 	mkdir -p $(BASE_DIR)/dev/probes/; \
+	mkdir -p $(BASE_DIR)/dev/probes/disabled; \
 	if [ ! -d $(BASE_DIR)/dev/probes/60 ]; then mkdir -p $(BASE_DIR)/dev/probes/60; fi; \
-	for probe in hardware_load_average hardware_disks hardware_memory ifstat supervisord needrestart check_mdadm check_process haproxy lm-sensors iostat check_uptime smart check_ntp packages-apt; do \
+	for probe in hardware_load_average hardware_disks hardware_memory ifstat supervisord needrestart check_mdadm check_process haproxy lm-sensors iostat check_uptime; do \
 		if [ ! -e $(BASE_DIR)/dev/probes/60/$$probe ]; then \
 			ln -s $(BASE_DIR)/probes/examples/$$probe $(BASE_DIR)/dev/probes/60/$$probe; \
 		fi; \

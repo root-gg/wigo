@@ -3,9 +3,15 @@ package wigo
 // Host
 
 type Host struct {
-	Name       string
-	Group      string
-	Status     int
+	Name   string
+	Group  string
+	Status int
+
+	// What this host is, beyond its one group. Exported so it travels with the
+	// host over the api : a client too old to send it leaves it empty, and a
+	// master too old to know about it ignores the field. See label.go.
+	Labels map[string]string
+
 	Probes     *concurrentMapProbes
 	parentWigo *Wigo
 }
@@ -33,13 +39,22 @@ func NewHost() (this *Host) {
 func (this *Host) RecomputeStatus() {
 
 	this.Status = 0
+	hasProbe := false
 
 	for item := range this.Probes.IterBuffered() {
 		probe := item.Val.(*ProbeResult)
+		hasProbe = true
 
 		if probe.Status > this.Status {
 			this.Status = probe.Status
 		}
+	}
+
+	// A host without any probe has nothing to report, which is not an error.
+	// Left at zero it would be rendered as ERROR, since the whole scale treats
+	// anything below 100 as one, and NewHost already starts at 100.
+	if !hasProbe {
+		this.Status = 100
 	}
 
 	return
@@ -59,6 +74,15 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
 		// New probe
 		probe.SetHost(this)
+
+		// Where its band starts. A local wigo does not notify about its own
+		// probes appearing, so nothing else would write this down, and a probe
+		// that has been fine since it was installed would have no row at all --
+		// drawn as never watched rather than as always fine.
+		RecordStatusTransition(StatusChange{
+			Host: GetLocalWigo().GetHostname(), Probe: probe.Name, Group: this.Group,
+			Was: StatusAbsent, Now: probe.Status, Message: probe.Message,
+		})
 	}
 
 	// Update
@@ -67,6 +91,11 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
 	// Graph
 	probe.GraphMetrics()
+
+	// And keep it. Deliberately here rather than inside GraphMetrics, which a
+	// master also calls for its remotes : each wigo keeps its own history, and
+	// the master reads a remote's through that remote's api.
+	RecordProbeMetrics(probe)
 
 	// Recompute status
 	GetLocalWigo().RecomputeGlobalStatus()

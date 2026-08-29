@@ -270,7 +270,14 @@ sub save_config
 
 sub load_config
 {
-    my $path = $CONFIG_PATH . "/" . $name . ".conf";
+    my $defaults = shift || {};
+    my $path     = $CONFIG_PATH . "/" . $name . ".conf";
+
+    # The defaults first, whatever happens : a configuration file is an opinion
+    # about some of the settings, not a replacement for all of them. Written the
+    # other way round, adding one key to a file silently dropped every default
+    # the probe relied on, and the probe then compared things against undef.
+    $config = { %$defaults };
 
     if ( -r $path )
     {
@@ -291,8 +298,9 @@ sub load_config
         }
         close JSON_CONFIG;
 
+        my $fromFile;
         eval {
-            $config = decode_json( $json );
+            $fromFile = decode_json( $json );
         };
 
         if ( $@ )
@@ -302,15 +310,22 @@ sub load_config
             output  1;
         }
 
+        if ( ref $fromFile eq "HASH" )
+        {
+            $config = { %$defaults, %$fromFile };
+        }
+        elsif ( defined $fromFile )
+        {
+            # Not a json object : nothing to merge, and pretending otherwise
+            # would hide the mistake behind the defaults.
+            $config = $fromFile;
+        }
+
         if ( ref $config eq "HASH" and JSON::is_bool($config->{'enabled'}) and ! $config->{'enabled'} )
         {
             message "Probe is disabled";
             output  12;
         }
-    }
-    else
-    {
-        $config = shift || {};
     }
 }
 
