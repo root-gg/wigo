@@ -361,6 +361,29 @@ A failed unit is already known: systemd noticed, wrote it down, and stopped tryi
 
 `ignore` takes exact names rather than patterns — a pattern that quietly grows to cover a unit somebody cared about is how this kind of list stops being trustworthy. Units systemd could not even load are counted separately from units that ran and failed, because they are a different problem: a typo in a name, a dropped file.
 
+#### needrestart
+
+A library was replaced under a running process, and the process is still using the copy that was deleted. Nothing fails, nothing is logged, and the fix that was supposed to be applied is not applied until somebody restarts it.
+
+```json
+{
+  "enabled"         : true,
+  "needrestart"     : "/usr/sbin/needrestart",
+  "ignore"          : ["wigo.service"],
+  "kernel_status"   : 200,
+  "services_status" : 101,
+  "timeout"         : 30
+}
+```
+
+**Two different things, told apart.** A kernel that has been replaced needs a reboot, which needs a window — that is a WARNING. A handful of services holding stale libraries need a restart, which is a Tuesday afternoon — that is INFO, and the message **names them**, since knowing that *something* needs restarting is not actionable.
+
+`ignore` defaults to wigo itself: wigo restarting wigo to tell you it restarted is noise, and it would report itself forever after every upgrade of itself.
+
+The counts are read from the plugin's perfdata rather than from its exit code. With both checks on, an exit of 1 may be a kernel ABI change, or services holding stale libraries, or both, and the code alone cannot say which.
+
+`UNKN` — which is what needrestart answers when it is not running as root — is reported as the probe failing, not as nothing to restart. Not being able to look is not the same as having looked.
+
 #### check_dns
 
 When name resolution stops, everything on the machine breaks at once and nothing says why: connections do not fail, they hang, and the failure surfaces as every *other* service being slow.
@@ -472,6 +495,18 @@ A recheck asked for by hand takes whichever is shorter, the configured timeout o
 
 The two `POST` endpoints return **403** unless `AllowWriteActions` is set in the `[Http]` section. They act on the probes directory directly, so the change takes effect on the next cycle without a restart, and it survives one.
 
+**A host that pushes is governed by `AllowRemoteControl`, not by that.** Three different things can make a host read only from here, and each is fixed in a different file:
+
+| what refuses | where to fix it |
+|---|---|
+| the caller's role | sign in, or present an operator token |
+| this host's own writes | `AllowWriteActions` in `[Http]`, on that host |
+| a pushing client that never opted in | `AllowRemoteControl` in `[PushClient]`, on the client |
+
+The API says which, in `ReadOnlyReason` on the schedule, because only it can tell them apart — the interface sees one boolean. It used to print "set AllowWriteActions in `[Http]`" for all three, which sent anyone with a push client editing the wrong file on the wrong machine.
+
+A client reports `AllowRemoteControl` on **every** push, so opening it takes effect on the next one — ten seconds by default, with nothing to do on the master.
+
 A probe must be installed to be acted upon: a name that exists nowhere under `probes/` is refused.
 
 **Disabling never destroys anything.** A schedule is usually a symlink into `examples/`, where the probe itself stays, so the symlink is simply removed. But an administrator may have dropped a script straight into an interval directory, or linked to one outside the probes tree — deleting that would be the only copy gone, and the probe would not even be listed any more, so there would be no way to turn it back on. In that case the entry is moved into `examples/` instead. Either way the probe ends up installed and unscheduled, which is what disabled means.
@@ -574,7 +609,11 @@ It is now written to the SQLite that is already there, bounded by `MetricsRetent
 
 Points are **bucketed**: a week at one point a minute is ten thousand points per series, which no browser should be asked to draw. Each bucket carries its average *and* the range it covers, so the spike that woke somebody up is still visible after being averaged.
 
-**Each wigo keeps its own history, and only its own.** A master reads a remote's through that remote's API, the same way it reads its schedule — storing the fleet's series on the master as well would write everything twice and make its database grow with the size of the fleet, which is the thing that pushes people towards a separate stack. A host that pushes rather than being polled cannot be asked, and says so.
+**A wigo keeps its own history**, and a master reads a *polled* remote's through that remote's API, the same way it reads its schedule. Storing the whole fleet's series on the master would write everything twice and make its database grow with the size of the fleet, which is the thing that pushes people towards a separate stack.
+
+**With one exception**, and it is not a softening of that rule but the only place it cannot hold: a host that **pushes** cannot be asked anything — it sits behind a NAT. Its measurements arrive with every push and used to be dropped, so those hosts had no graphs at all and the screen answered a 501 explaining why. They are kept now, under the name of the host they came from. The growth is bounded by the number of pushing clients rather than by the fleet, and those clients are precisely the ones with no other way of being read.
+
+A client pushes far more often than its probes run — every ten seconds against every minute is a normal pairing — and every push carries the same result again. Only a measurement newer than the last one seen is written, so one probe run is one row rather than six. Without that, the master's database would grow at the push rate for a probe that answered once.
 
 Nothing about the monitoring depends on this table: losing it loses history and nothing else.
 

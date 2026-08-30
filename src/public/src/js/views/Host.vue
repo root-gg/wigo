@@ -285,8 +285,20 @@ const canEditSchedule = computed(
   () => hasSchedule.value && !!schedule.value.WriteActionsAllowed,
 );
 
+/**
+ * Pourquoi c'est en lecture seule, dit par le serveur.
+ *
+ * Trois causes possibles et trois fichiers différents : le rôle de l'appelant,
+ * ce host qui refuse les écritures, et un client qui pousse sans avoir accepté
+ * d'être piloté. L'interface ne peut pas les distinguer -- elle ne voit qu'un
+ * booléen -- et la phrase écrite en dur ici envoyait éditer `[Http]` même quand
+ * le verrou était `AllowRemoteControl` sur la machine d'en face.
+ *
+ * Le repli sert pour un master trop ancien pour envoyer la raison.
+ */
 const readOnlyReason = computed(
   () =>
+    schedule.value?.ReadOnlyReason ||
     `Read only: set AllowWriteActions in the [Http] section of the configuration file on ${hostName.value}`,
 );
 

@@ -1,5 +1,14 @@
 #!/usr/bin/perl
 
+# A library was replaced under a running process, and the process is still using
+# the copy that was deleted. Nothing fails, nothing is logged, and the fix that
+# was supposed to be applied is not applied until somebody restarts it.
+#
+# Two very different things are reported here, and they used not to be told
+# apart. A kernel that has been replaced needs a reboot, which needs a window ;
+# a handful of services holding stale libraries need a restart, which is a
+# Tuesday afternoon. The first is a warning, the second is worth knowing.
+
 use strict;
 use warnings;
 
@@ -13,6 +22,19 @@ use Wigo::Probe qw/:all/;
 
 my $conf = {
     'needrestart' => '/usr/sbin/needrestart',
+
+    # Services never worth reporting. Wigo restarting wigo to tell you it
+    # restarted is noise, and the probe would report itself forever after any
+    # upgrade of itself.
+    'ignore'          => ['wigo.service'],
+
+    # A kernel has to wait for a window, so it is a warning. Services are a
+    # routine restart : worth knowing, not worth waking anyone.
+    'kernel_status'   => 200,
+    'services_status' => 101,
+
+    # Reading /proc for every process takes a moment on a busy machine.
+    'timeout'         => 30,
 };
 
 init( config => $conf );
@@ -26,32 +48,169 @@ unless ( -x $needrestart )
 }
 
 ###
-# GET STATUS LIST
+# ASK
 ###
 
-my $outNeedRestart = `$needrestart -k -p`;
-my $returnCode = $?;
-my @lines = split("\n", $outNeedRestart);
-detail->{'output'} = $lines[0];
-detail->{'returncode'} = $returnCode;
-if($returnCode == 512)
+# -k for the kernel, -l for the libraries : without -l nothing is ever said
+# about services, which is most of what this probe is for.
+my $output;
+eval {
+    local $SIG{"ALRM"} = sub { die "timed out\n" };
+    alarm config->{'timeout'};
+
+    $output = `$needrestart -p -k -l 2>&1`;
+
+    alarm 0;
+};
+
+if ($@)
 {
-    status 200;
-    message "Restart needed";
-}
-elsif($returnCode == 256)
-{
-  message "Restart not required";
-}
-elsif($returnCode)
-{
-    status 500;
-    message "Error while getting restart status";
-    output 1;
-}
-else
-{
-  message "Restart not needed";
+    my $failure = $@;
+    chomp $failure;
+
+    status  500;
+    message "Cannot ask needrestart : $failure";
+    output  1;
 }
 
+my @lines = split( /\n/, $output || "" );
+
+# A non zero exit means something needs restarting, which is the answer rather
+# than a failure. Only a summary we cannot read is one.
+my ($summary) = grep { /^(OK|WARN|CRIT|UNKN) - / } @lines;
+
+unless ( defined $summary )
+{
+    my $first = $lines[0] // "no output";
+    $first =~ s/^\s+|\s+$//g;
+
+    status  500;
+    message "Cannot read what needrestart answered : $first";
+    output  1;
+}
+
+# UNKN is needrestart saying it could not look -- usually because it is not
+# running as root. Reading its counts then would answer "nothing to restart"
+# about a machine nobody examined, which is the one answer that must never be
+# guessed.
+if ( $summary =~ /^UNKN - (.*)$/ )
+{
+    my $why = $1;
+    $why =~ s/\|.*$//;
+    $why =~ s/^\s+|\s+$//g;
+
+    status  500;
+    message "needrestart could not look : $why";
+    output  1;
+}
+
+detail->{'summary'} = $summary;
+
+###
+# WHAT IT FOUND
+###
+
+# The counts come from the perfdata rather than from the exit code : with both
+# checks on, an exit of 1 may be a kernel abi change, or services holding stale
+# libraries, or both, and the code alone cannot say which.
+my ($perfdata) = $summary =~ /\|(.*)$/;
+$perfdata = "" unless defined $perfdata;
+
+my $kernel   = perf_count( $perfdata, 'Kernel' );
+my $services = perf_count( $perfdata, 'Services' );
+
+my %ignored = map { $_ => 1 } @{ config->{'ignore'} || [] };
+my @toRestart = grep { !$ignored{$_} } listed_under( \@lines, 'Services' );
+
+detail->{'kernel_restart_needed'}   = $kernel > 0 ? 1 : 0;
+detail->{'services_restart_needed'} = \@toRestart;
+
+add_metric { "Tags" => { 'metric' => 'services' }, "Value" => scalar(@toRestart) };
+add_metric { "Tags" => { 'metric' => 'kernel' },   "Value" => $kernel > 0 ? 1 : 0 };
+
+###
+# SAY IT
+###
+
+if ( $kernel > 0 )
+{
+    status  config->{'kernel_status'};
+
+    my $also = @toRestart
+        ? sprintf( ", and %d service%s to restart", scalar(@toRestart), @toRestart > 1 ? "s" : "" )
+        : "";
+
+    message "The running kernel has been replaced, a reboot is needed$also";
+    output 0;
+}
+
+if (@toRestart)
+{
+    status  config->{'services_status'};
+    message sprintf( "%d service%s still using replaced libraries : %s",
+        scalar(@toRestart), @toRestart > 1 ? "s are" : " is", join( ", ", @toRestart ) );
+    output 0;
+}
+
+# Services were reported but every one of them was ignored : that is not the
+# same as nothing having been found, and saying "nothing to restart" would hide
+# a list somebody chose to silence.
+if ( $services > 0 )
+{
+    message "Nothing to restart, apart from what is ignored";
+    output 0;
+}
+
+message "Nothing to restart";
 output 0;
+
+###
+# The number behind a name in the perfdata : "Services=3;;0;0" is three.
+###
+sub perf_count
+{
+    my ( $perfdata, $name ) = @_;
+
+    my ($value) = $perfdata =~ /\b\Q$name\E=(\d+)/;
+
+    return defined $value ? $value : 0;
+}
+
+###
+# The entries of one section of the listing.
+#
+# needrestart prints up to three of them -- Services, Containers and Sessions --
+# each a header followed by "- name" lines. Reading to the end of the output
+# instead would fold a container, or a session that looks like "someone @ pts/0",
+# into the list of services.
+###
+sub listed_under
+{
+    my ( $lines, $section ) = @_;
+
+    my @found = ();
+    my $inside = 0;
+
+    foreach my $line (@$lines)
+    {
+        if ( $line =~ /^([A-Z][a-z]+):\s*$/ )
+        {
+            $inside = ( $1 eq $section );
+            next;
+        }
+
+        next unless $inside;
+
+        # An entry, and nothing else : anything that is not one ends the section
+        # as surely as a header would.
+        if ( my ($entry) = $line =~ /^-\s+(\S.*?)\s*$/ )
+        {
+            push @found, $entry;
+            next;
+        }
+
+        $inside = 0;
+    }
+
+    return @found;
+}

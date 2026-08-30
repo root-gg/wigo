@@ -112,6 +112,7 @@
 
       <div
         v-if="hovered"
+        ref="tooltip"
         class="timeline-tooltip card shadow-sm"
         :style="tooltipStyle"
       >
@@ -136,7 +137,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import api from "../api/client.js";
 import StatusBadge from "./StatusBadge.vue";
 import { getLevel } from "../utils/status.js";
@@ -295,13 +296,41 @@ const xTicks = computed(() => {
   return ticks;
 });
 
-const tooltipStyle = computed(() => {
-  const ratio = hovered.value ? hovered.value.x / width.value : 0;
+const tooltip = ref(null);
+const tooltipWidth = ref(0);
 
-  return {
-    left: `${ratio * 100}%`,
-    transform: ratio > 0.6 ? "translate(-100%, 0)" : "translate(0, 0)",
-  };
+// Mesurée après le rendu : sa largeur vient de son contenu, et le contenu
+// change à chaque segment survolé.
+watch(hovered, async () => {
+  await nextTick();
+  tooltipWidth.value = tooltip.value ? tooltip.value.offsetWidth : 0;
+});
+
+/**
+ * Centrée sur le curseur, et rentrée dans le cadre.
+ *
+ * On calcule en pixels plutôt que de basculer d'un côté à l'autre au-delà d'un
+ * seuil : sur un écran étroit l'infobulle fait toute la largeur du cadre, et
+ * aucun seuil ne la fait tenir. La ramener dans les bornes est la seule règle
+ * qui marche aux deux tailles.
+ *
+ * Rien ici ne touche à sa largeur -- c'était le défaut d'avant, où un bloc posé
+ * sur `left` sans largeur se faisait comprimer par ce qui restait à sa droite.
+ */
+const tooltipStyle = computed(() => {
+  if (!hovered.value) return {};
+
+  const tip = tooltipWidth.value;
+  const room = width.value;
+
+  // Tant qu'on ne l'a pas mesurée, on la pose au curseur : un instant à la
+  // mauvaise place vaut mieux qu'un saut depuis le coin.
+  if (!tip) return { left: `${hovered.value.x}px` };
+
+  const wanted = hovered.value.x - tip / 2;
+  const left = Math.max(0, Math.min(wanted, room - tip));
+
+  return { left: `${left}px` };
 });
 
 function describeLevel(span) {
@@ -441,7 +470,17 @@ onUnmounted(() => {
   position: absolute;
   top: 2rem;
   pointer-events: none;
-  min-width: 12rem;
   z-index: 5;
+
+  /* Sa taille vient de son contenu, pas de sa position.
+     
+     Sans largeur, un bloc absolu posé sur `left` se fait comprimer dans ce qui
+     reste à sa droite : la même infobulle faisait 64px de haut à gauche de la
+     frise et 152 à droite, le texte s'enroulant de plus en plus. Le
+     `translate(-100%)` la déplace bien de l'autre côté, mais un transform
+     n'affecte pas la mise en page -- la largeur était déjà écrasée. */
+  width: max-content;
+  min-width: 12rem;
+  max-width: min(24rem, 100%);
 }
 </style>

@@ -134,7 +134,10 @@
                         :probe-name="probe.Name"
                         :schedule="probe"
                         :editable="host.WriteActionsAllowed"
-                        :read-only-reason="`Read only: set AllowWriteActions in the [Http] section of the configuration file on ${host.Name}`"
+                        :read-only-reason="
+                          host.ReadOnlyReason ||
+                          `Read only: set AllowWriteActions in the [Http] section of the configuration file on ${host.Name}`
+                        "
                         @changed="
                           (updated) => onChanged(host.Name, probe.Name, updated)
                         "
@@ -209,6 +212,10 @@ const hostsWithDisabled = computed(() =>
       return {
         Name: schedule.Hostname,
         WriteActionsAllowed: !!schedule.WriteActionsAllowed,
+        // Dite par le serveur : lui seul distingue le rôle de l'appelant, un
+        // host qui refuse les écritures, et un client qui pousse sans avoir
+        // accepté d'être piloté -- trois fichiers différents à éditer.
+        ReadOnlyReason: schedule.ReadOnlyReason || "",
         DisabledCount: disabled.length,
         // Triées par ancienneté : celle qui est éteinte depuis huit mois est
         // celle qu'il faut voir, et elle est en haut. Les sondes que personne

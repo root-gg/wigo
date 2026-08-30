@@ -234,6 +234,13 @@ Options:
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
 	}
 
+	// A database written before metrics carried a host has to gain the column,
+	// and its rows have to be attributed to this host : nothing else could have
+	// been recorded then.
+	if err = migrateMetricsHost(LocalWigo.sqlLiteConn, LocalWigo.GetHostname()); err != nil {
+		log.Fatalf("Fail to migrate the metrics table : %s\n", err)
+	}
+
 	_, err = LocalWigo.sqlLiteConn.Exec(createStatusChangesTable)
 	if err != nil {
 		log.Fatalf("Fail to create table in sqlite database : %s\n", err)
@@ -487,6 +494,11 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 	_remoteWigo.LastUpdate = time.Now().Unix()
 	this.RemoteWigos.Set(remoteWigo.Uuid, _remoteWigo)
 	this.RecomputeGlobalStatus()
+
+	// The whole subtree, not just this host : a master of masters sees the
+	// hosts two levels down only inside this one, and their timelines are kept
+	// here. See RecordHostStatuses.
+	RecordHostStatuses(_remoteWigo)
 }
 
 func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *Wigo) {

@@ -1,6 +1,8 @@
 package wigo
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -184,5 +186,76 @@ func TestApplyProbeCommandValidatesItsInput(t *testing.T) {
 	}
 	if !probeIsIn(t, config.Global.ProbesDirectory, "300", "check_load") {
 		t.Errorf("The probe has not been moved")
+	}
+}
+
+// Three things can make a host read only, and each is fixed in a different
+// file. A screen that names the wrong one sends somebody editing a setting that
+// was never the problem -- which is what a hardcoded "set AllowWriteActions in
+// [Http]" did to every push client that had simply not opted in.
+func TestTheReasonForBeingReadOnlyNamesTheRightSetting(t *testing.T) {
+	setupTestWigo(t, "databases")
+	LocalWigo.config.Http.AllowWriteActions = true
+
+	// A client that pushes and has not opted into being driven
+	SetClientAcceptsRemoteControl("uuid-shy", false)
+	if ClientAcceptsRemoteControl("uuid-shy") {
+		t.Fatalf("Expected the client to be refusing")
+	}
+
+	// And one that has
+	SetClientAcceptsRemoteControl("uuid-open", true)
+	if !ClientAcceptsRemoteControl("uuid-open") {
+		t.Fatalf("Expected the client to accept")
+	}
+
+	// What this host says about its own writes, which is the other reason and
+	// has to keep naming [Http].
+	_, refusal, mayWrite := httpWriteActionsAllowed(testRequest(t))
+	if !mayWrite {
+		t.Fatalf("Writes are on and the caller is an operator, got %q", refusal)
+	}
+
+	LocalWigo.config.Http.AllowWriteActions = false
+	_, refusal, mayWrite = httpWriteActionsAllowed(testRequest(t))
+	if mayWrite {
+		t.Fatalf("Expected writes to be refused")
+	}
+	if !strings.Contains(refusal, "AllowWriteActions") || !strings.Contains(refusal, "[Http]") {
+		t.Errorf("Got %q, expected it to name the setting and its section", refusal)
+	}
+}
+
+// A client that closes its door again must not keep the orders queued while it
+// was open : they would be applied the day it opens for another reason.
+func TestTheReasonTravelsWithTheSchedule(t *testing.T) {
+	setupTestWigo(t, "databases")
+	LocalWigo.config.Http.AllowWriteActions = false
+
+	_, refusal, _ := httpWriteActionsAllowed(testRequest(t))
+
+	schedule := ProbesSchedule{
+		Hostname:            "db1",
+		WriteActionsAllowed: false,
+		ReadOnlyReason:      refusal,
+	}
+
+	encoded, err := json.Marshal(schedule)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if !strings.Contains(string(encoded), "ReadOnlyReason") {
+		t.Errorf("The reason has to reach the interface : %s", encoded)
+	}
+
+	// And it is left out entirely when writes are allowed, so an older wigo
+	// answering without it is not mistaken for one that refused silently.
+	allowed := ProbesSchedule{Hostname: "db1", WriteActionsAllowed: true}
+	encoded, err = json.Marshal(allowed)
+	if err != nil {
+		t.Fatalf("Unexpected error : %s", err)
+	}
+	if strings.Contains(string(encoded), "ReadOnlyReason") {
+		t.Errorf("Got %s, expected no reason when writes are allowed", encoded)
 	}
 }
