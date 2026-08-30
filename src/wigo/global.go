@@ -494,6 +494,11 @@ func (this *Wigo) AddOrUpdateRemoteWigo(remoteWigo *Wigo) {
 	_remoteWigo.LastUpdate = time.Now().Unix()
 	this.RemoteWigos.Set(remoteWigo.Uuid, _remoteWigo)
 	this.RecomputeGlobalStatus()
+
+	// The whole subtree, not just this host : a master of masters sees the
+	// hosts two levels down only inside this one, and their timelines are kept
+	// here. See RecordHostStatuses.
+	RecordHostStatuses(_remoteWigo)
 }
 
 func (this *Wigo) CompareTwoWigosAndRaiseNotifications(oldWigo *Wigo, newWigo *Wigo) {

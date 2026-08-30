@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -264,4 +265,121 @@ func parseTimelineWindow(r *http.Request) (int64, int64, error) {
 	}
 
 	return since, until, nil
+}
+
+// The overall status each host was last seen at, so a change can be told from a
+// repetition. In memory rather than queried : this runs on every update of every
+// host, and the worst a restart costs is one band starting again.
+var lastHostStatus = struct {
+	sync.Mutex
+	at map[string]int
+}{at: make(map[string]int)}
+
+// RecordHostStatuses writes down every host of a tree whose overall status
+// changed since it was last seen.
+//
+// A whole tree rather than the host being updated : a master of masters sees
+// its own remotes' remotes only inside their trees, and those never pass
+// through AddOrUpdateRemoteWigo. Hooking that alone left the hosts two levels
+// down with an empty band, which is the shape of the bug this fixes.
+func RecordHostStatuses(root *Wigo) {
+	if root == nil {
+		return
+	}
+
+	if root.LocalHost != nil {
+		noteHostStatus(root.GetHostname(), root.LocalHost.Group, root.LocalHost.Status,
+			root.GlobalMessage)
+	}
+
+	for item := range root.RemoteWigos.IterBuffered() {
+		remote, ok := item.Val.(*Wigo)
+		if !ok {
+			continue
+		}
+
+		RecordHostStatuses(remote)
+	}
+}
+
+// noteHostStatus records one host, and remembers where it now stands.
+func noteHostStatus(hostname string, group string, status int, message string) {
+	if hostname == "" {
+		return
+	}
+
+	lastHostStatus.Lock()
+	was, known := lastHostStatus.at[hostname]
+	if !known {
+		// Asked of the database the first time a host is seen in this process,
+		// rather than assumed absent : a restart would otherwise write a fresh
+		// "never watched" transition every time, cutting a band that never
+		// stopped and putting a gap on the screen where nothing happened.
+		was, known = lastRecordedHostStatus(hostname)
+	}
+	lastHostStatus.at[hostname] = status
+	lastHostStatus.Unlock()
+
+	if !known {
+		// Where its band starts. Without it a host that has been fine since it
+		// was added has no row at all, and its whole timeline reads as never
+		// watched rather than as always fine.
+		RecordStatusTransition(StatusChange{
+			Host: hostname, Group: group,
+			Was: StatusAbsent, Now: status, Message: message,
+		})
+
+		return
+	}
+
+	RecordHostStatusChange(hostname, group, was, status, message)
+}
+
+// lastRecordedHostStatus is what this host was last written down as, if it ever
+// was. Called once per host per process, from under lastHostStatus.
+func lastRecordedHostStatus(hostname string) (int, bool) {
+	if LocalWigo == nil || LocalWigo.sqlLiteConn == nil {
+		return 0, false
+	}
+
+	LocalWigo.sqlLiteLock.Lock()
+	defer LocalWigo.sqlLiteLock.Unlock()
+
+	var status int
+	err := LocalWigo.sqlLiteConn.QueryRow(
+		`SELECT now FROM status_changes
+		 WHERE host = ? AND probe = ''
+		 ORDER BY at DESC LIMIT 1;`, hostname).Scan(&status)
+
+	return status, err == nil
+}
+
+// RecordHostStatusChange writes down a change in what a host is worth overall.
+//
+// These bands used to hold only Down and Up, so a host that never stopped
+// answering had nothing at all on its timeline and the screen said "nothing
+// known over that window" about a machine it had been watching for a month.
+// What somebody reads there is the host's health -- the summary beside it says
+// "not fine for two hours of it" -- and health is the worst of its probes, not
+// merely whether it replied.
+//
+// Down and Up keep owning reachability : a change out of the sentinel they use
+// is theirs to write, and recording it here as well would put two transitions
+// at the same instant.
+func RecordHostStatusChange(hostname string, group string, was int, now int, message string) {
+	if hostname == "" || was == now {
+		return
+	}
+
+	// The status a wigo carries while it is unreachable, cf. Wigo.Down
+	const down = 999
+
+	if was == down || now == down {
+		return
+	}
+
+	RecordStatusTransition(StatusChange{
+		Host: hostname, Group: group,
+		Was: was, Now: now, Message: message,
+	})
 }

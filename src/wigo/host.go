@@ -38,15 +38,19 @@ func NewHost() (this *Host) {
 
 func (this *Host) RecomputeStatus() {
 
-	this.Status = 0
+	// Computed aside and assigned once : probes run concurrently, so zeroing
+	// the field and building it back up in place lets another goroutine read
+	// the nought in between -- and nought is ERROR on this scale. It reached a
+	// timeline as a real transition to 0 before this.
+	worst := 0
 	hasProbe := false
 
 	for item := range this.Probes.IterBuffered() {
 		probe := item.Val.(*ProbeResult)
 		hasProbe = true
 
-		if probe.Status > this.Status {
-			this.Status = probe.Status
+		if probe.Status > worst {
+			worst = probe.Status
 		}
 	}
 
@@ -54,8 +58,10 @@ func (this *Host) RecomputeStatus() {
 	// Left at zero it would be rendered as ERROR, since the whole scale treats
 	// anything below 100 as one, and NewHost already starts at 100.
 	if !hasProbe {
-		this.Status = 100
+		worst = 100
 	}
+
+	this.Status = worst
 
 	return
 }
@@ -87,7 +93,14 @@ func (this *Host) AddOrUpdateProbe(probe *ProbeResult) {
 
 	// Update
 	GetLocalWigo().LocalHost.Probes.Set(probe.Name, probe)
-	GetLocalWigo().LocalHost.RecomputeStatus()
+
+	// What this host is worth overall, before and after : its timeline is the
+	// health of the machine, and the health of a machine is the worst of its
+	// probes rather than whether it answered.
+	local := GetLocalWigo().LocalHost
+	local.RecomputeStatus()
+
+	noteHostStatus(GetLocalWigo().GetHostname(), local.Group, local.Status, probe.Message)
 
 	// Graph
 	probe.GraphMetrics()
