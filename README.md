@@ -361,6 +361,29 @@ A failed unit is already known: systemd noticed, wrote it down, and stopped tryi
 
 `ignore` takes exact names rather than patterns — a pattern that quietly grows to cover a unit somebody cared about is how this kind of list stops being trustworthy. Units systemd could not even load are counted separately from units that ran and failed, because they are a different problem: a typo in a name, a dropped file.
 
+#### needrestart
+
+A library was replaced under a running process, and the process is still using the copy that was deleted. Nothing fails, nothing is logged, and the fix that was supposed to be applied is not applied until somebody restarts it.
+
+```json
+{
+  "enabled"         : true,
+  "needrestart"     : "/usr/sbin/needrestart",
+  "ignore"          : ["wigo.service"],
+  "kernel_status"   : 200,
+  "services_status" : 101,
+  "timeout"         : 30
+}
+```
+
+**Two different things, told apart.** A kernel that has been replaced needs a reboot, which needs a window — that is a WARNING. A handful of services holding stale libraries need a restart, which is a Tuesday afternoon — that is INFO, and the message **names them**, since knowing that *something* needs restarting is not actionable.
+
+`ignore` defaults to wigo itself: wigo restarting wigo to tell you it restarted is noise, and it would report itself forever after every upgrade of itself.
+
+The counts are read from the plugin's perfdata rather than from its exit code. With both checks on, an exit of 1 may be a kernel ABI change, or services holding stale libraries, or both, and the code alone cannot say which.
+
+`UNKN` — which is what needrestart answers when it is not running as root — is reported as the probe failing, not as nothing to restart. Not being able to look is not the same as having looked.
+
 #### check_dns
 
 When name resolution stops, everything on the machine breaks at once and nothing says why: connections do not fail, they hang, and the failure surfaces as every *other* service being slow.
